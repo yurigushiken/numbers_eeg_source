@@ -1,16 +1,16 @@
 # EEG Analysis Pipeline
 
-This directory contains a modernized, flexible, and reproducible workflow for conducting sensor-space and source-space EEG analyses, inspired by the methods in Jas et al. (2018).
+This is a workflow for sensor-space and source-space EEG analyses, inspired by the methods in Jas et al. (2018).
 
 ## Overview
 
-This project moves away from traditional ERP component analysis (e.g., measuring P1 or N1 amplitude in a pre-defined window) towards a data-driven, hypothesis-testing framework using non-parametric cluster-based permutation tests.
+In ths project we use non-parametric cluster-based permutation tests.
 
-**The core philosophy is to let the data reveal statistically significant differences without a priori assumptions about when or where effects will occur.** This method robustly controls for multiple comparisons across all time points, sensors, and source vertices.
+**The core philosophy is to let the data reveal statistically significant differences without a priori assumptions about when or where effects will occur.** This method controls for multiple comparisons across all time points, sensors, and source vertices.
 
 ## How it Works
 
-The analysis is controlled by a single, comprehensive YAML (`.yaml`) configuration file and executed by a single Python script. The pipeline performs the following steps automatically:
+You can control the analysis with a single YAML (`.yaml`) configuration file and execute with a single Python script. The pipeline performs the following steps automatically:
 
 1.  **Load Config:** Parses the specified `.yaml` file.
 2.  **Load Data:** Gathers all required subject epoch files.
@@ -33,26 +33,26 @@ The analysis is controlled by a single, comprehensive YAML (`.yaml`) configurati
 
 ## How to Run an Analysis
 
-All scripts are executed as Python modules from the **root directory of the project** (e.g., `D:/numbers_eeg/`). Ensure the `numbers-eeg` conda environment is active.
+PLease execute all scripts as Python modules from the **root directory of the project** (e.g., `D:/numbers_eeg/`). Ensure the `numbers_eeg_source` conda environment is active.
 
 **Command Structure:**
 
 ```bash
 # General format for sensor space
-conda activate numbers-eeg; python -m code.run_sensor_analysis_pipeline --config <path_to_config> --accuracy <dataset>
+conda activate numbers_eeg_source; python -m code.run_sensor_analysis_pipeline --config <path_to_config> --accuracy <dataset>
 
 # General format for source space
-conda activate numbers-eeg; python -m code.run_source_analysis_pipeline --config <path_to_config> --accuracy <dataset>
+conda activate numbers_eeg_source; python -m code.run_source_analysis_pipeline --config <path_to_config> --accuracy <dataset>
 ```
 
 **Example Analyses:**
 
 ```bash
 # Example 1: Run the 'change vs. no-change' sensor-space analysis
-conda activate numbers-eeg; python -m code.run_sensor_analysis_pipeline --config configs/sensor_change_vs_no-change.yaml --accuracy all
+conda activate numbers_eeg_source; python -m code.run_sensor_analysis_pipeline --config configs/sensor_change_vs_no-change.yaml --accuracy all
 
 # Example 2: Run the 'prime 1 vs prime 3' source-space analysis
-conda activate numbers-eeg; python -m code.run_source_analysis_pipeline --config configs/source_prime1-land3_vs_prime3-land1.yaml --accuracy all
+conda activate numbers_eeg_source; python -m code.run_source_analysis_pipeline --config configs/source_prime1-land3_vs_prime3-land1.yaml --accuracy all
 ```
 
 **Arguments:**
@@ -173,7 +173,35 @@ The report generator can export a PDF alongside HTML if one of the following is 
 Example (conda‑forge):
 
 ```powershell
-conda activate numbers-eeg; conda install -c conda-forge weasyprint cairo pango gdk-pixbuf
+conda activate numbers_eeg_source; conda install -c conda-forge weasyprint cairo pango gdk-pixbuf
 ```
 
 If no converter is available, the pipeline logs a warning and continues with HTML only.
+
+## GitHub: pushing from Windows/Cursor (what worked for us)
+
+If you see a permission error when pushing (e.g., you’re authenticated as a different GitHub user), switch the remote to HTTPS so Git Credential Manager can prompt you to sign in with the correct account, then push.
+
+Steps (run at the project root):
+
+```powershell
+# 1) Verify the current remote
+git remote -v
+
+# 2) Set the remote to HTTPS (replace with your repo URL)
+git remote set-url origin https://github.com/yurigushiken/numbers_eeg_source.git
+
+# 3) Stage code but exclude large/unversioned content
+git add .
+git reset -- data/ derivatives/
+git add .gitignore
+
+# 4) Commit and push
+git commit -m "Update"
+git push -u origin main
+```
+
+Notes:
+- On first HTTPS push, Windows Git Credential Manager opens a browser sign‑in. Log in as the repo owner and approve access. Future pushes will succeed without prompts.
+- If you previously signed in as the wrong user or have stale tokens, open Windows “Credential Manager” → Windows Credentials → remove entries for `git:https://github.com`, then push again to re‑authenticate.
+- We intentionally ignore `data/` and `derivatives/` via `.gitignore` so the repository only contains code, configs, and docs.
