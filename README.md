@@ -1,6 +1,7 @@
 # EEG Analysis Pipeline
 
-This is a workflow for sensor-space and source-space EEG analyses, inspired by the methods in Jas et al. (2018).
+This is a workflow for sensor-space and source-space EEG analyses, inspired by the methods in Jas, M., Larson, E., Engemann, D. A., Leppäkangas, J., Taulu, S., Hämäläinen, M., & Gramfort, A. (2018). A reproducible MEG/EEG group study with the MNE software: Recommendations, quality assessments, and good practices. https://pmc.ncbi.nlm.nih.gov/articles/PMC6088222/
+.
 
 ## Overview
 
