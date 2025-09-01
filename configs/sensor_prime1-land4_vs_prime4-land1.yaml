@@ -1,0 +1,41 @@
+# configs/sensor_prime1-land4_vs_prime4-land1.yaml
+
+# 1. General Analysis Information
+analysis_name: "sensor_prime1-land4_vs_prime4-land1"
+domain: "sensor"
+
+# 2. Epoch Time Window and Baseline Correction
+tmin: -0.1
+tmax: 0.6
+baseline: [-0.1, 0.0]
+
+# 3. Contrast Definition
+contrast:
+  name: "Prime 1/Land 4 vs. Prime 4/Land 1"
+  condition_A:
+    name: "Prime 1, Land 4"
+    condition_set_name: "PRIME_1_LAND_4"
+  condition_B:
+    name: "Prime 4, Land 1"
+    condition_set_name: "PRIME_4_LAND_1"
+  combination_weights: [1, -1]
+
+# 4. Statistical Analysis Parameters
+stats:
+  p_threshold: 0.001
+  cluster_alpha: 0.05
+  n_permutations: 1024
+  tail: 0  # two-sided test
+  seed: 42 # for reproducibility
+  connectivity:
+    method: "distance"
+    threshold: 0.04 # 4 cm
+
+# 5. Visualization Parameters
+visualizations:
+  erp:
+    channels: []
+  topomap:
+    times: []
+
+

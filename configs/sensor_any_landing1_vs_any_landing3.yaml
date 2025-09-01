@@ -1,0 +1,42 @@
+# configs/sensor_any_landing1_vs_any_landing3.yaml
+
+# 1. General Analysis Information
+analysis_name: "sensor_any_landing1_vs_any_landing3"
+domain: "sensor"
+
+# 2. Epoch Time Window and Baseline Correction
+tmin: -0.1
+tmax: 0.6
+baseline: [-0.1, 0.0]
+
+# 3. Contrast Definition
+contrast:
+  name: "All Landing on 1 vs All Landing on 3"
+  condition_A:
+    name: "Landing on 1 (all primes)"
+    condition_set_name: "LANDING_ON_1_ALL"
+  condition_B:
+    name: "Landing on 3 (all primes)"
+    condition_set_name: "LANDING_ON_3_ALL"
+  combination_weights: [1, -1]
+
+# 4. Statistical Analysis Parameters
+stats:
+  p_threshold: 0.001
+  cluster_alpha: 0.05
+  n_permutations: 1024
+  tail: 0
+  seed: 42
+  connectivity:
+    method: "distance"
+    threshold: 0.04
+
+# 5. Visualization Parameters
+visualizations:
+  erp:
+    channels: []
+  topomap:
+    times: []
+
+
+

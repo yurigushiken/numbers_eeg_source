@@ -1,0 +1,51 @@
+# configs/source_prime1-land4_vs_prime4-land1.yaml
+
+# 1. General Analysis Information
+analysis_name: "source_prime1-land4_vs_prime4-land1"
+domain: "source"
+
+# 2. Epoch Time Window and Baseline Correction
+# Narrowed to match sensor cluster window (124–168 ms)
+tmin: 0.124
+tmax: 0.168
+baseline: [-0.1, 0.0]
+
+# 3. Contrast Definition
+contrast:
+  name: "Prime 1/Land 4 vs. Prime 4/Land 1"
+  condition_A:
+    name: "Prime 1, Land 4"
+    condition_set_name: "PRIME_1_LAND_4"
+  condition_B:
+    name: "Prime 4, Land 1"
+    condition_set_name: "PRIME_4_LAND_1"
+  combination_weights: [1, -1]
+
+# 4. Source Reconstruction Parameters
+source:
+  method: "dSPM"
+  snr: 2.0
+
+# 5. Statistical Analysis Parameters
+stats:
+  p_threshold: 0.02
+  cluster_alpha: 0.05
+  n_permutations: 10000
+  tail: 1
+  seed: 42
+  method: threshold
+  n_jobs: 6
+  buffer_size: 1000
+  roi:
+    parc: aparc
+    labels:
+      - cuneus
+      - lingual
+      - lateraloccipital
+  label_timeseries:
+    parc: aparc
+    labels:
+      - cuneus
+      - lingual
+
+

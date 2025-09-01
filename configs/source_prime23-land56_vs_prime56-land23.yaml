@@ -1,0 +1,51 @@
+# configs/source_prime23-land56_vs_prime56-land23.yaml
+
+# 1. General Analysis Information
+analysis_name: "source_prime23-land56_vs_prime56-land23"
+domain: "source"
+
+# 2. Epoch Time Window and Baseline Correction
+# Start broad; we can narrow if needed based on sensor results
+tmin: 0.12
+tmax: 0.16
+baseline: [-0.1, 0.0]
+
+# 3. Contrast Definition
+contrast:
+  name: "Prime(2 or 3) Landing(5 or 6) vs Prime(5 or 6) Landing(2 or 3)"
+  condition_A:
+    name: "Prime 2/3, Land 5/6"
+    condition_set_name: "PRIME_23_LAND_56"
+  condition_B:
+    name: "Prime 5/6, Land 2/3"
+    condition_set_name: "PRIME_56_LAND_23"
+  combination_weights: [1, -1]
+
+# 4. Source Reconstruction Parameters
+source:
+  method: "dSPM"
+  snr: 2.0
+
+# 5. Statistical Analysis Parameters
+stats:
+  p_threshold: 0.02
+  cluster_alpha: 0.05
+  n_permutations: 5000
+  tail: 1
+  seed: 42
+  method: threshold
+  n_jobs: 6
+  buffer_size: 1000
+  roi:
+    parc: aparc
+    labels:
+      - cuneus
+      - lingual
+      - lateraloccipital
+  label_timeseries:
+    parc: aparc
+    labels:
+      - cuneus
+      - lingual
+
+

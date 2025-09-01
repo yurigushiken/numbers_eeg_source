@@ -1,0 +1,10 @@
+matplotlib
+mne
+nilearn
+numpy
+pandas
+pingouin
+PyYAML
+scipy
+seaborn
+statsmodels

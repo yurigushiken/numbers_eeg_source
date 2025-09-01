@@ -1,0 +1,39 @@
+# configs/source_cardinality1_vs_cardinality5.yaml
+
+# 1. General Analysis Information
+analysis_name: "source_cardinality1_vs_cardinality5"
+domain: "source"
+
+# 2. Epoch Time Window and Baseline Correction
+# Start broad; refine later based on sensor results
+tmin: 0.0
+tmax: 0.3
+baseline: [-0.1, 0.0]
+
+# 3. Contrast Definition
+contrast:
+  name: "Cardinality 1 vs. Cardinality 5"
+  condition_A:
+    name: "Cardinality 1"
+    condition_set_name: "CARDINALITY_1"
+  condition_B:
+    name: "Cardinality 5"
+    condition_set_name: "CARDINALITY_5"
+  combination_weights: [1, -1]
+
+# 4. Source Reconstruction Parameters
+source:
+  method: "dSPM"
+  snr: 2.0
+
+# 5. Statistical Analysis Parameters
+stats:
+  p_threshold: 0.01
+  cluster_alpha: 0.05
+  n_permutations: 5000
+  tail: 0 # two-sided test initially
+  seed: 42 # for reproducibility
+  method: threshold
+  n_jobs: 6
+  buffer_size: 1000
+
