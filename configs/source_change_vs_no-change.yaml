@@ -27,9 +27,19 @@ source:
   # Signal-to-noise ratio
   snr: 3.0
 
+# --- Inverse Solution Parameters ---
+# These parameters are used when generating inverse operators.
+# loose: Orientation constraint (0.2 is a good default for EEG)
+# depth: Depth weighting to compensate for bias toward superficial sources.
+#        The default of 0.8 is for MEG; a value around 3.0 is more
+#        appropriate for EEG.
+inverse:
+  loose: 0.2
+  depth: 3.0
+
 # 5. Cluster Statistics Parameters
 stats:
-  p_threshold: 0.001
+  p_threshold: 0.05
   cluster_alpha: 0.05
   n_permutations: 1024
   tail: 0 # two-sided

@@ -98,7 +98,8 @@ conda activate numbers_eeg_source; python -m code.run_source_analysis_pipeline -
 ## Key pipeline updates and defaults
 
 -   Signed source estimates: inverse application uses `pick_ori='normal'` so source time courses keep polarity, avoiding magnitude inflation.
--   Preprocessing: baseline correction applied from YAML; average EEG reference enforced; the previous 1 Hz FIR high‑pass on short epochs is not used.
+-   Preprocessing: baseline correction applied from YAML; average EEG reference is enforced as a projector for robustness; the previous 1 Hz FIR high‑pass on short epochs is not used.
+-   Inverse solution parameters: `loose` and `depth` values are now configurable in each source YAML file. The on-the-fly fallback uses EEG-appropriate defaults (`depth=3.0`), and you can specify these values via CLI arguments (`--loose`, `--depth`) when pre-computing operators.
 -   Time‑window discipline: source analyses (and label time‑series fallback) crop data to YAML `tmin`/`tmax`; sensor analyses evaluate the full epoch and report/plot the significant window found by clustering.
 -   Tail handling and thresholds: both domains honor `tail` (−1/0/+1) in the test; cluster‑forming threshold is tail‑aware in source, while sensor currently uses a two‑sided threshold.
 -   ROI‑restricted clustering: optional anatomical restriction (e.g., `aparc` labels). Plotting respects ROI vertices.
@@ -120,7 +121,8 @@ python -m code.run_sensor_analysis_pipeline --config configs/sensor_prime1-land3
 python -m code.run_source_analysis_pipeline --config configs/source_prime1-land3_vs_prime3-land1.yaml --accuracy all
 
 # Precompute inverse operators (recommended before source analyses)
-python -m code.build_inverse_solutions
+# Note: Use --depth 3.0 for an EEG-appropriate depth weighting.
+python -m code.build_inverse_solutions --depth 3.0
 
 # Run FULL pipeline (builds combined HTML report)
 python -m code.run_full_analysis_pipeline --config configs/sensor_prime1-land3_vs_prime3-land1.yaml --accuracy all
@@ -151,6 +153,12 @@ python -m code.run_full_analysis_pipeline --config configs/sensor_any_landing1_v
         parc: aparc
         labels: ["cuneus", "lingual", "lateraloccipital"]
         mode: "mean_flip"
+    ```
+-   Inverse Solution Parameters (source-space only):
+    ```yaml
+    inverse:
+      loose: 0.2
+      depth: 3.0
     ```
 
 ## Troubleshooting

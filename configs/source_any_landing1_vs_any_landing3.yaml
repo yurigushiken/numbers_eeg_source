@@ -26,6 +26,13 @@ source:
   method: "dSPM"
   snr: 2.0
 
+# --- Inverse Solution Parameters ---
+# loose: Orientation constraint (0.2 is a good default for EEG)
+# depth: Depth weighting. 0.8 is for MEG; ~3.0 is better for EEG.
+inverse:
+  loose: 0.2
+  depth: 3.0
+
 # 5. Statistical Analysis Parameters
 stats:
   p_threshold: 0.05

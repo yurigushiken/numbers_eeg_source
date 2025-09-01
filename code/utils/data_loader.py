@@ -203,7 +203,7 @@ def get_fsaverage_src(project_root="."):
     return mne.read_source_spaces(fsaverage_src_path, verbose=False)
 
 
-def generate_template_inverse_operator_from_epochs(epochs, subject_dir):
+def generate_template_inverse_operator_from_epochs(epochs, subject_dir, config):
     """
     Generates and saves an inverse operator using the fsaverage template from epochs.
 
@@ -237,11 +237,16 @@ def generate_template_inverse_operator_from_epochs(epochs, subject_dir):
     log.info("Computing noise covariance...")
     cov = mne.compute_covariance(epochs, tmax=0, method='auto', rank=None, verbose=False)
 
-    # 5. Compute inverse operator
-    log.info("Computing inverse operator...")
-    inv = make_inverse_operator(epochs.info, fwd, cov, loose=0.2, depth=0.8, verbose=False)
+    # 5. Get inverse params from config, with EEG-appropriate defaults
+    inverse_params = config.get('inverse', {})
+    loose = inverse_params.get('loose', 0.2)
+    depth = inverse_params.get('depth', 3.0)
+    log.info(f"Computing inverse operator with loose={loose}, depth={depth}...")
 
-    # 6. Save the inverse operator for future runs
+    # 6. Compute inverse operator
+    inv = make_inverse_operator(epochs.info, fwd, cov, loose=loose, depth=depth, verbose=False)
+
+    # 7. Save the inverse operator for future runs
     inv_fname = subject_dir / f"{subject_dir.name}-inv.fif"
     inv_fname.parent.mkdir(exist_ok=True, parents=True)
     write_inverse_operator(inv_fname, inv, verbose=False)

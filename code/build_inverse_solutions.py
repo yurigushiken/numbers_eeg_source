@@ -9,6 +9,7 @@ import matplotlib.pyplot as plt
 from tqdm import tqdm
 import logging
 import sys
+import argparse
 
 # Add the project root to the path to allow for module imports if run directly
 project_root_path = Path(__file__).resolve().parents[1]
@@ -59,7 +60,7 @@ def _load_and_prep_epochs(subject_id, data_root, montage_path):
 
         # Set the average reference. 'projection=True' makes it a projector.
         try:
-            epochs.set_eeg_reference('average', projection=False)
+            epochs.set_eeg_reference('average', projection=True)
         except Exception:
             pass
         log.info("Applied average EEG reference.")
@@ -135,11 +136,11 @@ def _validate_coregistration(info, subject_id, subjects_dir, qc_dir):
     
     log.info(f"Saved coregistration QC plot to: {qc_filename}")
 
-def _compute_and_save_inverse_operator(info, noise_cov, subject_id, subjects_dir, project_root):
+def _compute_and_save_inverse_operator(info, noise_cov, subject_id, subjects_dir, project_root, loose, depth):
     """
-    Computes and saves the inverse operator using a simplified spherical head model.
+    Computes and saves the inverse operator using the fsaverage 3-layer BEM.
     """
-    log.info("Computing forward and inverse solutions using a SPHERICAL model...")
+    log.info(f"Computing forward and inverse solutions using fsaverage 3-layer BEM (loose={loose}, depth={depth})...")
 
     # --- Step 1: Define path to the source space file ---
     # The source space (the grid of points where we estimate activity) is still
@@ -147,16 +148,9 @@ def _compute_and_save_inverse_operator(info, noise_cov, subject_id, subjects_dir
     fs_dir = Path(subjects_dir) / 'fsaverage'
     src_fname = fs_dir / "bem" / "fsaverage-ico-5-src.fif"
 
-    # --- Step 2: Create the spherical head model ---
-    # This creates a single-shell spherical model. The sphere's origin and radius
-    # are automatically fitted to the sensor locations in the `info` object.
-    log.info("Creating single-shell spherical head model...")
-    sphere_model = mne.make_sphere_model(r0='auto', head_radius='auto', info=info, verbose=False)
-
-    # --- Step 3: Compute the Forward Solution ---
-    # Instead of passing a path to a BEM file, we pass the `sphere_model` object.
-    log.info("Computing forward solution...")
+    # --- Step 2: Compute the Forward Solution using the BEM ---
     # Use realistic BEM for EEG (fsaverage 3-layer solution) per MNE best practices
+    log.info("Computing forward solution...")
     bem_fname = fs_dir / "bem" / "fsaverage-5120-5120-5120-bem-sol.fif"
     fwd = mne.make_forward_solution(
         info,
@@ -169,15 +163,15 @@ def _compute_and_save_inverse_operator(info, noise_cov, subject_id, subjects_dir
     )
     log.info("Successfully computed forward solution.")
 
-    # --- Step 4: Compute and Save the Inverse Operator ---
+    # --- Step 3: Compute and Save the Inverse Operator ---
     # This part of the logic remains unchanged.
     log.info("Computing inverse operator...")
     inv_op = mne.minimum_norm.make_inverse_operator(
         info,
         forward=fwd,
         noise_cov=noise_cov,
-        loose=0.2,
-        depth=0.8,
+        loose=loose,
+        depth=depth,
         verbose=False
     )
 
@@ -189,6 +183,11 @@ def _compute_and_save_inverse_operator(info, noise_cov, subject_id, subjects_dir
     log.info(f"SUCCESS: Inverse operator saved to: {inv_filename}")
 
 def main():
+    parser = argparse.ArgumentParser(description="Build inverse solutions for all subjects.")
+    parser.add_argument("--loose", type=float, default=0.2, help="Loose parameter for the inverse operator.")
+    parser.add_argument("--depth", type=float, default=0.8, help="Depth parameter for the inverse operator (MEG default).")
+    args = parser.parse_args()
+
     # 1. Define key paths
     project_root = Path(__file__).resolve().parents[1]
     # Strictly use data/all as the source of per-condition epochs
@@ -229,7 +228,10 @@ def main():
             _validate_coregistration(epochs.info, subject_id, subjects_dir, qc_dir)
 
             # 8. Compute Forward and Inverse Solutions
-            _compute_and_save_inverse_operator(epochs.info, noise_cov, subject_id, subjects_dir, project_root)
+            _compute_and_save_inverse_operator(
+                epochs.info, noise_cov, subject_id, subjects_dir, project_root,
+                loose=args.loose, depth=args.depth
+            )
 
         except Exception as e:
             log.error(f"!!! FAILED to process {subject_id}: {e}", exc_info=True)

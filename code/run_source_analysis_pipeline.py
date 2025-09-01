@@ -46,8 +46,19 @@ def main(config_path=None, accuracy=None):
         try:
             inv_operator = data_loader.get_inverse_operator(subject_dir)
         except FileNotFoundError:
-            log.warning(f"Inverse operator not found for {subject_dir.name}. Skipping subject.")
-            continue
+            log.warning(f"Inverse operator not found for {subject_dir.name}. "
+                        f"Generating a template inverse on-the-fly.")
+            # We need the concatenated epochs for this subject to compute covariance.
+            # Note: This re-loads data, but it's an exceptional case.
+            _, all_epochs = data_loader.create_subject_contrast(subject_dir, config)
+            if all_epochs is None:
+                log.error(f"Could not load epochs for {subject_dir.name} to generate "
+                          f"template inverse. Skipping.")
+                continue
+            # Now call the fallback function, passing the config
+            inv_operator = data_loader.generate_template_inverse_operator_from_epochs(
+                all_epochs, subject_dir, config
+            )
 
         stc = data_loader.compute_subject_source_contrast(
             contrast_evoked, inv_operator, config
