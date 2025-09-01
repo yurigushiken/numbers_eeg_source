@@ -7,9 +7,7 @@ A reproducible workflow for **sensor-space** and **source-space** EEG analyses u
 
 ## Overview
 
-In ths project we use non-parametric cluster-based permutation tests.
-
-**The core philosophy is to let the data reveal statistically significant differences without a priori assumptions about when or where effects will occur.** This method controls for multiple comparisons across all time points, sensors, and source vertices.
+The core philosophy is to let the data reveal statistically significant differences without a priori assumptions about when or where effects will occur. This method controls for multiple comparisons across all time points, sensors, and source vertices.
 
 ## How it Works
 
