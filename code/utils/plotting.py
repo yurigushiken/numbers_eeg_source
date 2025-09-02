@@ -7,9 +7,6 @@ from matplotlib.colors import Normalize
 import numpy as np
 import mne
 from pathlib import Path
-import imageio.v2 as iio
-from nilearn import plotting
-import nibabel as nib
 import re
 from code.utils.electrodes import ELECTRODE_GROUPS
 
@@ -43,211 +40,284 @@ def _split_vertices_for_fsaverage(vertices_like):
     return [np.array(lh_verts), np.array(rh_verts)]
 
 
-def export_mask_to_glass_brain(mask_stc, inv_fname, output_dir, analysis_name, subjects_dir):
-    try:
-        import mne
-        import nibabel as nib
-        from nilearn import plotting
-        inv = mne.minimum_norm.read_inverse_operator(str(inv_fname))
-        src = inv["src"]
+def _create_blank_image(path, message):
+    """Creates a blank placeholder image with a text message."""
+    fig, ax = plt.subplots(figsize=(8, 6))
+    ax.text(0.5, 0.5, message, ha='center', va='center', fontsize=12, wrap=True)
+    ax.axis('off')
+    fig.savefig(path, dpi=100)
+    plt.close(fig)
 
-        # Only volumetric STCs can be turned into NIfTI directly
-        if not isinstance(mask_stc, mne.VolSourceEstimate):
-            log.warning("mask_stc is a surface SourceEstimate; skipping glass-brain NIfTI export.")
-            return
 
-        # Volumetric path:
-        img = mask_stc.as_volume(src=src, dest="mri", mri_resolution=True)
-        out_nii = output_dir / f"{analysis_name}_union_mask.nii.gz"
-        nib.save(img, out_nii)
-        log.info(f"Saved union-mask NIfTI to {out_nii}")
+def _compose_source_figure(
+    stc_data, vertices, tmin, tstep, colormap, clim, cbar_label, output_path,
+    analysis_name, config, cluster_p_val, time_label, peak_info, subjects_dir
+):
+    """Helper to generate and save a 6-view source plot composite."""
+    stc_to_plot = mne.SourceEstimate(
+        stc_data, vertices=vertices, tmin=tmin, tstep=tstep, subject='fsaverage'
+    )
 
-        display = plotting.plot_glass_brain(
-            str(out_nii), display_mode="lyrz", threshold=0.5, colorbar=True,
-            plot_abs=False, title="Significant Clusters (union mask)",
+    # Render each view to a temporary tile
+    views = ['lateral', 'medial', 'frontal', 'parietal', 'dorsal', 'ventral']
+    tile_paths = []
+    output_dir = Path(output_path).parent
+    peak_vertno, hemi_code = peak_info['vertno'], peak_info['hemi_code']
+
+    for view in views:
+        brain = stc_to_plot.plot(
+            subject='fsaverage', subjects_dir=subjects_dir, surface='inflated',
+            hemi='both', views=[view], size=(800, 600), background='white',
+            foreground='black', time_viewer=False, show_traces=False,
+            colorbar=False, colormap=colormap, cortex='classic',
+            smoothing_steps=10, clim=clim,
+            initial_time=float(stc_to_plot.times[0]), transparent=False,
+            alpha=1.0, title=""
         )
-        out_png = output_dir / f"{analysis_name}_glass_brain.png"
-        display.savefig(out_png, dpi=200, facecolor="black")
-        display.close()
-        log.info(f"Saved glass-brain snapshot to {out_png}")
+        brain.add_foci(
+            [peak_vertno], coords_as_verts=True,
+            hemi=('lh' if hemi_code == 0 else 'rh'),
+            scale_factor=0.7, color='black'
+        )
+        tmp_path = output_dir / f"{analysis_name}_tile_{view}.png"
+        try:
+            brain.save_image(tmp_path)
+        except Exception:
+            img = brain.screenshot()
+            from matplotlib import image as mpimg
+            mpimg.imsave(tmp_path, img)
+        finally:
+            brain.close()
+        tile_paths.append(tmp_path)
 
-    except Exception as e:
-        log.error(f"Failed to generate glass brain plot: {e}")
+    if not tile_paths:
+        raise RuntimeError("Failed to render any source views.")
+
+    # Compose tiles into a 2x3 grid
+    fig, axes = plt.subplots(2, 3, figsize=(13, 8), dpi=300)
+    for ax, img_path in zip(axes.ravel(), tile_paths):
+        img = plt.imread(str(img_path))
+        ax.imshow(img)
+        ax.axis('off')
+        img_path.unlink() # Clean up temporary tile
+
+    # Add unified colorbar
+    cmap = plt.get_cmap(colormap)
+    vmax_cb = clim['pos_lims'][-1] if 'pos_lims' in clim else clim['lims'][-1]
+    vmin_cb = -vmax_cb if 'pos_lims' in clim else clim['lims'][0]
+    norm = Normalize(vmin=vmin_cb, vmax=vmax_cb)
+    sm = plt.cm.ScalarMappable(norm=norm, cmap=cmap)
+    sm.set_array([])
+    cbar = fig.colorbar(sm, ax=axes.ravel().tolist(), orientation='horizontal', fraction=0.05, pad=0.10)
+    cbar.set_label(cbar_label, fontsize=10)
+
+    # --- Compose and add metadata strings ---
+    title_main = f"{config['contrast']['name']}"
+    subtitle_1 = (
+        f"Most significant cluster (p={cluster_p_val:.3f}), averaged within {time_label} | "
+        f"{peak_info['subtitle_1_stats']}"
+    )
+    subtitle_2 = (
+        f"Peak t={peak_info['t']:.2f} at MNI {peak_info['mni_str']}, "
+        f"region {peak_info['region']}, cluster size={peak_info['size']} vertices"
+    )
+    fig.text(0.02, 0.99, title_main, ha='left', va='top', fontsize=20)
+    fig.text(0.02, 0.962, subtitle_1, ha='left', va='top', fontsize=9)
+    fig.text(0.02, 0.935, subtitle_2, ha='left', va='top', fontsize=9)
+
+    fig.text(0.02, 0.06, peak_info['footer'], ha='left', va='bottom', fontsize=9)
+
+    view_labels = ['Lateral', 'Medial', 'Frontal', 'Parietal', 'Dorsal', 'Ventral']
+    for ax, lbl in zip(axes.ravel(), view_labels):
+        bbox = ax.get_position()
+        fig.text(bbox.x0 + 0.005, bbox.y0 - 0.02, lbl, ha='left', va='top', fontsize=9)
+
+    fig.savefig(output_path, bbox_inches='tight', pad_inches=0.02)
+    plt.close(fig)
+    log.info(f"Saved source cluster snapshot to {output_path}")
 
 
 def plot_source_clusters(stats_results, stc_grand_average, config, output_dir):
     """
-    Builds a summary STC of significant clusters and plots it on the surface.
+    Plots source analysis results in three ways and saves them as separate files:
+    1. T-Values with Quantile-based colormap (for robust visualization).
+    2. T-Values with Full-Range colormap (to see the whole cluster).
+    3. Grand-Average dSPM values masked by the cluster (to see effect size).
     """
     try:
-        from mne.stats import summarize_clusters_stc
         analysis_name = config['analysis_name']
         subjects_dir, _ = _check_fsaverage_path()
         if subjects_dir is None:
+            raise RuntimeError("subjects_dir could not be resolved for fsaverage")
+
+        t_obs, clusters, cluster_p_values, _ = stats_results
+        if not clusters or cluster_p_values is None:
+            raise RuntimeError("No clusters returned from statistical analysis.")
+
+        # --- 1. Find Most Significant Cluster and its Properties ---
+        alpha = float(config['stats']['cluster_alpha'])
+        sig_idx = np.where(cluster_p_values < alpha)[0]
+        if sig_idx.size == 0:
+            # No significant clusters: create placeholder images and return gracefully
+            msg = f"No significant source clusters at alpha={alpha}."
+            analysis_name = config['analysis_name']
+            path1 = output_dir / f"{analysis_name}_source_plot_1_t-value-quantile.png"
+            path2 = output_dir / f"{analysis_name}_source_plot_2_t-value-full-range.png"
+            path3 = output_dir / f"{analysis_name}_source_plot_3_grand-average-dspm.png"
+            try:
+                _create_blank_image(path1, msg)
+                _create_blank_image(path2, msg)
+                _create_blank_image(path3, msg)
+            except Exception:
+                pass
+            log.info(msg)
             return
+        min_p_idx = sig_idx[np.argmin(cluster_p_values[sig_idx])]
+        cl = clusters[min_p_idx]
 
-        log.info("Summarizing significant clusters for plotting...")
+        time_inds = np.unique(np.asarray(cl[0], dtype=int))
+        n_times_grand_avg = stc_grand_average.times.size
+        time_inds = time_inds[(time_inds >= 0) & (time_inds < n_times_grand_avg)]
+        if time_inds.size == 0:
+            raise RuntimeError("Cluster time indices are out of bounds for the grand average STC.")
+
+        # --- 2. Prepare Data Arrays for all Plots ---
+        # Get T-values averaged over the cluster's time window
+        t_avg_all = t_obs[time_inds, :].mean(axis=0)
+        v_inds_cluster_local = np.unique(np.asarray(cl[1], dtype=int)) # Indices into t_obs space
+
+        # Create the T-map: a full-brain vector with NaNs outside the cluster
+        t_map_local = np.full_like(t_avg_all, np.nan, dtype=float)
+        t_map_local[v_inds_cluster_local] = t_avg_all[v_inds_cluster_local]
+
+        # Expand local (e.g., ROI-restricted) vectors to full fsaverage space
+        keep_idx = config.get('stats', {}).get('_keep_idx')
+        full_vertices = [np.array(stc_grand_average.vertices[0]), np.array(stc_grand_average.vertices[1])]
+        full_n = int(np.sum([len(v) for v in full_vertices]))
         
-        # If ROI restriction was used during clustering, the returned cluster vertex
-        # indices refer to the ROI-subset vertex list, not the full fsaverage space.
-        # Use the ROI vertices to avoid shape mismatches; otherwise fall back to full.
-        roi_vertices = None
-        try:
-            roi_vertices = config.get('stats', {}).get('_roi_vertices')
-            if roi_vertices is not None and len(roi_vertices) == 2:
-                roi_vertices = [np.array(roi_vertices[0]), np.array(roi_vertices[1])]
-        except Exception:
-            roi_vertices = None
+        t_map_full = t_map_local
+        if keep_idx is not None and int(t_map_local.size) != full_n:
+            keep_idx = np.asarray(keep_idx, dtype=int)
+            full_vec = np.full(full_n, np.nan, dtype=float)
+            full_vec[keep_idx] = t_map_local
+            t_map_full = full_vec
+        
+        # Create the masked Grand Average dSPM map
+        ga_map_full = np.full(full_n, np.nan, dtype=float)
+        cluster_v_inds_global = v_inds_cluster_local
+        if keep_idx is not None:
+            cluster_v_inds_global = keep_idx[v_inds_cluster_local]
+        
+        ga_cluster_data = stc_grand_average.data[cluster_v_inds_global, :][:, time_inds].mean(axis=1)
+        ga_map_full[cluster_v_inds_global] = ga_cluster_data
 
-        vertices_for_summary = roi_vertices if roi_vertices is not None else stc_grand_average.vertices
+        # --- 3. Calculate Common Metadata for Titles and Labels ---
+        cluster_times = stc_grand_average.times[time_inds]
+        time_label = f"{cluster_times.min()*1000:.0f}-{cluster_times.max()*1000:.0f} ms"
+        
+        peak_global_idx = int(np.nanargmax(np.abs(t_map_full)))
+        peak_t = float(t_map_full[peak_global_idx])
+        
+        lh_n = len(full_vertices[0])
+        hemi_code = 0 if peak_global_idx < lh_n else 1
+        peak_vertno = int(full_vertices[0][peak_global_idx] if hemi_code == 0 else full_vertices[1][peak_global_idx - lh_n])
+        
+        peak_mni = mne.vertex_to_mni([peak_vertno], hemis=hemi_code, subject='fsaverage', subjects_dir=subjects_dir)[0]
+        
+        parc = (config.get('stats', {}).get('roi', {}) or {}).get('parc', 'aparc')
+        labels = mne.read_labels_from_annot('fsaverage', parc=parc, subjects_dir=subjects_dir, verbose=False)
+        peak_region = "Unknown"
+        for lbl in labels:
+            if lbl.hemi == ('lh' if hemi_code == 0 else 'rh') and peak_vertno in lbl.vertices:
+                peak_region = lbl.name.replace('-lh','').replace('-rh','')
+                break
 
-        stc_sum = summarize_clusters_stc(
-            stats_results,
-            p_thresh=config['stats']['cluster_alpha'],
-            tstep=stc_grand_average.tstep,
-            tmin=stc_grand_average.tmin,
-            subject="fsaverage",
-            vertices=vertices_for_summary,
+        method = str(config.get('source', {}).get('method', 'dSPM')).upper()
+        tail = int(config.get('stats', {}).get('tail', 0))
+        pthr = config.get('stats', {}).get('p_threshold')
+        perms = config.get('stats', {}).get('n_permutations')
+        roi_labels = ", ".join(config.get('stats', {}).get('roi', {}).get('labels', [])) or 'whole brain'
+
+        peak_info = {
+            't': peak_t,
+            'vertno': peak_vertno,
+            'hemi_code': hemi_code,
+            'mni_str': f"({peak_mni[0]:.1f}, {peak_mni[1]:.1f}, {peak_mni[2]:.1f})",
+            'region': peak_region,
+            'size': int(np.count_nonzero(~np.isnan(t_map_full))),
+            'subtitle_1_stats': f"method={method} -> cluster stats | tail={tail}, p_thr={pthr}, perms={perms} | ROI: {roi_labels}",
+            'footer': f"fsaverage | pick_ori=normal | vertices kept {t_map_local.size}/{full_n}"
+        }
+
+        stc_tmin = float(cluster_times.mean())
+        stc_tstep = 0.0 # Single pseudo-time point for plotting
+
+        # --- 4. Generate and Save the Three Plots ---
+        # Plot 1: T-Values with Quantile colormap
+        nz = np.abs(t_map_full[np.isfinite(t_map_full)])
+        q = np.quantile(nz[nz > 0], [0.25, 0.50, 0.90])
+        pos_lims_quantile = [float(max(q[0], 1e-6)), float(max(q[1], q[0] + 1e-6)), float(max(q[2], q[1] + 1e-6))]
+        clim_quantile = dict(kind='value', pos_lims=pos_lims_quantile)
+        path1 = output_dir / f"{analysis_name}_source_plot_1_t-value-quantile.png"
+        
+        _compose_source_figure(
+            t_map_full.reshape(-1, 1), full_vertices, stc_tmin, stc_tstep, 'RdBu_r', clim_quantile,
+            'T-value (Quantile-thresholded)', path1, analysis_name, config,
+            cluster_p_values[min_p_idx], time_label, peak_info, subjects_dir
+        )
+        
+        # Plot 2: T-Values with Full-Range colormap
+        vmax_abs = np.nanmax(np.abs(t_map_full))
+        if not np.isfinite(vmax_abs) or vmax_abs <= 0:
+            # Fallback for degenerate maps
+            pos_lims_full = [1e-6, 2e-6, 3e-6]
+        else:
+            pos_lims_full = [vmax_abs * 0.25, vmax_abs * 0.5, vmax_abs * 0.95]
+        # Ensure strictly increasing thresholds
+        eps_full = max(1e-6, 1e-6 * (pos_lims_full[-1] if np.isfinite(pos_lims_full[-1]) else 1.0))
+        if not (pos_lims_full[1] > pos_lims_full[0]):
+            pos_lims_full[1] = pos_lims_full[0] + eps_full
+        if not (pos_lims_full[2] > pos_lims_full[1]):
+            pos_lims_full[2] = pos_lims_full[1] + eps_full
+        clim_full = dict(kind='value', pos_lims=pos_lims_full)
+        path2 = output_dir / f"{analysis_name}_source_plot_2_t-value-full-range.png"
+        _compose_source_figure(
+            t_map_full.reshape(-1, 1), full_vertices, stc_tmin, stc_tstep, 'RdBu_r', clim_full,
+            'T-value (Full Range)', path2, analysis_name, config,
+            cluster_p_values[min_p_idx], time_label, peak_info, subjects_dir
         )
 
-        # Note: summarize_clusters_stc returns vertices matching the input 'vertices'.
-        # For ROI-restricted clustering, this results in an STC defined on the ROI mesh.
-        # This is acceptable for plotting and prevents vertex mismatch errors.
-
-        if stc_sum.data.max() == 0:
-            log.warning("No significant clusters found to plot after summarizing. Skipping plot generation.")
-            return
-
-        log.info(f"Plotting summary of significant clusters.")
-        
-        # Use helper to pick an informative time point and robust color limits
-        initial_time, clim = _choose_time_and_clim(stc_sum)
-
-        # Render six tiles (one per view) and compose into a 2x3 grid for consistent spacing
-        views = ["lateral", "medial", "frontal", "parietal", "dorsal", "ventral"]
-        tile_paths = []
-        for idx, view in enumerate(views):
-            try:
-                brain_tile = stc_sum.plot(
-                    subject="fsaverage",
-                    subjects_dir=subjects_dir,
-                    hemi="both",
-                    views=[view],
-                    surface="inflated",
-                    cortex="classic",
-                    time_viewer=False,
-                    colorbar=False,  # we'll draw a unified colorbar in the footer
-                    show_traces=False,
-                    background="white",
-                    size=(900, 700),
-                    time_label="",  # suppress on-tile time text to avoid occlusion
-                    clim=clim,
-                    initial_time=initial_time,
-                )
-                tmp_path = output_dir / f"{analysis_name}_tile_{view}.png"
-                brain_tile.save_image(tmp_path)
-                tile_paths.append(tmp_path)
-                try:
-                    brain_tile.close()
-                except Exception:
-                    pass
-            except Exception as e_tile:
-                log.warning(f"Failed to render view '{view}': {e_tile}")
-
-        if not tile_paths:
-            log.warning("No tiles were rendered; skipping composite image.")
-            return
-
-        # Compose tiles into a grid canvas with header/footer space for text
-        # Load tiles and normalize to RGB (3 channels)
-        tiles = []
-        for p in tile_paths:
-            img = iio.imread(str(p))
-            if img.ndim == 2:
-                img = np.stack([img, img, img], axis=-1)
-            elif img.shape[2] == 4:
-                img = img[:, :, :3]
-            tiles.append(img)
-
-        h, w = tiles[0].shape[:2]
-        pad = 20
-        grid_h = 2 * h + 3 * pad
-        grid_w = 3 * w + 4 * pad
-        header_px, footer_px = 260, 120
-        full_h = header_px + grid_h + footer_px
-        full_w = grid_w
-        canvas = np.ones((full_h, full_w, 3), dtype=np.uint8) * 255
-        # place tiles after header
-        positions = [
-            (header_px + pad, pad),
-            (header_px + pad, pad + w + pad),
-            (header_px + pad, pad + 2 * (w + pad)),
-            (header_px + pad + h + pad, pad),
-            (header_px + pad + h + pad, pad + w + pad),
-            (header_px + pad + h + pad, pad + 2 * (w + pad)),
-        ]
-        for img, (yy, xx) in zip(tiles, positions):
-            hh, ww = img.shape[:2]
-            canvas[yy:yy+hh, xx:xx+ww] = img
-
-        # Global annotations via matplotlib overlay
-        try:
-            n_total = int(np.sum([len(v) for v in stc_grand_average.vertices]))
-            roi_vertices = config.get('stats', {}).get('_roi_vertices')
-            n_keep = int(np.sum([len(v) for v in roi_vertices])) if roi_vertices is not None else n_total
-        except Exception:
-            n_total, n_keep = 0, 0
-        contrast = config.get('contrast', {}).get('name', analysis_name)
-        tail = config.get('stats', {}).get('tail')
-        pthr = config.get('stats', {}).get('p_threshold')
-        alpha = config.get('stats', {}).get('cluster_alpha')
-        n_perm = config.get('stats', {}).get('n_permutations')
-        roi_cfg = config.get('stats', {}).get('roi')
-        roi_str = ",".join(roi_cfg.get('labels', [])) if roi_cfg else 'whole brain'
-        title = f"{contrast} — ROI: {roi_str} — method=dSPM, pick_ori=normal"
-        stats_line1 = f"t={initial_time*1000:.1f} ms, tail={tail}"
-        stats_line2 = f"p_thr={pthr}, α={alpha}, perms={n_perm}"
-        footer = f"fsaverage • dSPM (a.u.) • vertices {n_keep}/{n_total}"
-
-        out_png_fname = output_dir / f"{analysis_name}_source_cluster.png"
-        fig, ax = plt.subplots(figsize=(15, 9.5), dpi=300)
-        ax.imshow(canvas)
-        ax.axis('off')
-        # Use figure-level text so it never overlaps the image grid
-        fig.text(0.02, 0.99, title, ha='left', va='top', fontsize=20, color='black')
-        # Add extra vertical spacing between title and stats lines
-        fig.text(0.02, 0.955, stats_line1, ha='left', va='top', fontsize=14, color='black')
-        fig.text(0.02, 0.93, stats_line2, ha='left', va='top', fontsize=14, color='black')
-        fig.text(0.02, 0.03, footer, ha='left', va='bottom', fontsize=11, color='black')
-        # Add clean per-view labels on the composite (avoid tile cropping)
-        for view, (yy, xx) in zip(views, positions):
-            x_frac = (xx + 8) / full_w
-            # place label further down to avoid header/title overlap
-            y_frac = 1.0 - (yy + 160) / full_h
-            fig.text(x_frac, y_frac, view.title(), ha='left', va='top', fontsize=13, color='black')
-        # Add a unified horizontal colorbar in the footer band
-        try:
-            vmin = float(clim.get('lims', [0, 0, 1])[0]) if isinstance(clim, dict) else None
-            vmax = float(clim.get('lims', [0, 0, 1])[-1]) if isinstance(clim, dict) else None
-            if vmin is None or vmax is None:
-                vmin, vmax = 0.0, 1.0
-            norm = Normalize(vmin=vmin, vmax=vmax)
-            from matplotlib.cm import get_cmap
-            cmap = get_cmap('hot')
-            sm = plt.cm.ScalarMappable(norm=norm, cmap=cmap)
-            sm.set_array([])
-            cax = fig.add_axes([0.35, 0.055, 0.3, 0.02])
-            cb = fig.colorbar(sm, cax=cax, orientation='horizontal')
-            cb.set_label('dSPM (a.u.)', fontsize=10)
-        except Exception as e_cb:
-            log.warning(f"Failed to draw unified colorbar: {e_cb}")
-        fig.subplots_adjust(left=0.01, right=0.99, top=0.97, bottom=0.04)
-        fig.savefig(out_png_fname, dpi=300, bbox_inches='tight', pad_inches=0.02)
-        plt.close(fig)
-        log.info(f"Saved source cluster snapshot to {out_png_fname}")
+        # Plot 3: Grand-Average dSPM masked by cluster
+        vmin, vmax = np.nanmin(ga_map_full), np.nanmax(ga_map_full)
+        if not (np.isfinite(vmin) and np.isfinite(vmax)):
+            # Fallback for all-NaN or invalid values
+            lims = [0.0, 0.5, 1.0]
+        elif not (vmax > vmin):
+            # Degenerate (single value) map: create a tiny window around the value
+            base = float(vmin)
+            eps_ga = max(1e-6, 1e-3 * max(1.0, abs(base)))
+            lims = [base - eps_ga, base, base + eps_ga]
+        else:
+            mid = (vmin + vmax) / 2.0
+            # Ensure strict inequality vmin < mid < vmax
+            eps_ga = max(1e-6, 1e-6 * max(abs(vmin), abs(vmax)))
+            if not (mid > vmin):
+                mid = vmin + eps_ga
+            if not (vmax > mid):
+                vmax = mid + eps_ga
+            lims = [vmin, mid, vmax]
+        clim_ga = dict(kind='value', lims=lims)
+        path3 = output_dir / f"{analysis_name}_source_plot_3_grand-average-dspm.png"
+        _compose_source_figure(
+            ga_map_full.reshape(-1, 1), full_vertices, stc_tmin, stc_tstep, 'RdBu_r', clim_ga,
+            'Grand Average dSPM (a.u.)', path3, analysis_name, config,
+            cluster_p_values[min_p_idx], time_label, peak_info, subjects_dir
+        )
 
     except Exception as e:
-        log.error(f"Failed to generate source cluster plot: {e}")
+        log.error(f"Failed to generate source cluster plots: {e}", exc_info=True)
+        # Do not abort pipeline on plotting failure
+        return
 
 
 def _choose_time_and_clim(stc_sum):
@@ -270,77 +340,64 @@ def _choose_time_and_clim(stc_sum):
 
 def plot_contrast_erp(grand_average, stats_results, config, output_dir, ch_names):
     """
-    Plots the grand average contrast ERP, averaged over channels in the most
-    significant cluster, with the cluster's time window shaded.
+    Plot ERP figures for all significant clusters; preserve legacy single-file
+    output for the top-ranked cluster.
     """
     t_obs, clusters, cluster_p_values, _ = stats_results
     alpha = config['stats']['cluster_alpha']
-    
-    # Find significant clusters and select the one with the smallest p-value
+
     sig_cluster_indices = np.where(cluster_p_values < alpha)[0]
     if not sig_cluster_indices.size:
         log.info("No significant clusters found. Skipping ERP plot.")
         return
 
-    # Select the most significant cluster
-    most_sig_idx = sig_cluster_indices[cluster_p_values[sig_cluster_indices].argmin()]
-    log.info(f"Plotting ERP for most significant cluster (p={cluster_p_values[most_sig_idx]:.4f})")
-
-    # Get the boolean mask for the cluster (shape: n_times, n_channels)
-    mask = clusters[most_sig_idx]
-    
-    # Find the channels and time points belonging to this cluster
-    ch_mask = mask.any(axis=0)
-    time_mask = mask.any(axis=1)
-    
-    cluster_ch_names = [ch_names[i] for i, in_cluster in enumerate(ch_mask) if in_cluster]
-    cluster_times = grand_average.times[time_mask]
-    tmin, tmax = cluster_times[0], cluster_times[-1]
-
-    # Create a spatial selection for the channels in the cluster
-    picks = mne.pick_channels(grand_average.info['ch_names'], include=cluster_ch_names)
-
-    # Average the grand average data over the selected channels
-    roi_data = grand_average.get_data(picks=picks).mean(axis=0)
-
-    # Determine p-rank for stable cluster numbering by significance
+    ordered = sig_cluster_indices[np.argsort(cluster_p_values[sig_cluster_indices])]
     p_order = np.argsort(cluster_p_values)
-    cluster_rank = int(np.where(p_order == most_sig_idx)[0][0]) + 1
 
-    # Create the plot
-    fig, ax = plt.subplots(figsize=(8, 5))
-    ax.plot(grand_average.times * 1000, roi_data * 1e6, lw=2, label='Grand Average Contrast')
-    ax.axvspan(
-        tmin * 1000,
-        tmax * 1000,
-        alpha=0.2,
-        color='red',
-        label=f'Cluster #{cluster_rank} (p={cluster_p_values[most_sig_idx]:.3f})',
-    )
-    
-    ax.axhline(0, ls='--', color='black', lw=1)
-    ax.axvline(0, ls='-', color='black', lw=1)
-    ax.spines['top'].set_visible(False)
-    ax.spines['right'].set_visible(False)
-    ax.set_title(
-        f"Contrast: {config['contrast']['name']}\n(Channels averaged over Cluster #{cluster_rank})"
-    )
-    ax.set_xlabel("Time (ms)")
-    ax.set_ylabel("Amplitude (µV)")
-    ax.legend(loc='lower left')
-    plt.tight_layout()
+    for rank, idx in enumerate(ordered, start=1):
+        mask = clusters[idx]
+        ch_mask = mask.any(axis=0)
+        time_mask = mask.any(axis=1)
 
-    # Save figure
-    fname = output_dir / f"{config['analysis_name']}_erp_cluster.png"
-    fig.savefig(fname, dpi=300)
-    log.info(f"Saved ERP cluster plot to {fname}")
-    plt.close(fig) # <-- THIS IS THE FIX
+        cluster_ch_names = [ch_names[i] for i, in_cluster in enumerate(ch_mask) if in_cluster]
+        cluster_times = grand_average.times[time_mask]
+        tmin, tmax = cluster_times[0], cluster_times[-1]
+
+        picks = mne.pick_channels(grand_average.info['ch_names'], include=cluster_ch_names)
+        roi_data = grand_average.get_data(picks=picks).mean(axis=0)
+
+        cluster_rank = int(np.where(p_order == idx)[0][0]) + 1
+
+        fig, ax = plt.subplots(figsize=(8, 5))
+        ax.plot(grand_average.times * 1000, roi_data * 1e6, lw=2, label='Grand Average Contrast')
+        ax.axvspan(tmin * 1000, tmax * 1000, alpha=0.2, color='red',
+                   label=f'Cluster #{cluster_rank} (p={cluster_p_values[idx]:.3f})')
+
+        ax.axhline(0, ls='--', color='black', lw=1)
+        ax.axvline(0, ls='-', color='black', lw=1)
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
+        ax.set_title(
+            f"Contrast: {config['contrast']['name']}\n(Channels averaged over Cluster #{cluster_rank})"
+        )
+        ax.set_xlabel("Time (ms)")
+        ax.set_ylabel("Amplitude (µV)")
+        ax.legend(loc='lower left')
+        plt.tight_layout()
+
+        out_num = output_dir / f"{config['analysis_name']}_erp_cluster_{cluster_rank}.png"
+        fig.savefig(out_num, dpi=300)
+        if rank == 1:
+            legacy = output_dir / f"{config['analysis_name']}_erp_cluster.png"
+            fig.savefig(legacy, dpi=300)
+        log.info(f"Saved ERP cluster plot to {out_num}")
+        plt.close(fig)
 
 
 def plot_t_value_topomap(grand_average, stats_results, config, output_dir, ch_names):
     """
-    Plots a topomap of the t-values, averaged over the time window of the most
-    significant cluster.
+    Plot topomap figures for all significant clusters; preserve legacy single-file
+    output for the top-ranked cluster.
     """
     t_obs, clusters, cluster_p_values, _ = stats_results
     alpha = config['stats']['cluster_alpha']
@@ -350,74 +407,61 @@ def plot_t_value_topomap(grand_average, stats_results, config, output_dir, ch_na
         log.info("No significant clusters found. Skipping topomap plot.")
         return
 
-    most_sig_idx = sig_cluster_indices[cluster_p_values[sig_cluster_indices].argmin()]
-    log.info(f"Plotting topomap for most significant cluster (p={cluster_p_values[most_sig_idx]:.4f})")
+    ordered = sig_cluster_indices[np.argsort(cluster_p_values[sig_cluster_indices])]
+    p_order = np.argsort(cluster_p_values)
 
     # Reshape t-values to (n_times, n_channels)
     t_obs_tc = t_obs.reshape(len(grand_average.times), len(ch_names))
 
-    # Get time mask for the significant cluster
-    time_mask = clusters[most_sig_idx].any(axis=1)
-    cluster_times = grand_average.times[time_mask]
-    tmin, tmax = cluster_times[0], cluster_times[-1]
+    for rank, idx in enumerate(ordered, start=1):
+        time_mask = clusters[idx].any(axis=1)
+        cluster_times = grand_average.times[time_mask]
+        tmin, tmax = cluster_times[0], cluster_times[-1]
 
-    # Average t-values across the cluster's time window
-    t_topo = t_obs_tc[time_mask, :].mean(axis=0)
-    # Channel membership mask for the selected cluster (for highlighting)
-    ch_mask = clusters[most_sig_idx].any(axis=0)
+        t_topo = t_obs_tc[time_mask, :].mean(axis=0)
+        ch_mask = clusters[idx].any(axis=0)
 
-    # Create the plot
-    fig, ax = plt.subplots(figsize=(6.5, 5.5))
-    title = (f"T-Values ({tmin*1000:.0f} - {tmax*1000:.0f} ms)\n"
-             f"Cluster #{most_sig_idx+1}, p = {cluster_p_values[most_sig_idx]:.4f}")
+        # Use p-rank for cluster numbering to match text report
+        cluster_rank = int(np.where(p_order == idx)[0][0]) + 1
+        fig, ax = plt.subplots(figsize=(6.5, 5.5))
+        title = (f"T-Values ({tmin*1000:.0f} - {tmax*1000:.0f} ms)\n"
+                 f"Cluster #{cluster_rank}, p = {cluster_p_values[idx]:.4f}")
 
-    # Highlight only channels belonging to the selected cluster
-    mask_params = dict(marker='o', markerfacecolor='none', markeredgecolor='k',
-                       linewidth=1.5, markersize=7)
-    im, _ = mne.viz.plot_topomap(
-        t_topo,
-        grand_average.info,
-        axes=ax,
-        show=False,
-        cmap='RdBu_r',
-        contours=6,  # restore scalp isocontours
-        sensors=False,
-        mask=ch_mask,
-        mask_params=mask_params,
-    )
+        mask_params = dict(marker='o', markerfacecolor='none', markeredgecolor='k',
+                           linewidth=1.5, markersize=7)
+        im, _ = mne.viz.plot_topomap(
+            t_topo, grand_average.info, axes=ax, show=False, cmap='RdBu_r',
+            contours=6, sensors=False, mask=ch_mask, mask_params=mask_params,
+        )
 
-    # Annotate the peak channel within the cluster (largest |t|)
-    try:
-        # Map provided ch_names to indices in info
-        all_names = grand_average.info['ch_names']
-        picks_for_pos = [all_names.index(nm) for nm in ch_names]
+        # Annotate the peak channel within the cluster (largest |t|)
         try:
-            from mne.viz.topomap import _find_topomap_coords
-        except Exception:  # pragma: no cover - version fallback
-            from mne.viz.topomap import _find_topomap_coords  # best effort
-        pos = _find_topomap_coords(grand_average.info, picks_for_pos)
+            all_names = grand_average.info['ch_names']
+            picks_for_pos = [all_names.index(nm) for nm in ch_names]
+            try:
+                from mne.viz.topomap import _find_topomap_coords
+            except Exception:
+                from mne.viz.topomap import _find_topomap_coords
+            pos = _find_topomap_coords(grand_average.info, picks_for_pos)
 
-        t_abs = np.abs(t_topo.copy())
-        t_abs[~ch_mask] = 0.0
-        peak_idx = int(np.argmax(t_abs))
-        peak_name = ch_names[peak_idx]
-        ax.scatter(pos[peak_idx, 0], pos[peak_idx, 1], s=140,
-                   facecolors='yellow', edgecolors='k', linewidths=2, zorder=11)
-        ax.text(pos[peak_idx, 0] + 0.02, pos[peak_idx, 1] + 0.02, peak_name,
-                fontsize=9, color='k', weight='bold', zorder=12)
-    except Exception as e:
-        log.warning(f"Failed to annotate peak sensor: {e}")
-    
-    # Add colorbar
-    cbar = fig.colorbar(im, ax=ax)
-    cbar.set_label("T-Value")
-    ax.set_title(title)
-    
-    # Save figure
-    fname = output_dir / f"{config['analysis_name']}_topomap_cluster.png"
-    fig.savefig(fname, dpi=300)
-    log.info(f"Saved T-value topomap to {fname}")
-    plt.close(fig) # <-- THIS IS THE FIX
+            t_abs = np.abs(t_topo.copy()); t_abs[~ch_mask] = 0.0
+            peak_idx = int(np.argmax(t_abs)); peak_name = ch_names[peak_idx]
+            ax.scatter(pos[peak_idx, 0], pos[peak_idx, 1], s=140,
+                       facecolors='yellow', edgecolors='k', linewidths=2, zorder=11)
+            ax.text(pos[peak_idx, 0] + 0.02, pos[peak_idx, 1] + 0.02, peak_name,
+                    fontsize=9, color='k', weight='bold', zorder=12)
+        except Exception as e:
+            log.warning(f"Failed to annotate peak sensor: {e}")
+
+        cbar = fig.colorbar(im, ax=ax); cbar.set_label("T-Value"); ax.set_title(title)
+
+        out_num = output_dir / f"{config['analysis_name']}_topomap_cluster_{rank}.png"
+        fig.savefig(out_num, dpi=300)
+        if rank == 1:
+            legacy = output_dir / f"{config['analysis_name']}_topomap_cluster.png"
+            fig.savefig(legacy, dpi=300)
+        log.info(f"Saved T-value topomap to {out_num}")
+        plt.close(fig)
 
 
 def plot_condition_erps_rois(ga_cond_A, ga_cond_B, config, output_dir):

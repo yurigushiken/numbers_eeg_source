@@ -6,8 +6,8 @@ domain: "source"
 
 # 2. Epoch Time Window and Baseline Correction
 # Start broad; refine later based on sensor results
-tmin: 0.0
-tmax: 0.3
+tmin: 0.07
+tmax: 0.2
 baseline: [-0.1, 0.0]
 
 # 3. Contrast Definition
@@ -35,12 +35,26 @@ inverse:
 
 # 5. Statistical Analysis Parameters
 stats:
-  p_threshold: 0.01
+  p_threshold: 0.05
   cluster_alpha: 0.05
-  n_permutations: 5000
+  n_permutations: 10000
   tail: 0 # two-sided test initially
   seed: 42 # for reproducibility
   method: threshold
   n_jobs: 6
   buffer_size: 1000
-
+  roi:
+    parc: aparc
+    labels:
+      # --- Original Visual ROIs ---
+      - cuneus
+      - lingual
+      - lateraloccipital
+      # --- Expanded Parietal ROIs (Core Number Network) ---
+      - superiorparietal      # Includes the SPL and parts of the IPS
+      - inferiorparietal      # Includes the Angular Gyrus
+      - precuneus
+      - supramarginal         # Often co-activated with parietal regions
+      # --- Expanded Prefrontal ROIs (Cognitive Control) ---
+      - inferiorfrontal       # MNE label for the gyrus (IFG)
+      - middlefrontal         # A common way to target the DLPFC

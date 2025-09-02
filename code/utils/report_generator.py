@@ -89,6 +89,7 @@ HTML_TEMPLATE = """
                 </div>
                 <figcaption><strong>Figure 1.</strong> The grand average difference wave over the significant posterior cluster (left) and the topographical distribution of T-values during the significant time window (right).</figcaption>
             </div>
+            {sensor_extra_clusters_section}
         </section>
 
         {hs_summary_section}
@@ -363,6 +364,42 @@ def create_html_report(sensor_config_path, sensor_output_dir, source_output_dir,
     # Read sensor stats
     sensor_stats = read_report_file(sensor_report_path)
 
+    # Discover additional sensor cluster figure pairs (rank >= 2)
+    sensor_extra_clusters_section = ""
+    try:
+        import re as _re
+        extra_pairs = []
+        for erp_img in sorted(sensor_output_dir.glob(f"{analysis_name}_erp_cluster_*.png")):
+            m = _re.search(r"_cluster_(\d+)\.png$", erp_img.name)
+            if not m:
+                continue
+            rank = int(m.group(1))
+            if rank <= 1:
+                continue
+            topo_img = sensor_output_dir / f"{analysis_name}_topomap_cluster_{rank}.png"
+            if topo_img.exists():
+                extra_pairs.append((rank, erp_img, topo_img))
+
+        if extra_pairs:
+            blocks = []
+            for rank, erp_img, topo_img in sorted(extra_pairs, key=lambda x: x[0]):
+                erp_rel = os.path.relpath(erp_img.resolve(), start=report_dir)
+                topo_rel = os.path.relpath(topo_img.resolve(), start=report_dir)
+                blocks.append(
+                    f"""
+                    <div class=\"figure-container\">
+                        <div class=\"figure-grid\">
+                            <div><img src=\"{erp_rel}\" alt=\"ERP Cluster {rank}\"></div>
+                            <div><img src=\"{topo_rel}\" alt=\"Topomap Cluster {rank}\"></div>
+                        </div>
+                        <figcaption><strong>Figure 1.{rank-1}.</strong> Additional significant sensor cluster #{rank} (ERP, left; T-value topomap, right).</figcaption>
+                    </div>
+                    """
+                )
+            sensor_extra_clusters_section = "\n".join(blocks)
+    except Exception:
+        sensor_extra_clusters_section = ""
+
     # Source paths and logic
     source_section_html = NULL_SOURCE_SECTION_TEMPLATE.format(label_ts_section="")
     hs_summary_section = ""
@@ -370,7 +407,12 @@ def create_html_report(sensor_config_path, sensor_output_dir, source_output_dir,
         source_output_dir = Path(source_output_dir)
         source_analysis_name = analysis_name.replace("sensor", "source")
         source_report_path = source_output_dir / f"{source_analysis_name}_report.txt"
-        source_plot_path = source_output_dir / f"{source_analysis_name}_source_cluster.png"
+        
+        # Define paths for all three new plots
+        plot1_path = source_output_dir / f"{source_analysis_name}_source_plot_1_t-value-quantile.png"
+        plot2_path = source_output_dir / f"{source_analysis_name}_source_plot_2_t-value-full-range.png"
+        plot3_path = source_output_dir / f"{source_analysis_name}_source_plot_3_grand-average-dspm.png"
+
         anatomical_report_path = source_output_dir / f"{source_analysis_name}_anatomical_report.csv"
         hs_summary_path = source_output_dir / f"{source_analysis_name}_anatomical_summary_hs.csv"
         label_ts_summary_path = source_output_dir / "aux" / "label_cluster_summary.txt"
@@ -378,6 +420,47 @@ def create_html_report(sensor_config_path, sensor_output_dir, source_output_dir,
         if source_report_path.exists():
             source_stats = read_report_file(source_report_path)
             anatomical_table_html = _generate_anatomical_table_html(anatomical_report_path)
+            
+            # Start building the new, multi-plot source section HTML
+            source_section_html = f"""
+                <div class="findings">
+                    <h3>Statistical Findings (Source Space)</h3>
+                    <pre><code>{source_stats}</code></pre>
+                </div>
+                {anatomical_table_html}
+                <h3>Source Visualization</h3>
+            """
+
+            # Embed Plot 1: T-Value Quantile
+            if plot1_path.exists():
+                plot1_rel_path = os.path.relpath(plot1_path.resolve(), start=report_dir)
+                source_section_html += f"""
+                <div class="figure-container">
+                    <img src="{plot1_rel_path}" alt="Source Plot 1: T-Value Quantile">
+                    <figcaption><strong>Figure 2a. T-Values (Quantile-Based Color Scale).</strong> This plot shows T-values using a robust color scale based on quantiles (25%, 50%, 90%) to emphasize the peak of the activation.</figcaption>
+                </div>
+                """
+            
+            # Embed Plot 2: T-Value Full Range
+            if plot2_path.exists():
+                plot2_rel_path = os.path.relpath(plot2_path.resolve(), start=report_dir)
+                source_section_html += f"""
+                <div class="figure-container">
+                    <img src="{plot2_rel_path}" alt="Source Plot 2: T-Value Full Range">
+                    <figcaption><strong>Figure 2b. T-Values (Full Range Color Scale).</strong> This plot shows the same T-values with the color scale mapped to the full range, revealing the entire spatial extent of the cluster.</figcaption>
+                </div>
+                """
+
+            # Embed Plot 3: Grand Average dSPM
+            if plot3_path.exists():
+                plot3_rel_path = os.path.relpath(plot3_path.resolve(), start=report_dir)
+                source_section_html += f"""
+                <div class="figure-container">
+                    <img src="{plot3_rel_path}" alt="Source Plot 3: Grand Average dSPM">
+                    <figcaption><strong>Figure 2c. Grand Average dSPM.</strong> This plot shows the raw effect size (dSPM activation), masked to the significant cluster, using a sequential colormap.</figcaption>
+                </div>
+                """
+        
             # Build HS summary section if present
             if hs_summary_path.exists():
                 try:
@@ -396,28 +479,6 @@ def create_html_report(sensor_config_path, sensor_output_dir, source_output_dir,
                 except Exception:
                     hs_summary_section = ""
 
-            if source_plot_path.exists():
-                # Make path relative to the final report's location for portability
-                source_plot_rel_path = os.path.relpath(source_plot_path.resolve(), start=report_dir)
-                source_section_html = SOURCE_SECTION_TEMPLATE.format(
-                    source_stats=source_stats,
-                    anatomical_table=anatomical_table_html,
-                    source_plot_path=source_plot_rel_path
-                )
-            else:
-                # Show stats and anatomical table even if plot is missing
-                label_ts_summary = None
-                if label_ts_summary_path.exists():
-                    try:
-                        label_ts_summary = label_ts_summary_path.read_text()
-                    except Exception:
-                        label_ts_summary = None
-                label_ts_section = LABEL_TS_SECTION_TEMPLATE.format(label_ts_summary=label_ts_summary) if label_ts_summary else ""
-                source_section_html = SOURCE_SECTION_STATS_ONLY_TEMPLATE.format(
-                    source_stats=source_stats,
-                    anatomical_table=anatomical_table_html,
-                    label_ts_section=label_ts_section
-                )
         else:
             # Neither stats nor plot available; keep null message, possibly with label TS
             label_ts_summary = None
@@ -462,6 +523,7 @@ def create_html_report(sensor_config_path, sensor_output_dir, source_output_dir,
         erp_plot_path=erp_plot_rel_path,
         topo_plot_path=topo_plot_rel_path,
         sensor_roi_erp_section=sensor_roi_erp_section,
+        sensor_extra_clusters_section=sensor_extra_clusters_section,
         source_section=source_section_html,
         hs_summary_section=hs_summary_section,
         analysis_parameters_section=analysis_parameters_section,

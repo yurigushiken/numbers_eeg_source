@@ -164,7 +164,8 @@ def get_evoked_for_condition(subject_dir, condition_info, baseline=None):
                     epochs.apply_baseline(baseline=(baseline[0], baseline[1]), verbose=False)
 
             # Ensure average EEG reference is applied to match inverse operator assumptions
-            epochs.set_eeg_reference('average', projection=True, verbose=False)
+            if not any(p['desc'] == 'Average EEG reference' for p in epochs.info['projs']):
+                epochs.set_eeg_reference('average', projection=True, verbose=False)
 
             # Enforce the standard montage. This is a critical step to override
             # any incorrect/generic digitization info embedded in the FIF files.
@@ -173,7 +174,8 @@ def get_evoked_for_condition(subject_dir, condition_info, baseline=None):
 
             epochs_list.append(epochs)
             evoked = epochs.average()
-            evoked.set_eeg_reference('average', projection=True, verbose=False)
+            if not any(p['desc'] == 'Average EEG reference' for p in evoked.info['projs']):
+                evoked.set_eeg_reference('average', projection=True, verbose=False)
             evoked_list.append(evoked)
         else:
             log.debug(f"Epoch file not found, skipping: {fname}")
