@@ -97,11 +97,15 @@ def create_subject_contrast(subject_dir, config):
     """
     log.debug(f"Creating contrast for subject {subject_dir.name}")
     try:
+        # Use unified epoch window configuration (baseline is required there)
+        epoch_cfg = config.get('epoch_window', {})
+        baseline = epoch_cfg.get('baseline')
+
         evoked_A, epochs_A = get_evoked_for_condition(
-            subject_dir, config['contrast']['condition_A'], baseline=config.get('baseline')
+            subject_dir, config['contrast']['condition_A'], baseline=baseline
         )
         evoked_B, epochs_B = get_evoked_for_condition(
-            subject_dir, config['contrast']['condition_B'], baseline=config.get('baseline')
+            subject_dir, config['contrast']['condition_B'], baseline=baseline
         )
 
         if not evoked_A or not evoked_B:

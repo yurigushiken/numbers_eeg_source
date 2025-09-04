@@ -7,6 +7,7 @@ from pathlib import Path
 import mne
 import numpy as np
 from tqdm import tqdm
+from datetime import datetime
 
 from code.utils import data_loader, cluster_stats, plotting, reporter
 from code.utils.anatomical_reporter import generate_anatomical_report, generate_hs_summary_table
@@ -28,7 +29,12 @@ def main(config_path=None, accuracy=None):
     # --- 1. Load Config and Setup ---
     config = data_loader.load_config(config_path)
     analysis_name = config['analysis_name']
-    output_dir = Path("derivatives/source") / analysis_name
+
+    # Generate a timestamped name for the analysis folder and report
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    timestamped_analysis_name = f"{timestamp}-{analysis_name}"
+
+    output_dir = Path("derivatives/source") / timestamped_analysis_name
     output_dir.mkdir(parents=True, exist_ok=True)
     log.info(f"Output directory created at: {output_dir}")
 
@@ -86,14 +92,17 @@ def main(config_path=None, accuracy=None):
 
     # Create a copy for reporting/plotting timebase alignment (no resampling)
     stc_ga_for_reporting = stc_grand_average.copy()
-    # Crop the reporting STC to the YAML time window to match clustering
-    rep_tmin = float(config.get('tmin', stc_ga_for_reporting.times[0]))
-    rep_tmax = float(config.get('tmax', stc_ga_for_reporting.times[-1]))
-    try:
-        stc_ga_for_reporting.crop(tmin=rep_tmin, tmax=rep_tmax)
-        log.info(f"Reporting STC cropped to {rep_tmin:.3f}s–{rep_tmax:.3f}s")
-    except Exception:
-        log.warning("Failed to crop reporting STC; proceeding without cropping.")
+    # Crop the reporting STC to stats.analysis_window to match clustering
+    aw = (config.get('stats') or {}).get('analysis_window')
+    if aw and len(aw) == 2:
+        rep_tmin, rep_tmax = float(aw[0]), float(aw[1])
+        try:
+            stc_ga_for_reporting.crop(tmin=rep_tmin, tmax=rep_tmax)
+            log.info(f"Reporting STC cropped to {rep_tmin:.3f}s–{rep_tmax:.3f}s")
+        except Exception:
+            log.warning("Failed to crop reporting STC; proceeding without cropping.")
+    else:
+        log.info("No analysis_window provided for reporting STC; using full range.")
 
     # --- 5. Run Group-Level Cluster Statistics (on full-resolution data) ---
     stats_results = cluster_stats.run_source_cluster_test(all_source_contrasts_for_stats, fsaverage_src, config)

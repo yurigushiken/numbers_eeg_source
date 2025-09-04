@@ -30,6 +30,13 @@ CARDINALITY_1:
 CARDINALITY_5:
   "Cardinality 5": ["55"]
 
+# Single-cardinality sets for direct contrasts
+CARDINALITY_2:
+  "Cardinality 2": ["22"]
+
+CARDINALITY_3:
+  "Cardinality 3": ["33"]
+
 DIRECTION_CHANGE:
   "Decreasing": [
     "21", "31", "32", "41", "42", "43", "52", "53", "54", "63", "64", "65"
@@ -107,3 +114,10 @@ PRIME_23_LAND_56:
 
 PRIME_56_LAND_23:
   "Prime 5/6 Land 2/3": ["52", "53", "63"]
+
+# Custom sets for 22, 32 vs 33, 32 analysis
+SET_22_32:
+  "22 or 32": ["22", "32"]
+
+SET_33_32:
+  "33 or 32": ["33", "32"]

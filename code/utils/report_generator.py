@@ -87,7 +87,7 @@ HTML_TEMPLATE = """
                         <img src="{topo_plot_path}" alt="Topomap Cluster Plot">
                     </div>
                 </div>
-                <figcaption><strong>Figure 1.</strong> The grand average difference wave over the significant posterior cluster (left) and the topographical distribution of T-values during the significant time window (right).</figcaption>
+                <figcaption><strong>Figure 1.</strong> The grand average difference wave over the significant posterior cluster (left) and the topographical distribution of T-values during the significant time window (right){sensor_main_caption_detail}.</figcaption>
             </div>
             {sensor_extra_clusters_section}
         </section>
@@ -97,6 +97,7 @@ HTML_TEMPLATE = """
         <section id="source-results">
             <h2>Source-Space Localization</h2>
             {source_section}
+            {source_extra_clusters_section}
         </section>
     </main>
 
@@ -330,6 +331,65 @@ def _generate_anatomical_table_html(anatomical_report_path, top_n=7):
         return "<p><em>Error generating anatomical summary table.</em></p>"
 
 
+def _parse_source_report_for_cluster_details(report_path: Path) -> dict:
+    """Parses the source stats report to extract key details for each cluster."""
+    details = {}
+    if not report_path or not report_path.exists():
+        return details
+
+    try:
+        text = report_path.read_text()
+        # Use regex to find all cluster blocks
+        import re
+        pattern = re.compile(
+            r"Cluster #(\d+)\s*\(p-value = ([\d.]+)\).*?"
+            r"Peak t-value: ([-\d.]+).*?"
+            r"Number of vertices: (\d+)",
+            re.DOTALL
+        )
+        matches = pattern.findall(text)
+        for match in matches:
+            cluster_id = int(match[0])
+            details[cluster_id] = {
+                "p_value": float(match[1]),
+                "peak_t": float(match[2]),
+                "n_vertices": int(match[3])
+            }
+    except Exception as e:
+        log.warning(f"Could not parse source report for cluster details: {e}")
+    return details
+
+
+def _parse_sensor_report_for_cluster_details(report_path: Path) -> dict:
+    """Parses the sensor stats report to extract key details for each cluster."""
+    details = {}
+    if not report_path or not report_path.exists():
+        return details
+
+    try:
+        text = report_path.read_text()
+        import re
+        pattern = re.compile(
+            r"Cluster #(\d+)\s*\(p-value = ([\d.]+)\).*?"
+            r"Peak t-value: ([-\d.]+).*?"
+            r"Time window: ([\d.]+\s*ms to [\d.]+\s*ms).*?"
+            r"Number of channels: (\d+)",
+            re.DOTALL
+        )
+        matches = pattern.findall(text)
+        for match in matches:
+            cluster_id = int(match[0])
+            details[cluster_id] = {
+                "p_value": float(match[1]),
+                "peak_t": float(match[2]),
+                "time_window": str(match[3]),
+                "n_channels": int(match[4])
+            }
+    except Exception as e:
+        log.warning(f"Could not parse sensor report for cluster details: {e}")
+    return details
+
+
 def create_html_report(sensor_config_path, sensor_output_dir, source_output_dir, report_output_path):
     """
     Generates a standalone HTML report from the analysis outputs.
@@ -363,6 +423,7 @@ def create_html_report(sensor_config_path, sensor_output_dir, source_output_dir,
     
     # Read sensor stats
     sensor_stats = read_report_file(sensor_report_path)
+    sensor_cluster_details = _parse_sensor_report_for_cluster_details(sensor_report_path)
 
     # Discover additional sensor cluster figure pairs (rank >= 2)
     sensor_extra_clusters_section = ""
@@ -385,14 +446,21 @@ def create_html_report(sensor_config_path, sensor_output_dir, source_output_dir,
             for rank, erp_img, topo_img in sorted(extra_pairs, key=lambda x: x[0]):
                 erp_rel = os.path.relpath(erp_img.resolve(), start=report_dir)
                 topo_rel = os.path.relpath(topo_img.resolve(), start=report_dir)
+                
+                # Create a detailed caption for each extra sensor cluster
+                extra_caption_detail = ""
+                if rank in sensor_cluster_details:
+                    info = sensor_cluster_details[rank]
+                    extra_caption_detail = f" (p={info['p_value']:.4f}, peak t={info['peak_t']:.2f}, {info['n_channels']} channels, {info['time_window']})"
+
                 blocks.append(
                     f"""
-                    <div class=\"figure-container\">
-                        <div class=\"figure-grid\">
-                            <div><img src=\"{erp_rel}\" alt=\"ERP Cluster {rank}\"></div>
-                            <div><img src=\"{topo_rel}\" alt=\"Topomap Cluster {rank}\"></div>
+                    <div class="figure-container">
+                        <div class="figure-grid">
+                            <div><img src="{erp_rel}" alt="ERP Cluster {rank}"></div>
+                            <div><img src="{topo_rel}" alt="Topomap Cluster {rank}"></div>
                         </div>
-                        <figcaption><strong>Figure 1.{rank-1}.</strong> Additional significant sensor cluster #{rank} (ERP, left; T-value topomap, right).</figcaption>
+                        <figcaption><strong>Figure 1.{rank-1}.</strong> Additional significant sensor cluster #{rank}{extra_caption_detail}.</figcaption>
                     </div>
                     """
                 )
@@ -408,20 +476,21 @@ def create_html_report(sensor_config_path, sensor_output_dir, source_output_dir,
         source_analysis_name = analysis_name.replace("sensor", "source")
         source_report_path = source_output_dir / f"{source_analysis_name}_report.txt"
         
-        # Define paths for all three new plots
-        plot1_path = source_output_dir / f"{source_analysis_name}_source_plot_1_t-value-quantile.png"
-        plot2_path = source_output_dir / f"{source_analysis_name}_source_plot_2_t-value-full-range.png"
-        plot3_path = source_output_dir / f"{source_analysis_name}_source_plot_3_grand-average-dspm.png"
+        # Define path for the single source plot
+        source_plot_path = source_output_dir / f"{source_analysis_name}_source_cluster.png"
 
         anatomical_report_path = source_output_dir / f"{source_analysis_name}_anatomical_report.csv"
         hs_summary_path = source_output_dir / f"{source_analysis_name}_anatomical_summary_hs.csv"
         label_ts_summary_path = source_output_dir / "aux" / "label_cluster_summary.txt"
         
+        # New: Parse the source report once to get details for all clusters
+        cluster_details = _parse_source_report_for_cluster_details(source_report_path)
+
         if source_report_path.exists():
             source_stats = read_report_file(source_report_path)
             anatomical_table_html = _generate_anatomical_table_html(anatomical_report_path)
             
-            # Start building the new, multi-plot source section HTML
+            # Build the source section HTML for a single plot
             source_section_html = f"""
                 <div class="findings">
                     <h3>Statistical Findings (Source Space)</h3>
@@ -431,33 +500,19 @@ def create_html_report(sensor_config_path, sensor_output_dir, source_output_dir,
                 <h3>Source Visualization</h3>
             """
 
-            # Embed Plot 1: T-Value Quantile
-            if plot1_path.exists():
-                plot1_rel_path = os.path.relpath(plot1_path.resolve(), start=report_dir)
-                source_section_html += f"""
-                <div class="figure-container">
-                    <img src="{plot1_rel_path}" alt="Source Plot 1: T-Value Quantile">
-                    <figcaption><strong>Figure 2a. T-Values (Quantile-Based Color Scale).</strong> This plot shows T-values using a robust color scale based on quantiles (25%, 50%, 90%) to emphasize the peak of the activation.</figcaption>
-                </div>
-                """
-            
-            # Embed Plot 2: T-Value Full Range
-            if plot2_path.exists():
-                plot2_rel_path = os.path.relpath(plot2_path.resolve(), start=report_dir)
-                source_section_html += f"""
-                <div class="figure-container">
-                    <img src="{plot2_rel_path}" alt="Source Plot 2: T-Value Full Range">
-                    <figcaption><strong>Figure 2b. T-Values (Full Range Color Scale).</strong> This plot shows the same T-values with the color scale mapped to the full range, revealing the entire spatial extent of the cluster.</figcaption>
-                </div>
-                """
+            # Embed the main source plot (Cluster #1)
+            if source_plot_path.exists():
+                source_plot_rel_path = os.path.relpath(source_plot_path.resolve(), start=report_dir)
+                # Create a detailed caption for cluster #1
+                caption_detail = ""
+                if 1 in cluster_details:
+                    info = cluster_details[1]
+                    caption_detail = f" (p={info['p_value']:.4f}, peak t={info['peak_t']:.2f}, {info['n_vertices']} vertices)"
 
-            # Embed Plot 3: Grand Average dSPM
-            if plot3_path.exists():
-                plot3_rel_path = os.path.relpath(plot3_path.resolve(), start=report_dir)
                 source_section_html += f"""
                 <div class="figure-container">
-                    <img src="{plot3_rel_path}" alt="Source Plot 3: Grand Average dSPM">
-                    <figcaption><strong>Figure 2c. Grand Average dSPM.</strong> This plot shows the raw effect size (dSPM activation), masked to the significant cluster, using a sequential colormap.</figcaption>
+                    <img src="{source_plot_rel_path}" alt="Source Plot: T-Value Full Range">
+                    <figcaption><strong>Figure 2. T-Values for Cluster #1{caption_detail}.</strong> This plot shows the T-values for the most significant cluster, with the color scale mapped to the full range of values.</figcaption>
                 </div>
                 """
         
@@ -490,6 +545,43 @@ def create_html_report(sensor_config_path, sensor_output_dir, source_output_dir,
             label_ts_section = LABEL_TS_SECTION_TEMPLATE.format(label_ts_summary=label_ts_summary) if label_ts_summary else ""
             source_section_html = NULL_SOURCE_SECTION_TEMPLATE.format(label_ts_section=label_ts_section)
 
+    # Discover additional SOURCE cluster figures (rank >= 2)
+    source_extra_clusters_section = ""
+    if source_output_dir:
+        try:
+            import re as _re
+            extra_plots = []
+            for plot_file in sorted(source_output_dir.glob(f"{source_analysis_name}_source_cluster_*.png")):
+                m = _re.search(r"_cluster_(\d+)\.png$", plot_file.name)
+                if not m:
+                    continue
+                rank = int(m.group(1))
+                if rank <= 1:
+                    continue
+                extra_plots.append((rank, plot_file))
+
+            if extra_plots:
+                blocks = []
+                for rank, plot_file in sorted(extra_plots, key=lambda x: x[0]):
+                    plot_rel = os.path.relpath(plot_file.resolve(), start=report_dir)
+                    # Create a detailed caption for each extra cluster
+                    caption_detail = ""
+                    if rank in cluster_details:
+                        info = cluster_details[rank]
+                        caption_detail = f" (p={info['p_value']:.4f}, peak t={info['peak_t']:.2f}, {info['n_vertices']} vertices)"
+
+                    blocks.append(
+                        f"""
+                        <div class="figure-container">
+                            <img src="{plot_rel}" alt="Source Cluster {rank}">
+                            <figcaption><strong>Figure 2.{rank-1}. Additional significant source cluster #{rank}{caption_detail}.</strong></figcaption>
+                        </div>
+                        """
+                    )
+                source_extra_clusters_section = "\n".join(blocks)
+        except Exception:
+            source_extra_clusters_section = ""
+
     # --- 2. Populate Template ---
     # Calculate relative paths for sensor images from the new report location
     erp_plot_rel_path = os.path.relpath(erp_plot_path.resolve(), start=report_dir)
@@ -515,6 +607,12 @@ def create_html_report(sensor_config_path, sensor_output_dir, source_output_dir,
         "We performed a subsequent region-of-interest (ROI) cluster-based permutation test on the source data to identify the anatomical origins of the effect."
     )
 
+    # Detailed caption for the main sensor plot (Cluster #1)
+    sensor_caption_detail = ""
+    if 1 in sensor_cluster_details:
+        info = sensor_cluster_details[1]
+        sensor_caption_detail = f" (p={info['p_value']:.4f}, peak t={info['peak_t']:.2f}, {info['n_channels']} channels, {info['time_window']})"
+
     final_html = HTML_TEMPLATE.format(
         title=f"{base_title} — Sensor + Source Report",
         date=datetime.now().strftime("%Y-%m-%d"),
@@ -522,9 +620,11 @@ def create_html_report(sensor_config_path, sensor_output_dir, source_output_dir,
         sensor_stats=sensor_stats,
         erp_plot_path=erp_plot_rel_path,
         topo_plot_path=topo_plot_rel_path,
+        sensor_main_caption_detail=sensor_caption_detail, # Add this
         sensor_roi_erp_section=sensor_roi_erp_section,
         sensor_extra_clusters_section=sensor_extra_clusters_section,
         source_section=source_section_html,
+        source_extra_clusters_section=source_extra_clusters_section,
         hs_summary_section=hs_summary_section,
         analysis_parameters_section=analysis_parameters_section,
         methods_summary_paragraph=methods_summary_paragraph

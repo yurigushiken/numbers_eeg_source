@@ -1,7 +1,7 @@
-# configs/source_cardinality1_vs_cardinality5.yaml
+# configs/source_22_32_vs_33_32.yaml
 
 # 1. General Analysis Information
-analysis_name: "source_cardinality1_vs_cardinality5"
+analysis_name: "source_22_32_vs_33_32"
 domain: "source"
 
 # 2. Epoch Time Window and Baseline Correction
@@ -12,13 +12,13 @@ epoch_window:
 
 # 3. Contrast Definition
 contrast:
-  name: "Cardinality 1 vs. Cardinality 5"
+  name: "22/32 vs 33/32"
   condition_A:
-    name: "Cardinality 1"
-    condition_set_name: "CARDINALITY_1"
+    name: "22 or 32"
+    condition_set_name: "SET_22_32"
   condition_B:
-    name: "Cardinality 5"
-    condition_set_name: "CARDINALITY_5"
+    name: "33 or 32"
+    condition_set_name: "SET_33_32"
   combination_weights: [1, -1]
 
 # 4. Source Reconstruction Parameters
@@ -35,7 +35,7 @@ inverse:
 
 # 5. Statistical Analysis Parameters
 stats:
-  analysis_window: [0.1, 0.2]
+  analysis_window: [0.07, 0.14]
   p_threshold: 0.05
   cluster_alpha: 0.05
   n_permutations: 10000
@@ -53,3 +53,5 @@ stats:
       - inferiorparietal
       - superiorparietal  # To cover the intraparietal sulcus
       - precuneus
+
+

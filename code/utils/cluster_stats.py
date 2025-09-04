@@ -189,11 +189,18 @@ def run_source_cluster_test(stcs, fsaverage_src, config):
         except Exception as e:
             log.warning(f"Failed to apply ROI restriction: {e}. Proceeding without ROI.")
 
-    # Optionally crop the time window used for clustering to the YAML's tmin/tmax
+    # Optionally crop the time window used for clustering to stats.analysis_window
     # Build time indices from the first STC (all resampled equally upstream)
     times = stcs[0].times
-    tmin = float(config.get('tmin', float(times[0])))
-    tmax = float(config.get('tmax', float(times[-1])) )
+    aw = (config.get('stats') or {}).get('analysis_window')
+    if aw and len(aw) == 2:
+        tmin = float(aw[0])
+        tmax = float(aw[1])
+        log.info(f"Restricting source clustering to analysis_window {tmin:.3f}-{tmax:.3f}s")
+    else:
+        tmin = float(times[0])
+        tmax = float(times[-1])
+        log.info("No analysis_window provided for source stats; using full range.")
     time_mask = (times >= tmin) & (times <= tmax)
     if time_mask.sum() == 0:
         log.warning("Time mask is empty after applying tmin/tmax; using full window instead.")
@@ -280,8 +287,14 @@ def run_label_timecourse_cluster_test(stcs, fsaverage_src, config):
 
     # Build time crop
     times = stcs[0].times
-    tmin = float(config.get('tmin', float(times[0])))
-    tmax = float(config.get('tmax', float(times[-1])))
+    aw = (config.get('stats') or {}).get('analysis_window')
+    if aw and len(aw) == 2:
+        tmin = float(aw[0])
+        tmax = float(aw[1])
+        log.info(f"Label time-series: analysis_window {tmin:.3f}-{tmax:.3f}s")
+    else:
+        tmin = float(times[0])
+        tmax = float(times[-1])
     time_mask = (times >= tmin) & (times <= tmax)
     if time_mask.sum() == 0:
         log.warning("Time mask is empty for label TS; using full window.")

@@ -5,10 +5,10 @@ analysis_name: "source_prime23-land56_vs_prime56-land23"
 domain: "source"
 
 # 2. Epoch Time Window and Baseline Correction
-# Start broad; we can narrow if needed based on sensor results
-tmin: 0.08
-tmax: 0.20
-baseline: [-0.1, 0.0]
+epoch_window:
+  tmin: -0.1
+  tmax: 0.6
+  baseline: [-0.1, 0.0]
 
 # 3. Contrast Definition
 contrast:
@@ -35,6 +35,7 @@ inverse:
 
 # 5. Statistical Analysis Parameters
 stats:
+  analysis_window: [0.08, 0.20]
   p_threshold: 0.1
   cluster_alpha: 0.1
   n_permutations: 10000

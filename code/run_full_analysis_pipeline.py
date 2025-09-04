@@ -59,6 +59,11 @@ def main():
     # --- Step 2: The "Gatekeeper" - Check for Significance ---
     log.info("Checking for significant clusters at the sensor level...")
     
+    # Extract the timestamped name from the sensor output directory path
+    timestamped_sensor_name = sensor_output_dir.name
+    timestamp_match = re.match(r"(\d{8}_\d{6})-", timestamped_sensor_name)
+    timestamp = timestamp_match.group(1) if timestamp_match else "no_timestamp"
+
     # Derive names from the YAML's analysis_name (authoritative)
     with open(args.config, 'r') as _f:
         _cfg = yaml.safe_load(_f)
@@ -109,8 +114,9 @@ def main():
     reports_dir = Path("derivatives/reports")
     reports_dir.mkdir(parents=True, exist_ok=True)
     
-    # Define the final report path using the neutral base name
-    report_output_path = reports_dir / f"{base_name}_report.html"
+    # Define the final report path using the neutral base name and timestamp
+    timestamped_base_name = f"{timestamp}-{base_name}"
+    report_output_path = reports_dir / f"{timestamped_base_name}_report.html"
 
     create_html_report(
         sensor_config_path=args.config,

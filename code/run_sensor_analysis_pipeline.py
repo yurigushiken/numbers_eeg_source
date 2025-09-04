@@ -9,6 +9,7 @@ import logging
 from pathlib import Path
 import mne
 from tqdm import tqdm
+from datetime import datetime
 
 # It's crucial to import the utility modules we've created.
 from code.utils import data_loader, cluster_stats, plotting, reporter
@@ -37,7 +38,12 @@ def main(config_path=None, accuracy=None):
     # --- 1. Load Configuration and Setup ---
     config = data_loader.load_config(config_path)
     analysis_name = config['analysis_name']
-    output_dir = Path("derivatives/sensor") / analysis_name
+
+    # Generate a timestamped name for the analysis folder and report
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    timestamped_analysis_name = f"{timestamp}-{analysis_name}"
+    
+    output_dir = Path("derivatives/sensor") / timestamped_analysis_name
     output_dir.mkdir(parents=True, exist_ok=True)
     log.info(f"Output directory created at: {output_dir}")
 
@@ -48,6 +54,8 @@ def main(config_path=None, accuracy=None):
         return
 
     log.info("Creating contrasts for each subject...")
+    epoch_cfg = config.get('epoch_window', {})
+    baseline = epoch_cfg.get('baseline')
     contrasts = []
     condA_evokeds_per_subject = []
     condB_evokeds_per_subject = []
@@ -60,10 +68,10 @@ def main(config_path=None, accuracy=None):
         # Also collect condition-specific evokeds to build group ERPs
         try:
             evoked_A, _ = data_loader.get_evoked_for_condition(
-                subject_dir, config['contrast']['condition_A'], baseline=config.get('baseline')
+                subject_dir, config['contrast']['condition_A'], baseline=baseline
             )
             evoked_B, _ = data_loader.get_evoked_for_condition(
-                subject_dir, config['contrast']['condition_B'], baseline=config.get('baseline')
+                subject_dir, config['contrast']['condition_B'], baseline=baseline
             )
             if evoked_A:
                 condA_evokeds_per_subject.append(mne.grand_average(evoked_A))
@@ -77,7 +85,18 @@ def main(config_path=None, accuracy=None):
         return
     log.info(f"Successfully created contrasts for {len(contrasts)} subjects.")
 
-    # --- 3. Compute Grand Average ---
+    # --- 3a. Optionally crop data for stats to analysis_window ---
+    analysis_window = (config.get('stats') or {}).get('analysis_window')
+    if analysis_window and len(analysis_window) == 2:
+        try:
+            aw0, aw1 = float(analysis_window[0]), float(analysis_window[1])
+            log.info(f"Cropping subject contrasts to analysis_window {aw0:.3f}-{aw1:.3f}s for sensor stats")
+            for c in contrasts:
+                c.crop(tmin=aw0, tmax=aw1)
+        except Exception:
+            log.warning("Failed to crop contrasts to analysis_window; proceeding without cropping.")
+
+    # --- 3b. Compute Grand Average ---
     log.info("Computing grand average contrast...")
     grand_average = mne.grand_average(contrasts)
     ga_fname = output_dir / f"{analysis_name}_grand_average-ave.fif"

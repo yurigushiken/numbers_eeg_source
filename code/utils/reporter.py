@@ -29,13 +29,21 @@ def generate_report(stats_results, times, ch_names, config, output_dir):
         f.write(f"Cluster Analysis Report: {config['analysis_name']}\n")
         f.write("=" * 80 + "\n\n")
 
+        epoch_cfg = config.get('epoch_window', {})
+        ep_tmin, ep_tmax = epoch_cfg.get('tmin'), epoch_cfg.get('tmax')
+        baseline = epoch_cfg.get('baseline')
+        analysis_window = config.get('stats', {}).get('analysis_window')
+
         f.write("Analysis Parameters:\n")
         f.write("-" * 20 + "\n")
         f.write(f"Contrast: {config['contrast']['name']}\n")
         f.write(f"  Condition A set: {config['contrast']['condition_A']['condition_set_name']}\n")
         f.write(f"  Condition B set: {config['contrast']['condition_B']['condition_set_name']}\n")
-        f.write(f"Time Window: {config['tmin']}s to {config['tmax']}s\n")
-        f.write(f"Baseline: {config['baseline'][0]}s to {config['baseline'][1]}s\n")
+        f.write(f"Epoch Window (loaded): {ep_tmin}s to {ep_tmax}s\n")
+        if baseline:
+            f.write(f"Baseline: {baseline[0]}s to {baseline[1]}s\n")
+        if analysis_window:
+            f.write(f"Statistical Window (tested): {analysis_window[0]}s to {analysis_window[1]}s\n")
         f.write("\n")
 
         f.write("Statistical Parameters:\n")
@@ -118,13 +126,23 @@ def generate_source_report(stats_results, stc_grand_average, config, output_dir)
         f.write(f"Source Cluster Analysis Report: {config['analysis_name']}\n")
         f.write("=" * 80 + "\n\n")
 
-        # Reuse some sensor params, add source-specific ones
+        # Analysis parameters
+        epoch_cfg = config.get('epoch_window', {})
+        baseline = epoch_cfg.get('baseline')
+        analysis_window = config.get('stats', {}).get('analysis_window')
+
         f.write("Analysis Parameters:\n")
         f.write("-" * 20 + "\n")
         f.write(f"Contrast: {config['contrast']['name']}\n")
         f.write(f"  Condition A set: {config['contrast']['condition_A']['condition_set_name']}\n")
         f.write(f"  Condition B set: {config['contrast']['condition_B']['condition_set_name']}\n")
-        f.write(f"Time Window: {config['tmin']}s to {config['tmax']}s\n")
+        if baseline:
+            f.write(f"Baseline: {baseline[0]}s to {baseline[1]}s\n")
+        if analysis_window:
+            f.write(f"Statistical Window (tested): {analysis_window[0]}s to {analysis_window[1]}s\n")
+        else:
+            # If no analysis window, show the effective window from the STC object
+            f.write(f"Statistical Window (tested): {stc_grand_average.times[0]:.3f}s to {stc_grand_average.times[-1]:.3f}s\n")
         f.write(f"Source Method: {config['source']['method']}\n")
         f.write(f"Source SNR: {config['source']['snr']}\n")
         f.write("\n")

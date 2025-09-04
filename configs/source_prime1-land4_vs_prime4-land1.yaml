@@ -5,10 +5,10 @@ analysis_name: "source_prime1-land4_vs_prime4-land1"
 domain: "source"
 
 # 2. Epoch Time Window and Baseline Correction
-# WIDENED to better capture the full N1 effect
-tmin: 0.100
-tmax: 0.200
-baseline: [-0.1, 0.0]
+epoch_window:
+  tmin: -0.1
+  tmax: 0.6
+  baseline: [-0.1, 0.0]
 
 # 3. Contrast Definition
 contrast:
@@ -34,6 +34,7 @@ inverse:
 
 # 5. Statistical Analysis Parameters
 stats:
+  analysis_window: [0.100, 0.200]
   p_threshold: 0.01  # RELAXED for more sensitivity
   cluster_alpha: 0.05
   n_permutations: 5000 # INCREASED for publication quality

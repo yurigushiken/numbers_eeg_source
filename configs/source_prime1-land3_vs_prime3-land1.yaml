@@ -10,10 +10,10 @@ analysis_name: "source_prime1-land3_vs_prime3-land1"
 domain: "source"
 
 # 2. Epoch Time Window and Baseline Correction
-# Focus around the detected peak for brief temporal clustering
-tmin: 0.125
-tmax: 0.145
-baseline: [-0.1, 0.0]
+epoch_window:
+  tmin: -0.1
+  tmax: 0.6
+  baseline: [-0.1, 0.0]
 
 # 3. Contrast Definition
 contrast:
@@ -40,6 +40,7 @@ inverse:
 
 # 5. Statistical Analysis Parameters
 stats:
+  analysis_window: [0.125, 0.145]
   p_threshold: 0.02
   cluster_alpha: 0.05
   n_permutations: 10000

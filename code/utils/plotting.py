@@ -121,9 +121,9 @@ def _compose_source_figure(
         f"Peak t={peak_info['t']:.2f} at MNI {peak_info['mni_str']}, "
         f"region {peak_info['region']}, cluster size={peak_info['size']} vertices"
     )
-    fig.text(0.02, 0.99, title_main, ha='left', va='top', fontsize=20)
-    fig.text(0.02, 0.962, subtitle_1, ha='left', va='top', fontsize=9)
-    fig.text(0.02, 0.935, subtitle_2, ha='left', va='top', fontsize=9)
+    fig.text(0.02, 0.995, title_main, ha='left', va='top', fontsize=22)
+    fig.text(0.02, 0.955, subtitle_1, ha='left', va='top', fontsize=10)
+    fig.text(0.02, 0.925, subtitle_2, ha='left', va='top', fontsize=10)
 
     fig.text(0.02, 0.06, peak_info['footer'], ha='left', va='bottom', fontsize=9)
 
@@ -139,10 +139,8 @@ def _compose_source_figure(
 
 def plot_source_clusters(stats_results, stc_grand_average, config, output_dir):
     """
-    Plots source analysis results in three ways and saves them as separate files:
-    1. T-Values with Quantile-based colormap (for robust visualization).
-    2. T-Values with Full-Range colormap (to see the whole cluster).
-    3. Grand-Average dSPM values masked by the cluster (to see effect size).
+    Plots the full spatial extent of all significant source clusters, saving
+    a separate figure for each.
     """
     try:
         analysis_name = config['analysis_name']
@@ -154,165 +152,116 @@ def plot_source_clusters(stats_results, stc_grand_average, config, output_dir):
         if not clusters or cluster_p_values is None:
             raise RuntimeError("No clusters returned from statistical analysis.")
 
-        # --- 1. Find Most Significant Cluster and its Properties ---
+        # --- 1. Find ALL Significant Clusters ---
         alpha = float(config['stats']['cluster_alpha'])
         sig_idx = np.where(cluster_p_values < alpha)[0]
         if sig_idx.size == 0:
-            # No significant clusters: create placeholder images and return gracefully
+            # If no significant clusters, create a single placeholder image and return
             msg = f"No significant source clusters at alpha={alpha}."
-            analysis_name = config['analysis_name']
-            path1 = output_dir / f"{analysis_name}_source_plot_1_t-value-quantile.png"
-            path2 = output_dir / f"{analysis_name}_source_plot_2_t-value-full-range.png"
-            path3 = output_dir / f"{analysis_name}_source_plot_3_grand-average-dspm.png"
-            try:
-                _create_blank_image(path1, msg)
-                _create_blank_image(path2, msg)
-                _create_blank_image(path3, msg)
-            except Exception:
-                pass
+            path = output_dir / f"{analysis_name}_source_cluster.png"
+            _create_blank_image(path, msg)
             log.info(msg)
             return
-        min_p_idx = sig_idx[np.argmin(cluster_p_values[sig_idx])]
-        cl = clusters[min_p_idx]
 
-        time_inds = np.unique(np.asarray(cl[0], dtype=int))
-        n_times_grand_avg = stc_grand_average.times.size
-        time_inds = time_inds[(time_inds >= 0) & (time_inds < n_times_grand_avg)]
-        if time_inds.size == 0:
-            raise RuntimeError("Cluster time indices are out of bounds for the grand average STC.")
+        # Order them by p-value for consistent numbering
+        ordered_indices = sig_idx[np.argsort(cluster_p_values[sig_idx])]
 
-        # --- 2. Prepare Data Arrays for all Plots ---
-        # Get T-values averaged over the cluster's time window
-        t_avg_all = t_obs[time_inds, :].mean(axis=0)
-        v_inds_cluster_local = np.unique(np.asarray(cl[1], dtype=int)) # Indices into t_obs space
+        # --- Loop through each significant cluster ---
+        n_sig = len(ordered_indices)
+        for rank, cluster_idx in enumerate(ordered_indices, start=1):
+            cl = clusters[cluster_idx]
 
-        # Create the T-map: a full-brain vector with NaNs outside the cluster
-        t_map_local = np.full_like(t_avg_all, np.nan, dtype=float)
-        t_map_local[v_inds_cluster_local] = t_avg_all[v_inds_cluster_local]
+            time_inds = np.unique(np.asarray(cl[0], dtype=int))
+            n_times_grand_avg = stc_grand_average.times.size
+            time_inds = time_inds[(time_inds >= 0) & (time_inds < n_times_grand_avg)]
+            if time_inds.size == 0:
+                log.warning(f"Skipping cluster #{rank} due to out-of-bounds time indices.")
+                continue
 
-        # Expand local (e.g., ROI-restricted) vectors to full fsaverage space
-        keep_idx = config.get('stats', {}).get('_keep_idx')
-        full_vertices = [np.array(stc_grand_average.vertices[0]), np.array(stc_grand_average.vertices[1])]
-        full_n = int(np.sum([len(v) for v in full_vertices]))
-        
-        t_map_full = t_map_local
-        if keep_idx is not None and int(t_map_local.size) != full_n:
-            keep_idx = np.asarray(keep_idx, dtype=int)
-            full_vec = np.full(full_n, np.nan, dtype=float)
-            full_vec[keep_idx] = t_map_local
-            t_map_full = full_vec
-        
-        # Create the masked Grand Average dSPM map
-        ga_map_full = np.full(full_n, np.nan, dtype=float)
-        cluster_v_inds_global = v_inds_cluster_local
-        if keep_idx is not None:
-            cluster_v_inds_global = keep_idx[v_inds_cluster_local]
-        
-        ga_cluster_data = stc_grand_average.data[cluster_v_inds_global, :][:, time_inds].mean(axis=1)
-        ga_map_full[cluster_v_inds_global] = ga_cluster_data
+            # --- 2. Prepare Data Array for the Current Cluster ---
+            t_avg_all = t_obs[time_inds, :].mean(axis=0)
+            v_inds_cluster_local = np.unique(np.asarray(cl[1], dtype=int))
 
-        # --- 3. Calculate Common Metadata for Titles and Labels ---
-        cluster_times = stc_grand_average.times[time_inds]
-        time_label = f"{cluster_times.min()*1000:.0f}-{cluster_times.max()*1000:.0f} ms"
-        
-        peak_global_idx = int(np.nanargmax(np.abs(t_map_full)))
-        peak_t = float(t_map_full[peak_global_idx])
-        
-        lh_n = len(full_vertices[0])
-        hemi_code = 0 if peak_global_idx < lh_n else 1
-        peak_vertno = int(full_vertices[0][peak_global_idx] if hemi_code == 0 else full_vertices[1][peak_global_idx - lh_n])
-        
-        peak_mni = mne.vertex_to_mni([peak_vertno], hemis=hemi_code, subject='fsaverage', subjects_dir=subjects_dir)[0]
-        
-        parc = (config.get('stats', {}).get('roi', {}) or {}).get('parc', 'aparc')
-        labels = mne.read_labels_from_annot('fsaverage', parc=parc, subjects_dir=subjects_dir, verbose=False)
-        peak_region = "Unknown"
-        for lbl in labels:
-            if lbl.hemi == ('lh' if hemi_code == 0 else 'rh') and peak_vertno in lbl.vertices:
-                peak_region = lbl.name.replace('-lh','').replace('-rh','')
-                break
+            t_map_local = np.full_like(t_avg_all, np.nan, dtype=float)
+            t_map_local[v_inds_cluster_local] = t_avg_all[v_inds_cluster_local]
 
-        method = str(config.get('source', {}).get('method', 'dSPM')).upper()
-        tail = int(config.get('stats', {}).get('tail', 0))
-        pthr = config.get('stats', {}).get('p_threshold')
-        perms = config.get('stats', {}).get('n_permutations')
-        roi_labels = ", ".join(config.get('stats', {}).get('roi', {}).get('labels', [])) or 'whole brain'
+            keep_idx = config.get('stats', {}).get('_keep_idx')
+            full_vertices = [np.array(stc_grand_average.vertices[0]), np.array(stc_grand_average.vertices[1])]
+            full_n = int(np.sum([len(v) for v in full_vertices]))
+            
+            t_map_full = t_map_local
+            if keep_idx is not None and int(t_map_local.size) != full_n:
+                keep_idx = np.asarray(keep_idx, dtype=int)
+                full_vec = np.full(full_n, np.nan, dtype=float)
+                full_vec[keep_idx] = t_map_local
+                t_map_full = full_vec
+            
+            # --- 3. Calculate Metadata for the Current Cluster ---
+            cluster_times = stc_grand_average.times[time_inds]
+            time_label = f"{cluster_times.min()*1000:.0f}-{cluster_times.max()*1000:.0f} ms"
+            
+            peak_global_idx = int(np.nanargmax(np.abs(t_map_full)))
+            peak_t = float(t_map_full[peak_global_idx])
+            
+            lh_n = len(full_vertices[0])
+            hemi_code = 0 if peak_global_idx < lh_n else 1
+            peak_vertno = int(full_vertices[0][peak_global_idx] if hemi_code == 0 else full_vertices[1][peak_global_idx - lh_n])
+            
+            peak_mni = mne.vertex_to_mni([peak_vertno], hemis=hemi_code, subject='fsaverage', subjects_dir=subjects_dir)[0]
+            
+            parc = (config.get('stats', {}).get('roi', {}) or {}).get('parc', 'aparc')
+            labels = mne.read_labels_from_annot('fsaverage', parc=parc, subjects_dir=subjects_dir, verbose=False)
+            peak_region = "Unknown"
+            for lbl in labels:
+                if lbl.hemi == ('lh' if hemi_code == 0 else 'rh') and peak_vertno in lbl.vertices:
+                    peak_region = lbl.name.replace('-lh','').replace('-rh','')
+                    break
 
-        peak_info = {
-            't': peak_t,
-            'vertno': peak_vertno,
-            'hemi_code': hemi_code,
-            'mni_str': f"({peak_mni[0]:.1f}, {peak_mni[1]:.1f}, {peak_mni[2]:.1f})",
-            'region': peak_region,
-            'size': int(np.count_nonzero(~np.isnan(t_map_full))),
-            'subtitle_1_stats': f"method={method} -> cluster stats | tail={tail}, p_thr={pthr}, perms={perms} | ROI: {roi_labels}",
-            'footer': f"fsaverage | pick_ori=normal | vertices kept {t_map_local.size}/{full_n}"
-        }
+            method = str(config.get('source', {}).get('method', 'dSPM')).upper()
+            tail = int(config.get('stats', {}).get('tail', 0))
+            pthr = config.get('stats', {}).get('p_threshold')
+            perms = config.get('stats', {}).get('n_permutations')
+            roi_labels = ", ".join(config.get('stats', {}).get('roi', {}).get('labels', [])) or 'whole brain'
 
-        stc_tmin = float(cluster_times.mean())
-        stc_tstep = 0.0 # Single pseudo-time point for plotting
+            peak_info = {
+                't': peak_t,
+                'vertno': peak_vertno,
+                'hemi_code': hemi_code,
+                'mni_str': f"({peak_mni[0]:.1f}, {peak_mni[1]:.1f}, {peak_mni[2]:.1f})",
+                'region': peak_region,
+                'size': int(np.count_nonzero(~np.isnan(t_map_full))),
+                'subtitle_1_stats': f"method={method} -> cluster stats | tail={tail}, p_thr={pthr}, perms={perms} | ROI: {roi_labels}",
+                'footer': f"fsaverage | pick_ori=normal | vertices kept {t_map_local.size}/{full_n}"
+            }
 
-        # --- 4. Generate and Save the Three Plots ---
-        # Plot 1: T-Values with Quantile colormap
-        nz = np.abs(t_map_full[np.isfinite(t_map_full)])
-        q = np.quantile(nz[nz > 0], [0.25, 0.50, 0.90])
-        pos_lims_quantile = [float(max(q[0], 1e-6)), float(max(q[1], q[0] + 1e-6)), float(max(q[2], q[1] + 1e-6))]
-        clim_quantile = dict(kind='value', pos_lims=pos_lims_quantile)
-        path1 = output_dir / f"{analysis_name}_source_plot_1_t-value-quantile.png"
-        
-        _compose_source_figure(
-            t_map_full.reshape(-1, 1), full_vertices, stc_tmin, stc_tstep, 'RdBu_r', clim_quantile,
-            'T-value (Quantile-thresholded)', path1, analysis_name, config,
-            cluster_p_values[min_p_idx], time_label, peak_info, subjects_dir
-        )
-        
-        # Plot 2: T-Values with Full-Range colormap
-        vmax_abs = np.nanmax(np.abs(t_map_full))
-        if not np.isfinite(vmax_abs) or vmax_abs <= 0:
-            # Fallback for degenerate maps
-            pos_lims_full = [1e-6, 2e-6, 3e-6]
-        else:
-            pos_lims_full = [vmax_abs * 0.25, vmax_abs * 0.5, vmax_abs * 0.95]
-        # Ensure strictly increasing thresholds
-        eps_full = max(1e-6, 1e-6 * (pos_lims_full[-1] if np.isfinite(pos_lims_full[-1]) else 1.0))
-        if not (pos_lims_full[1] > pos_lims_full[0]):
-            pos_lims_full[1] = pos_lims_full[0] + eps_full
-        if not (pos_lims_full[2] > pos_lims_full[1]):
-            pos_lims_full[2] = pos_lims_full[1] + eps_full
-        clim_full = dict(kind='value', pos_lims=pos_lims_full)
-        path2 = output_dir / f"{analysis_name}_source_plot_2_t-value-full-range.png"
-        _compose_source_figure(
-            t_map_full.reshape(-1, 1), full_vertices, stc_tmin, stc_tstep, 'RdBu_r', clim_full,
-            'T-value (Full Range)', path2, analysis_name, config,
-            cluster_p_values[min_p_idx], time_label, peak_info, subjects_dir
-        )
+            stc_tmin = float(cluster_times.mean())
+            stc_tstep = 0.0
 
-        # Plot 3: Grand-Average dSPM masked by cluster
-        vmin, vmax = np.nanmin(ga_map_full), np.nanmax(ga_map_full)
-        if not (np.isfinite(vmin) and np.isfinite(vmax)):
-            # Fallback for all-NaN or invalid values
-            lims = [0.0, 0.5, 1.0]
-        elif not (vmax > vmin):
-            # Degenerate (single value) map: create a tiny window around the value
-            base = float(vmin)
-            eps_ga = max(1e-6, 1e-3 * max(1.0, abs(base)))
-            lims = [base - eps_ga, base, base + eps_ga]
-        else:
-            mid = (vmin + vmax) / 2.0
-            # Ensure strict inequality vmin < mid < vmax
-            eps_ga = max(1e-6, 1e-6 * max(abs(vmin), abs(vmax)))
-            if not (mid > vmin):
-                mid = vmin + eps_ga
-            if not (vmax > mid):
-                vmax = mid + eps_ga
-            lims = [vmin, mid, vmax]
-        clim_ga = dict(kind='value', lims=lims)
-        path3 = output_dir / f"{analysis_name}_source_plot_3_grand-average-dspm.png"
-        _compose_source_figure(
-            ga_map_full.reshape(-1, 1), full_vertices, stc_tmin, stc_tstep, 'RdBu_r', clim_ga,
-            'Grand Average dSPM (a.u.)', path3, analysis_name, config,
-            cluster_p_values[min_p_idx], time_label, peak_info, subjects_dir
-        )
+            # --- 4. Generate and Save the Plot for the Current Cluster ---
+            vmax_abs = np.nanmax(np.abs(t_map_full))
+            if not np.isfinite(vmax_abs) or vmax_abs <= 0:
+                pos_lims_full = [1e-6, 2e-6, 3e-6]
+            else:
+                pos_lims_full = [vmax_abs * 0.25, vmax_abs * 0.5, vmax_abs * 0.95]
+            
+            eps_full = max(1e-6, 1e-6 * (pos_lims_full[-1] if np.isfinite(pos_lims_full[-1]) else 1.0))
+            if not (pos_lims_full[1] > pos_lims_full[0]):
+                pos_lims_full[1] = pos_lims_full[0] + eps_full
+            if not (pos_lims_full[2] > pos_lims_full[1]):
+                pos_lims_full[2] = pos_lims_full[1] + eps_full
+            clim_full = dict(kind='value', pos_lims=pos_lims_full)
+            
+            # Determine the output path based on the number of significant clusters
+            if n_sig == 1:
+                path = output_dir / f"{analysis_name}_source_cluster.png"
+            else:
+                path = output_dir / f"{analysis_name}_source_cluster_{rank}.png"
+            
+            _compose_source_figure(
+                t_map_full.reshape(-1, 1), full_vertices, stc_tmin, stc_tstep, 'RdBu_r', clim_full,
+                f'T-value (Full Range, Cluster #{rank})', path, analysis_name, config,
+                cluster_p_values[cluster_idx], time_label, peak_info, subjects_dir
+            )
 
     except Exception as e:
         log.error(f"Failed to generate source cluster plots: {e}", exc_info=True)
