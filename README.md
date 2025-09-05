@@ -214,3 +214,6 @@ Notes:
 - On first HTTPS push, Windows Git Credential Manager opens a browser sign‑in. Log in as the repo owner and approve access. Future pushes will succeed without prompts.
 - If you previously signed in as the wrong user or have stale tokens, open Windows “Credential Manager” → Windows Credentials → remove entries for `git:https://github.com`, then push again to re‑authenticate.
 - We intentionally ignore `data/` and `derivatives/` via `.gitignore` so the repository only contains code, configs, and docs.
+
+
+conda activate numbers_eeg_source

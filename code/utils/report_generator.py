@@ -92,13 +92,10 @@ HTML_TEMPLATE = """
             {sensor_extra_clusters_section}
         </section>
 
-        {hs_summary_section}
+        {dSPM_section}
+        
+        {eloreta_section}
 
-        <section id="source-results">
-            <h2>Source-Space Localization</h2>
-            {source_section}
-            {source_extra_clusters_section}
-        </section>
     </main>
 
     <footer>
@@ -331,6 +328,111 @@ def _generate_anatomical_table_html(anatomical_report_path, top_n=7):
         return "<p><em>Error generating anatomical summary table.</em></p>"
 
 
+def _build_source_section_html(
+    source_output_dir: Path,
+    analysis_name_base: str,
+    report_dir: Path,
+    section_title: str,
+    figure_number_prefix: str
+) -> str:
+    """Helper function to build the HTML for a generic source analysis section (dSPM or eLORETA)."""
+    if not source_output_dir or not source_output_dir.exists():
+        return f"""
+        <section>
+            <h2>{section_title}</h2>
+            <p class="null-result">{analysis_name_base} analysis was not run or produced no output.</p>
+        </section>
+        """
+
+    source_report_path = source_output_dir / f"{analysis_name_base}_report.txt"
+    source_plot_path = source_output_dir / f"{analysis_name_base}_source_cluster.png"
+    anatomical_report_path = source_output_dir / f"{analysis_name_base}_anatomical_report.csv"
+    hs_summary_path = source_output_dir / f"{analysis_name_base}_anatomical_summary_hs.csv"
+    label_ts_summary_path = source_output_dir / "aux" / "label_cluster_summary.txt"
+
+    source_stats = read_report_file(source_report_path) if source_report_path.exists() else "No significant clusters found."
+    cluster_details = _parse_source_report_for_cluster_details(source_report_path)
+
+    # --- Build each component separately ---
+
+    # 1. Statistical Findings
+    statistical_findings_html = f"""
+        <div class="findings">
+            <h3>Statistical Findings</h3>
+            <pre><code>{source_stats}</code></pre>
+        </div>
+    """
+
+    # 2. Cortical Cluster Localization Summary (HS Table)
+    hs_summary_html = ""
+    if hs_summary_path.exists():
+        try:
+            hs_df = pd.read_csv(hs_summary_path)
+            if not hs_df.empty:
+                hs_summary_html = (
+                    "<h3>Cortical Cluster Localization Summary</h3>"
+                    + hs_df.to_html(index=False, classes='anatomical-table')
+                )
+        except Exception:
+            pass
+    
+    # 3. Detailed Anatomical Localization Summary
+    anatomical_table_html = _generate_anatomical_table_html(anatomical_report_path)
+
+    # 4. Plots (Main and additional)
+    plots_html = ""
+    if source_plot_path.exists():
+        rel_path = os.path.relpath(source_plot_path.resolve(), start=report_dir)
+        caption_detail = ""
+        if 1 in cluster_details:
+            info = cluster_details[1]
+            caption_detail = f" (p={info['p_value']:.4f}, peak t={info['peak_t']:.2f}, {info['n_vertices']} vertices)"
+        plots_html += f"""
+        <div class="figure-container">
+            <img src="{rel_path}" alt="Source Plot for {analysis_name_base}">
+            <figcaption><strong>Figure {figure_number_prefix}. T-Values for Cluster #1{caption_detail}.</strong></figcaption>
+        </div>
+        """
+    else:
+         label_ts_summary = label_ts_summary_path.read_text() if label_ts_summary_path.exists() else ""
+         label_ts_section = LABEL_TS_SECTION_TEMPLATE.format(label_ts_summary=label_ts_summary) if label_ts_summary else ""
+         plots_html += NULL_SOURCE_SECTION_TEMPLATE.format(label_ts_section=label_ts_section)
+
+    try:
+        import re as _re
+        for plot_file in sorted(source_output_dir.glob(f"{analysis_name_base}_source_cluster_*.png")):
+            m = _re.search(r"_cluster_(\d+)\.png$", plot_file.name)
+            if not m: continue
+            rank = int(m.group(1))
+            if rank <= 1: continue
+
+            rel_path = os.path.relpath(plot_file.resolve(), start=report_dir)
+            caption_detail = ""
+            if rank in cluster_details:
+                info = cluster_details[rank]
+                caption_detail = f" (p={info['p_value']:.4f}, peak t={info['peak_t']:.2f}, {info['n_vertices']} vertices)"
+            
+            plots_html += f"""
+            <div class="figure-container">
+                <img src="{rel_path}" alt="Source Cluster {rank}">
+                <figcaption><strong>Figure {figure_number_prefix}.{rank-1}. Additional significant source cluster #{rank}{caption_detail}.</strong></figcaption>
+            </div>
+            """
+    except Exception:
+        pass
+
+    # --- Assemble the final section in the correct order ---
+    return f"""
+    <section>
+        <h2>{section_title}</h2>
+        {statistical_findings_html}
+        {hs_summary_html}
+        {anatomical_table_html}
+        {plots_html}
+    </section>
+    """
+
+
 def _parse_source_report_for_cluster_details(report_path: Path) -> dict:
     """Parses the source stats report to extract key details for each cluster."""
     details = {}
@@ -390,7 +492,7 @@ def _parse_sensor_report_for_cluster_details(report_path: Path) -> dict:
     return details
 
 
-def create_html_report(sensor_config_path, sensor_output_dir, source_output_dir, report_output_path):
+def create_html_report(sensor_config_path, sensor_output_dir, source_output_dir, loreta_output_dir, report_output_path):
     """
     Generates a standalone HTML report from the analysis outputs.
     """
@@ -468,121 +570,31 @@ def create_html_report(sensor_config_path, sensor_output_dir, source_output_dir,
     except Exception:
         sensor_extra_clusters_section = ""
 
-    # Source paths and logic
-    source_section_html = NULL_SOURCE_SECTION_TEMPLATE.format(label_ts_section="")
-    hs_summary_section = ""
+    # --- Build dSPM Section ---
+    source_section_html = ""
     if source_output_dir:
-        source_output_dir = Path(source_output_dir)
-        source_analysis_name = analysis_name.replace("sensor", "source")
-        source_report_path = source_output_dir / f"{source_analysis_name}_report.txt"
-        
-        # Define path for the single source plot
-        source_plot_path = source_output_dir / f"{source_analysis_name}_source_cluster.png"
+        dSPM_analysis_name = analysis_name.replace("sensor", "source")
+        source_section_html = _build_source_section_html(
+            source_output_dir=Path(source_output_dir),
+            analysis_name_base=dSPM_analysis_name,
+            report_dir=report_dir,
+            section_title="Source-Space Localization (dSPM)",
+            figure_number_prefix="2"
+        )
+    
+    # --- Build eLORETA Section ---
+    eloreta_section_html = ""
+    if loreta_output_dir:
+        loreta_analysis_name = analysis_name.replace("sensor", "loreta")
+        eloreta_section_html = _build_source_section_html(
+            source_output_dir=Path(loreta_output_dir),
+            analysis_name_base=loreta_analysis_name,
+            report_dir=report_dir,
+            section_title="Source-Space Localization (eLORETA)",
+            figure_number_prefix="3"
+        )
 
-        anatomical_report_path = source_output_dir / f"{source_analysis_name}_anatomical_report.csv"
-        hs_summary_path = source_output_dir / f"{source_analysis_name}_anatomical_summary_hs.csv"
-        label_ts_summary_path = source_output_dir / "aux" / "label_cluster_summary.txt"
-        
-        # New: Parse the source report once to get details for all clusters
-        cluster_details = _parse_source_report_for_cluster_details(source_report_path)
-
-        if source_report_path.exists():
-            source_stats = read_report_file(source_report_path)
-            anatomical_table_html = _generate_anatomical_table_html(anatomical_report_path)
-            
-            # Build the source section HTML for a single plot
-            source_section_html = f"""
-                <div class="findings">
-                    <h3>Statistical Findings (Source Space)</h3>
-                    <pre><code>{source_stats}</code></pre>
-                </div>
-                {anatomical_table_html}
-                <h3>Source Visualization</h3>
-            """
-
-            # Embed the main source plot (Cluster #1)
-            if source_plot_path.exists():
-                source_plot_rel_path = os.path.relpath(source_plot_path.resolve(), start=report_dir)
-                # Create a detailed caption for cluster #1
-                caption_detail = ""
-                if 1 in cluster_details:
-                    info = cluster_details[1]
-                    caption_detail = f" (p={info['p_value']:.4f}, peak t={info['peak_t']:.2f}, {info['n_vertices']} vertices)"
-
-                source_section_html += f"""
-                <div class="figure-container">
-                    <img src="{source_plot_rel_path}" alt="Source Plot: T-Value Full Range">
-                    <figcaption><strong>Figure 2. T-Values for Cluster #1{caption_detail}.</strong> This plot shows the T-values for the most significant cluster, with the color scale mapped to the full range of values.</figcaption>
-                </div>
-                """
-        
-            # Build HS summary section if present
-            if hs_summary_path.exists():
-                try:
-                    hs_df = pd.read_csv(hs_summary_path)
-                    # Drop any Brodmann's Area related columns if present
-                    drop_cols = [c for c in hs_df.columns if 'brodmann' in str(c).lower()]
-                    if drop_cols:
-                        hs_df = hs_df.drop(columns=drop_cols)
-                    if not hs_df.empty:
-                        hs_summary_section = (
-                            "<section id=\"hs-summary\">"
-                            "<h2>Cortical Cluster Localization Summary</h2>"
-                            + hs_df.to_html(index=False, classes='anatomical-table') +
-                            "</section>"
-                        )
-                except Exception:
-                    hs_summary_section = ""
-
-        else:
-            # Neither stats nor plot available; keep null message, possibly with label TS
-            label_ts_summary = None
-            if label_ts_summary_path.exists():
-                try:
-                    label_ts_summary = label_ts_summary_path.read_text()
-                except Exception:
-                    label_ts_summary = None
-            label_ts_section = LABEL_TS_SECTION_TEMPLATE.format(label_ts_summary=label_ts_summary) if label_ts_summary else ""
-            source_section_html = NULL_SOURCE_SECTION_TEMPLATE.format(label_ts_section=label_ts_section)
-
-    # Discover additional SOURCE cluster figures (rank >= 2)
-    source_extra_clusters_section = ""
-    if source_output_dir:
-        try:
-            import re as _re
-            extra_plots = []
-            for plot_file in sorted(source_output_dir.glob(f"{source_analysis_name}_source_cluster_*.png")):
-                m = _re.search(r"_cluster_(\d+)\.png$", plot_file.name)
-                if not m:
-                    continue
-                rank = int(m.group(1))
-                if rank <= 1:
-                    continue
-                extra_plots.append((rank, plot_file))
-
-            if extra_plots:
-                blocks = []
-                for rank, plot_file in sorted(extra_plots, key=lambda x: x[0]):
-                    plot_rel = os.path.relpath(plot_file.resolve(), start=report_dir)
-                    # Create a detailed caption for each extra cluster
-                    caption_detail = ""
-                    if rank in cluster_details:
-                        info = cluster_details[rank]
-                        caption_detail = f" (p={info['p_value']:.4f}, peak t={info['peak_t']:.2f}, {info['n_vertices']} vertices)"
-
-                    blocks.append(
-                        f"""
-                        <div class="figure-container">
-                            <img src="{plot_rel}" alt="Source Cluster {rank}">
-                            <figcaption><strong>Figure 2.{rank-1}. Additional significant source cluster #{rank}{caption_detail}.</strong></figcaption>
-                        </div>
-                        """
-                    )
-                source_extra_clusters_section = "\n".join(blocks)
-        except Exception:
-            source_extra_clusters_section = ""
-
-    # --- 2. Populate Template ---
+    # --- Populate Template ---
     # Calculate relative paths for sensor images from the new report location
     erp_plot_rel_path = os.path.relpath(erp_plot_path.resolve(), start=report_dir)
     topo_plot_rel_path = os.path.relpath(topo_plot_path.resolve(), start=report_dir)
@@ -623,9 +635,8 @@ def create_html_report(sensor_config_path, sensor_output_dir, source_output_dir,
         sensor_main_caption_detail=sensor_caption_detail, # Add this
         sensor_roi_erp_section=sensor_roi_erp_section,
         sensor_extra_clusters_section=sensor_extra_clusters_section,
-        source_section=source_section_html,
-        source_extra_clusters_section=source_extra_clusters_section,
-        hs_summary_section=hs_summary_section,
+        dSPM_section=source_section_html,
+        eloreta_section=eloreta_section_html,
         analysis_parameters_section=analysis_parameters_section,
         methods_summary_paragraph=methods_summary_paragraph
     )

@@ -145,81 +145,6 @@ def generate_anatomical_report(stats_results, src, subject, subjects_dir, config
 
 
 # --- Cortical Cluster Localization summary helpers ---
-_BA_CACHE = {
-    'atlas': None,
-    'img': None,
-}
-
-
-def _ensure_brodmann_loaded():
-    if _BA_CACHE['img'] is not None:
-        return
-    atlas = datasets.fetch_atlas_brodmann_2012()
-    _BA_CACHE['atlas'] = atlas
-    _BA_CACHE['img'] = nib.load(atlas.maps) if isinstance(atlas.maps, str) else atlas.maps
-
-
-def _safe_int(v):
-    try:
-        return int(v)
-    except Exception:
-        return None
-
-
-def brodmann_at_mni(mni_xyz, neighborhood: bool = True, radius_vox: int = 1):
-    try:
-        _ensure_brodmann_loaded()
-        img = _BA_CACHE['img']
-        atlas = _BA_CACHE['atlas']
-        ijk = np.round(nib.affines.apply_affine(np.linalg.inv(img.affine), np.asarray(mni_xyz))).astype(int)
-        data = img.get_fdata()
-        # Brodmann 2012 atlas is typically 4D (one map per area). Handle both 3D and 4D.
-        labels = []
-        def label_at(i, j, k):
-            if data.ndim == 4:
-                if (i < 0 or j < 0 or k < 0 or i >= data.shape[0] or j >= data.shape[1] or k >= data.shape[2]):
-                    return None
-                vec = data[i, j, k, :]
-                if np.allclose(vec, 0):
-                    return None
-                idx = _safe_int(np.argmax(vec))
-                if idx is None or idx >= len(atlas.labels):
-                    return None
-                return atlas.labels[idx]
-            else:
-                try:
-                    val = int(data[i, j, k])
-                except Exception:
-                    return None
-                if val <= 0 or val >= len(atlas.labels):
-                    return None
-                return atlas.labels[val]
-
-        i0, j0, k0 = ijk.tolist()
-        if neighborhood:
-            for di in range(-radius_vox, radius_vox + 1):
-                for dj in range(-radius_vox, radius_vox + 1):
-                    for dk in range(-radius_vox, radius_vox + 1):
-                        lab = label_at(i0 + di, j0 + dj, k0 + dk)
-                        if lab is not None:
-                            labels.append(lab)
-            if labels:
-                # modal label
-                label_str = Counter(labels).most_common(1)[0][0]
-            else:
-                label_str = None
-        else:
-            label_str = label_at(i0, j0, k0)
-
-        if not label_str:
-            return "BA N/A", "Unknown"
-        nums = re.findall(r"\d+", label_str)
-        ba_short = f"BA {'/'.join(nums)}" if nums else "BA N/A"
-        return ba_short, label_str
-    except Exception:
-        return "BA N/A", "Unknown"
-
-
 def map_label_to_lobe(label_name: str) -> str:
     s = (label_name or "").lower()
     if 'occip' in s or 'calcarine' in s or 'lingual' in s or 'cuneus' in s:
@@ -237,33 +162,11 @@ def map_label_to_lobe(label_name: str) -> str:
     return 'Unknown'
 
 
-def _lobe_from_ba_string(ba_short: str) -> str:
-    # crude mapping: group BA into lobes for tie-breaking
-    nums = re.findall(r"\d+", ba_short)
-    if not nums:
-        return 'Unknown'
-    try:
-        ba = int(nums[0])
-    except Exception:
-        return 'Unknown'
-    if ba in (17, 18, 19):
-        return 'Occipital'
-    if ba in (5, 7, 39, 40):
-        return 'Parietal'
-    if ba in (20, 21, 22, 37, 38, 41, 42):
-        return 'Temporal'
-    if ba in (4, 6, 8, 9, 10, 11, 44, 45, 46, 47):
-        return 'Frontal'
-    if ba in (23, 24, 31, 32):
-        return 'Cingulate'
-    return 'Unknown'
-
-
 def generate_hs_summary_table(stats_results, src, subject, subjects_dir, config, top_k_regions: int = 3) -> pd.DataFrame:
     """
     Builds a Hyde & Spelke-style per-cluster summary.
     Columns: Cluster ID, Primary Lobe, Regions (top), Cluster Size (vertices),
-             Brodmann (peak), Peak t, Cluster p (FWER), Peak MNI (mm).
+             Peak t, Cluster p (FWER), Peak MNI (mm).
     """
     t_obs, clusters, cluster_p_values, _ = stats_results
     alpha = config['stats']['cluster_alpha']
@@ -324,14 +227,9 @@ def generate_hs_summary_table(stats_results, src, subject, subjects_dir, config,
         else:
             primary_lobe = 'Unknown'
 
-        ba_short, _ = brodmann_at_mni(peak_mni_coords, neighborhood=True, radius_vox=1)
         if primary_lobe == 'Unknown':
-            lob_from_ba = _lobe_from_ba_string(ba_short)
-            if lob_from_ba != 'Unknown':
-                primary_lobe = lob_from_ba
-            else:
-                # final tie-breaker using MNI y (posterior vs anterior)
-                primary_lobe = 'Parietal' if peak_mni_coords[1] < 0 else 'Frontal'
+            # final tie-breaker using MNI y (posterior vs anterior)
+            primary_lobe = 'Parietal' if peak_mni_coords[1] < 0 else 'Frontal'
 
         rows.append({
             'Cluster ID': rank,
@@ -339,7 +237,6 @@ def generate_hs_summary_table(stats_results, src, subject, subjects_dir, config,
             'Hemisphere (peak)': hemi,
             'Top regions': regions_str,
             'Cluster Size (vertices)': cluster_size,
-            'Brodmann (peak)': ba_short,
             'Peak t': round(peak_t, 3),
             'Cluster p (FWER)': f"{p_value:.4f}",
             'Peak MNI (mm)': mni_str,
@@ -347,5 +244,5 @@ def generate_hs_summary_table(stats_results, src, subject, subjects_dir, config,
 
     return pd.DataFrame(rows, columns=[
         'Cluster ID', 'Primary Lobe', 'Top regions', 'Cluster Size (vertices)',
-        'Brodmann (peak)', 'Peak t', 'Cluster p (FWER)', 'Peak MNI (mm)'
+        'Peak t', 'Cluster p (FWER)', 'Peak MNI (mm)'
     ])

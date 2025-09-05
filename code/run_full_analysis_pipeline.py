@@ -92,20 +92,31 @@ def main():
 
     # --- Step 3: The Decision ---
     source_output_dir = None
+    loreta_output_dir = None
     if num_significant_clusters > 0:
         log.info(f"Found {num_significant_clusters} significant sensor-level cluster(s). Proceeding to source analysis.")
         
-        # Derive the source config path
+        # --- Run dSPM analysis (Primary) ---
         source_config_path = args.config.replace("sensor", "source")
         
         if not Path(source_config_path).exists():
-            log.error(f"Could not find corresponding source config file at: {source_config_path}. Skipping source analysis.")
+            log.warning(f"Could not find corresponding dSPM config file at: {source_config_path}. Skipping dSPM analysis.")
         else:
+            log.info(f"--- Running dSPM analysis for {source_config_path} ---")
             source_output_dir = run_source_analysis(config_path=source_config_path, accuracy=args.accuracy)
-            log.info(f"Source analysis complete. Outputs are in: {source_output_dir}")
+            log.info(f"dSPM analysis complete. Outputs are in: {source_output_dir}")
+
+        # --- Run eLORETA analysis (Secondary) ---
+        loreta_config_path = args.config.replace("sensor", "loreta")
+        if not Path(loreta_config_path).exists():
+            log.warning(f"Could not find corresponding eLORETA config file at: {loreta_config_path}. Skipping eLORETA analysis.")
+        else:
+            log.info(f"--- Running eLORETA analysis for {loreta_config_path} ---")
+            loreta_output_dir = run_source_analysis(config_path=loreta_config_path, accuracy=args.accuracy)
+            log.info(f"eLORETA analysis complete. Outputs are in: {loreta_output_dir}")
 
     else:
-        log.info("No significant sensor-level effect found. Skipping source analysis.")
+        log.info("No significant sensor-level effect found. Skipping all source analyses.")
 
     # --- Step 4: Generate the Final Report ---
     log.info("Generating final analysis report...")
@@ -122,6 +133,7 @@ def main():
         sensor_config_path=args.config,
         sensor_output_dir=sensor_output_dir,
         source_output_dir=source_output_dir,  # This will be None if source was skipped
+        loreta_output_dir=loreta_output_dir, # Pass the new directory
         report_output_path=report_output_path
     )
     log.info(f"Analysis and reporting complete. Final report at: {report_output_path}")

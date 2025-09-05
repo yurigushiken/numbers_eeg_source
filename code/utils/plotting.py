@@ -251,10 +251,12 @@ def plot_source_clusters(stats_results, stc_grand_average, config, output_dir):
                 pos_lims_full[2] = pos_lims_full[1] + eps_full
             clim_full = dict(kind='value', pos_lims=pos_lims_full)
             
-            # Determine the output path based on the number of significant clusters
-            if n_sig == 1:
+            # Determine the output path based on the rank of the cluster
+            if rank == 1:
+                # The most significant cluster's plot is the main one, without a number suffix
                 path = output_dir / f"{analysis_name}_source_cluster.png"
             else:
+                # Subsequent clusters get a numbered suffix
                 path = output_dir / f"{analysis_name}_source_cluster_{rank}.png"
             
             _compose_source_figure(
