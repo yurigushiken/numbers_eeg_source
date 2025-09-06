@@ -121,3 +121,10 @@ SET_22_32:
 
 SET_33_32:
   "33 or 32": ["33", "32"]
+
+# Sets for no-cross increasing vs decreasing analysis
+NO_CROSS_INCREASING:
+  "No Cross Increasing": ["12", "13", "23", "45", "46", "56"]
+
+NO_CROSS_DECREASING:
+  "No Cross Decreasing": ["21", "31", "32", "64", "65", "54"]
