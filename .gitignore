@@ -28,6 +28,12 @@ venv/
 # Project data (do not track)
 data/
 
+# Supplemental data / local artifacts (do not track)
+data_behavior/
+zMysteryData/
+temp/
+.claude/
+
 # Analysis outputs (do not track)
 derivatives/
 

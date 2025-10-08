@@ -187,28 +187,6 @@ conda activate numbers_eeg_source; conda install -c conda-forge weasyprint cairo
 
 If no converter is available, the pipeline logs a warning and continues with HTML only.
 
-## GitHub: pushing from Windows/Cursor (what worked for us)
-
-If you see a permission error when pushing (e.g., you’re authenticated as a different GitHub user), switch the remote to HTTPS so Git Credential Manager can prompt you to sign in with the correct account, then push.
-
-Steps (run at the project root):
-
-```powershell
-# 1) Verify the current remote
-git remote -v
-
-# 2) Set the remote to HTTPS (replace with your repo URL)
-git remote set-url origin https://github.com/yurigushiken/numbers_eeg_source.git
-
-# 3) Stage code but exclude large/unversioned content
-git add .
-git reset -- data/ derivatives/
-git add .gitignore
-
-# 4) Commit and push
-git commit -m "Update"
-git push -u origin main
-```
 
 Notes:
 - On first HTTPS push, Windows Git Credential Manager opens a browser sign‑in. Log in as the repo owner and approve access. Future pushes will succeed without prompts.
