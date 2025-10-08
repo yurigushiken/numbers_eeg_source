@@ -13,6 +13,15 @@ from code.utils.electrodes import ELECTRODE_GROUPS
 
 log = logging.getLogger()
 
+# Robust import for MNE private helper across versions
+try:
+    from mne.channels.layout import _find_topomap_coords  # canonical in newer MNE
+except Exception:
+    try:
+        from mne.viz._topomap import _find_topomap_coords  # fallback for older wheels
+    except Exception:
+        _find_topomap_coords = None  # type: ignore
+
 
 def _check_fsaverage_path():
     """Resolve fsaverage strictly from data (no fallbacks)."""
@@ -387,12 +396,11 @@ def plot_t_value_topomap(grand_average, stats_results, config, output_dir, ch_na
 
         # Annotate the peak channel within the cluster (largest |t|)
         try:
+            if _find_topomap_coords is None:
+                raise RuntimeError("no _find_topomap_coords available")
+
             all_names = grand_average.info['ch_names']
             picks_for_pos = [all_names.index(nm) for nm in ch_names]
-            try:
-                from mne.viz.topomap import _find_topomap_coords
-            except Exception:
-                from mne.viz.topomap import _find_topomap_coords
             pos = _find_topomap_coords(grand_average.info, picks_for_pos)
 
             t_abs = np.abs(t_topo.copy()); t_abs[~ch_mask] = 0.0
@@ -402,7 +410,7 @@ def plot_t_value_topomap(grand_average, stats_results, config, output_dir, ch_na
             ax.text(pos[peak_idx, 0] + 0.02, pos[peak_idx, 1] + 0.02, peak_name,
                     fontsize=9, color='k', weight='bold', zorder=12)
         except Exception as e:
-            log.warning(f"Failed to annotate peak sensor: {e}")
+            log.warning(f"Peak sensor annotation skipped ({e})")
 
         cbar = fig.colorbar(im, ax=ax); cbar.set_label("T-Value"); ax.set_title(title)
 

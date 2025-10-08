@@ -60,6 +60,7 @@ conda activate numbers_eeg_source; python -m code.run_source_analysis_pipeline -
 
 -   `--config`: The path to the `.yaml` file defining the entire analysis from contrast to statistics.
 -   `--accuracy`: The dataset to use (`acc1` for correct trials, `all` for all trials).
+-   `--data-source`: Data source selection. `new` (default) uses combined preprocessed files under `data/data_preprocessed/<preprocessing>`; `old` uses legacy split condition folders under `data/<accuracy>/sub-XX`; you may also pass a custom path (e.g., `data/data_preprocessed/hpf_1.5_lpf_40_baseline-on`).
 
 > Note: On Windows/PowerShell use semicolons to chain commands (e.g., `conda activate ...; python ...`).
 
@@ -195,3 +196,30 @@ Notes:
 
 
 conda activate numbers_eeg_source
+
+## Project-wide Defaults (common.yaml)
+
+- `configs/common.yaml` provides minimal, centralized defaults to improve reproducibility and make the default data choice explicit.
+- Current defaults:
+  - `data.source: new` and `data.preprocessing: hpf_1.0_lpf_35_baseline-on`
+  - `epoch_defaults.baseline: [-0.2, 0.0]`
+- Behavior:
+  - When loading an analysis config, the loader fills in a missing `epoch_window.baseline` from `epoch_defaults.baseline` (does not overwrite if present).
+  - Subject discovery for `--data-source new` uses the preprocessing variant from `common.yaml` (no hardcoded path).
+  - CLI `--data-source` always overrides the default (you can pass `new`, `old`, or a custom path).
+
+Example `configs/common.yaml`:
+
+```
+data:
+  source: "new"
+  preprocessing: "hpf_1.0_lpf_35_baseline-on"
+
+epoch_defaults:
+  baseline: [-0.2, 0.0]
+
+montage: "GSN-HydroCel-129"
+reference: "average"
+```
+
+Testing notes (TDD): lightweight unit tests for the config merge and data-source resolution live under `tests/test_config_utils.py`. They avoid importing heavy EEG libraries and validate that defaults merge correctly and path resolution behaves as expected.

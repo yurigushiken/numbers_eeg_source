@@ -17,14 +17,21 @@ logging.basicConfig(level=logging.INFO,
 log = logging.getLogger()
 
 
-def main(config_path=None, accuracy=None):
+def main(config_path=None, accuracy=None, data_source=None):
     if config_path is None or accuracy is None:
         parser = argparse.ArgumentParser(description="Run Source-Space Analysis Pipeline")
         parser.add_argument("--config", type=str, required=True, help="Path to the config YAML file.")
         parser.add_argument("--accuracy", type=str, required=True, choices=['all', 'acc1'], help="Dataset to use.")
+        parser.add_argument("--data-source", type=str, default="new",
+                            help="Data source: 'new' (default), 'old', or custom path.")
         args = parser.parse_args()
         config_path = args.config
         accuracy = args.accuracy
+        data_source = args.data_source
+
+    # Use default if data_source still None
+    if data_source is None:
+        data_source = "new"
 
     # --- 1. Load Config and Setup ---
     config = data_loader.load_config(config_path)
@@ -39,7 +46,7 @@ def main(config_path=None, accuracy=None):
     log.info(f"Output directory created at: {output_dir}")
 
     # --- 2. Load Data and Compute Source Contrasts ---
-    subject_dirs = data_loader.get_subject_dirs(accuracy)
+    subject_dirs = data_loader.get_subject_dirs(accuracy, data_source=data_source)
     fsaverage_src = data_loader.get_fsaverage_src()
 
     all_source_contrasts = []

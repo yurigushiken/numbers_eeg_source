@@ -40,16 +40,27 @@ def main():
         required=True,
         help="Dataset to use ('all' or 'acc1' for correct trials)."
     )
+    parser.add_argument(
+        "--data-source",
+        type=str,
+        default="new",
+        help=(
+            "Data source to use: 'new' (default, recommended) for combined preprocessed files, "
+            "'old' for split condition files, or custom path like "
+            "'data/data_preprocessed/hpf_1.5_lpf_40_baseline-on'"
+        )
+    )
     args = parser.parse_args()
 
     # --- Step 1: Run Sensor Analysis ---
     log.info(f"Starting sensor-space analysis for config: {args.config}")
+    log.info(f"Using data source: {args.data_source}")
     if "sensor" not in args.config:
         log.error("The provided config file must be a sensor-space config file.")
         return
 
     # The pipeline scripts return the output directory path
-    sensor_output_dir = run_sensor_analysis(config_path=args.config, accuracy=args.accuracy)
+    sensor_output_dir = run_sensor_analysis(config_path=args.config, accuracy=args.accuracy, data_source=args.data_source)
     if not sensor_output_dir:
         log.error("Sensor analysis pipeline failed to return an output directory. Aborting.")
         return
@@ -103,7 +114,7 @@ def main():
             log.warning(f"Could not find corresponding dSPM config file at: {source_config_path}. Skipping dSPM analysis.")
         else:
             log.info(f"--- Running dSPM analysis for {source_config_path} ---")
-            source_output_dir = run_source_analysis(config_path=source_config_path, accuracy=args.accuracy)
+            source_output_dir = run_source_analysis(config_path=source_config_path, accuracy=args.accuracy, data_source=args.data_source)
             log.info(f"dSPM analysis complete. Outputs are in: {source_output_dir}")
 
         # --- Run eLORETA analysis (Secondary) ---
@@ -112,7 +123,7 @@ def main():
             log.warning(f"Could not find corresponding eLORETA config file at: {loreta_config_path}. Skipping eLORETA analysis.")
         else:
             log.info(f"--- Running eLORETA analysis for {loreta_config_path} ---")
-            loreta_output_dir = run_source_analysis(config_path=loreta_config_path, accuracy=args.accuracy)
+            loreta_output_dir = run_source_analysis(config_path=loreta_config_path, accuracy=args.accuracy, data_source=args.data_source)
             log.info(f"eLORETA analysis complete. Outputs are in: {loreta_output_dir}")
 
     else:

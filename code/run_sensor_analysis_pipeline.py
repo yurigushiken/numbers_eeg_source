@@ -20,7 +20,7 @@ logging.basicConfig(level=logging.INFO,
 log = logging.getLogger()
 
 
-def main(config_path=None, accuracy=None):
+def main(config_path=None, accuracy=None, data_source=None):
     """
     Main function to orchestrate the sensor-space analysis pipeline.
     """
@@ -31,9 +31,16 @@ def main(config_path=None, accuracy=None):
                             help="Path to the analysis configuration YAML file.")
         parser.add_argument("--accuracy", type=str, required=True, choices=['all', 'acc1'],
                             help="Dataset to use ('all' for all trials, 'acc1' for correct trials).")
+        parser.add_argument("--data-source", type=str, default="new",
+                            help="Data source: 'new' (default), 'old', or custom path.")
         args = parser.parse_args()
         config_path = args.config
         accuracy = args.accuracy
+        data_source = args.data_source
+
+    # Use default if data_source still None
+    if data_source is None:
+        data_source = "new"
 
     # --- 1. Load Configuration and Setup ---
     config = data_loader.load_config(config_path)
@@ -48,7 +55,7 @@ def main(config_path=None, accuracy=None):
     log.info(f"Output directory created at: {output_dir}")
 
     # --- 2. Load Data and Compute Contrasts for Each Subject ---
-    subject_dirs = data_loader.get_subject_dirs(accuracy)
+    subject_dirs = data_loader.get_subject_dirs(accuracy, data_source=data_source)
     if not subject_dirs:
         log.error("No subject directories found. Exiting.")
         return
