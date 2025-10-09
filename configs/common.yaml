@@ -2,7 +2,7 @@
 
 data:
   source: "new"                 # 'new' (combined), 'old' (split), or custom path
-  preprocessing: "hpf_1.0_lpf_35_baseline-on"
+  preprocessing: "hpf_1.5_lpf_35_baseline-on"
 
 epoch_defaults:
   baseline: [-0.2, 0.0]

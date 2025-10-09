@@ -103,8 +103,9 @@ def main():
 
     # --- Step 3: The Decision ---
     sensor_config_path = Path(args.config)
-    source_output_dir = None
-    loreta_output_dir = None
+    # Collect all source outputs per method to embed multiple sections (e.g., N1 and P3b)
+    dspm_output_dirs = []
+    eloreta_output_dirs = []
     if num_significant_clusters > 0:
         log.info(f"Found {num_significant_clusters} significant sensor-level cluster(s). Proceeding to source analysis.")
 
@@ -140,9 +141,9 @@ def main():
 
                 method_lower = str(method).lower()
                 if method_lower == "dspm":
-                    source_output_dir = output_dir
+                    dspm_output_dirs.append(output_dir)
                 elif method_lower == "eloreta":
-                    loreta_output_dir = output_dir
+                    eloreta_output_dirs.append(output_dir)
                 else:
                     log.info(f"Recorded outputs for additional method '{method}' at {output_dir}")
 
@@ -169,8 +170,8 @@ def main():
     create_html_report(
         sensor_config_path=args.config,
         sensor_output_dir=sensor_output_dir,
-        source_output_dir=source_output_dir,  # This will be None if source was skipped
-        loreta_output_dir=loreta_output_dir, # Pass the new directory
+        source_output_dir=dspm_output_dirs,   # List of dSPM runs (e.g., N1 + P3b)
+        loreta_output_dir=eloreta_output_dirs, # List of eLORETA runs
         report_output_path=report_output_path,
         run_command=run_cmd,
         accuracy=args.accuracy,

@@ -1,4 +1,4 @@
-# configs/sensor_change_vs_no-change.yaml
+# configs\change_vs_no-change\sensor_change_vs_no-change.yaml
 
 # 1. Metadata
 analysis_name: "sensor_change_vs_no-change"
@@ -6,9 +6,9 @@ domain: "sensor"  # 'sensor' or 'source'
 
 # 2. Data Selection
 epoch_window:
-  tmin: -0.1
-  tmax: 0.6
-  baseline: [-0.1, 0.0]
+  tmin: -0.2
+  tmax: 0.496
+  baseline: [-0.2, 0.0]
 
 # 3. Contrast Definition
 # Defines the two groups of conditions to be contrasted.
@@ -28,38 +28,22 @@ contrast:
   # This avoids ambiguity with trial counts.
   combination_weights: [1, -1]
 
-# 4. Cluster Statistics Parameters (mirroring MNE function arguments)
+# 4. Statistical Analysis Parameters
 stats:
-  analysis_window: [0.3, 0.496]
-  # The initial p-value for a t-test to define candidate clusters.
-  # A value of 0.001 is used in the Jas et al. paper.
-  p_threshold: 0.001
-
-  # The final alpha for assessing cluster significance after permutation.
+  analysis_window: [0.00, 0.496]
+  p_threshold: 0.01
   cluster_alpha: 0.05
-
-  # Number of permutations to generate the null distribution.
-  # 1024 is a reasonable minimum for testing, but should be >= 5000 for publication.
   n_permutations: 5000
-
-  # Use a two-sided test, as we don't have a strong directional hypothesis.
-  tail: 0 # 0 for two-sided, 1 for positive effects, -1 for negative
-
-  # Defines how to connect features to form clusters.
-  # For sensor-space, MNE can find adjacency between sensors automatically.
-  # This will be passed to `mne.channels.find_ch_adjacency`.
-  connectivity: "eeg"
+  tail: 0  # two-sided test
+  seed: 42 # for reproducibility
+  connectivity:
+    method: "distance"
+    threshold: 0.04 # 4 cm
 
 # 5. Visualization Parameters
 visualizations:
-  # Parameters for the final ERP plot showing the contrast.
-  erp_plot:
-    # 'auto' will instruct the script to average over sensors
-    # that are part of the most significant cluster.
-    picks: "auto"
-
-  # Parameters for plotting topomaps of the t-values.
+  erp:
+    channels: []
   topomap:
-    # 'auto' will instruct the script to average t-values
-    # over the time window of the most significant cluster.
-    times: "auto"
+    times: []
+

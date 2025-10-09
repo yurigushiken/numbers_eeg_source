@@ -7,6 +7,13 @@ import pandas as pd
 import shutil
 import subprocess
 import json as _json
+from code.utils.caption_generator import (
+    generate_sensor_caption,
+    generate_source_caption,
+    infer_time_window_label,
+    infer_topography_from_channels
+)
+from code.utils.data_quality_checker import get_preprocessing_info_from_config
 
 log = logging.getLogger()
 
@@ -36,6 +43,9 @@ HTML_TEMPLATE = """
         table {{ width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 13px; }}
         th, td {{ padding: 8px 12px; border: 1px solid #ddd; text-align: left; vertical-align: top; }}
         th {{ background-color: #f2f2f2; font-size: 13px; }}
+        .data-quality-table {{ max-width: 600px; margin: 0 auto; }}
+        .data-quality-table th {{ width: 50%; }}
+        .data-quality-table td {{ width: 50%; }}
         pre, code {{ white-space: pre-wrap; word-break: break-word; overflow-wrap: anywhere; }}
         pre {{ background-color: #fafafa; padding: 12px; border-radius: 4px; overflow-x: auto; font-size: 12px; }}
     </style>
@@ -62,6 +72,8 @@ HTML_TEMPLATE = """
             <h2>Run Details</h2>
             {run_details_section}
         </section>
+
+        {data_quality_section}
 
         <section id="analysis-parameters">
             <h2>Analysis Parameters</h2>
@@ -93,7 +105,7 @@ HTML_TEMPLATE = """
                         <img src="{topo_plot_path}" alt="Topomap Cluster Plot">
                     </div>
                 </div>
-                <figcaption><strong>Figure 1.</strong> The grand average difference wave over the significant posterior cluster (left) and the topographical distribution of T-values during the significant time window (right){sensor_main_caption_detail}.</figcaption>
+                <figcaption><strong>Figure 1.</strong>{sensor_main_caption_detail}</figcaption>
             </div>
             {sensor_extra_clusters_section}
         </section>
@@ -376,7 +388,10 @@ def _build_source_section_html(
     analysis_name_base: str,
     report_dir: Path,
     section_title: str,
-    figure_number_prefix: str
+    figure_number_prefix: str,
+    contrast_name: str = "",
+    method: str = "dSPM",
+    analysis_window: str = ""
 ) -> str:
     """Helper function to build the HTML for a generic source analysis section (dSPM or eLORETA)."""
     if not source_output_dir or not source_output_dir.exists():
@@ -394,7 +409,7 @@ def _build_source_section_html(
     label_ts_summary_path = source_output_dir / "aux" / "label_cluster_summary.txt"
 
     source_stats = read_report_file(source_report_path) if source_report_path.exists() else "No significant clusters found."
-    cluster_details = _parse_source_report_for_cluster_details(source_report_path)
+    cluster_details = _parse_source_report_for_cluster_details(source_report_path, source_output_dir)
 
     # --- Build each component separately ---
 
@@ -447,14 +462,31 @@ def _build_source_section_html(
     plots_html = ""
     if source_plot_path.exists():
         rel_path = os.path.relpath(source_plot_path.resolve(), start=report_dir)
-        caption_detail = ""
+        caption_full = "T-Values for Cluster #1."
         if 1 in cluster_details:
             info = cluster_details[1]
-            caption_detail = f" (p={info['p_value']:.4f}, peak t={info['peak_t']:.2f}, {info['n_vertices']} vertices)"
+            # Infer time window label from analysis window
+            time_window_label = infer_time_window_label(analysis_window) if analysis_window else None
+
+            try:
+                # Generate enhanced source caption
+                caption_full = generate_source_caption(
+                    cluster_id=1,
+                    cluster_info=info,
+                    contrast_name=contrast_name if contrast_name else "Condition A vs. Condition B",
+                    method=method,
+                    time_window_label=time_window_label,
+                    analysis_window=analysis_window
+                )
+            except Exception as e:
+                # Fallback to simple caption
+                log.warning(f"Failed to generate enhanced source caption: {e}")
+                caption_full = f"T-Values for Cluster #1 (p={info['p_value']:.4f}, peak t={info['peak_t']:.2f}, {info['n_vertices']} vertices)."
+
         plots_html += f"""
         <div class="figure-container">
             <img src="{rel_path}" alt="Source Plot for {analysis_name_base}">
-            <figcaption><strong>Figure {figure_number_prefix}. T-Values for Cluster #1{caption_detail}.</strong></figcaption>
+            <figcaption><strong>Figure {figure_number_prefix}.</strong> {caption_full}</figcaption>
         </div>
         """
     else:
@@ -498,8 +530,8 @@ def _build_source_section_html(
     """
 
 
-def _parse_source_report_for_cluster_details(report_path: Path) -> dict:
-    """Parses the source stats report to extract key details for each cluster."""
+def _parse_source_report_for_cluster_details(report_path: Path, source_output_dir: Path = None) -> dict:
+    """Parses the source stats report to extract key details for each cluster, including anatomical info."""
     details = {}
     if not report_path or not report_path.exists():
         return details
@@ -520,8 +552,31 @@ def _parse_source_report_for_cluster_details(report_path: Path) -> dict:
             details[cluster_id] = {
                 "p_value": float(match[1]),
                 "peak_t": float(match[2]),
-                "n_vertices": int(match[3])
+                "n_vertices": int(match[3]),
+                "peak_mni": "",
+                "primary_region": ""
             }
+
+        # Try to augment with anatomical info from HS summary CSV
+        if source_output_dir:
+            try:
+                analysis_name = source_output_dir.name.split("-", 1)[1] if "-" in source_output_dir.name else source_output_dir.name
+                hs_path = source_output_dir / f"{analysis_name}_anatomical_summary_hs.csv"
+                if hs_path.exists():
+                    import pandas as pd
+                    hs_df = pd.read_csv(hs_path)
+                    for _, row in hs_df.iterrows():
+                        cluster_id = int(row['Cluster ID'])
+                        if cluster_id in details:
+                            details[cluster_id]['peak_mni'] = str(row['Peak MNI (mm)'])
+                            # Extract first region from "Top regions"
+                            top_regions = str(row.get('Top regions', ''))
+                            if top_regions and top_regions != 'nan':
+                                first_region = top_regions.split(',')[0].strip()
+                                details[cluster_id]['primary_region'] = first_region
+            except Exception as e:
+                log.debug(f"Could not parse anatomical summary for enhanced source captions: {e}")
+
     except Exception as e:
         log.warning(f"Could not parse source report for cluster details: {e}")
     return details
@@ -536,21 +591,28 @@ def _parse_sensor_report_for_cluster_details(report_path: Path) -> dict:
     try:
         text = report_path.read_text()
         import re
+        # Pattern to extract cluster details including channels
         pattern = re.compile(
             r"Cluster #(\d+)\s*\(p-value = ([\d.]+)\).*?"
             r"Peak t-value: ([-\d.]+).*?"
             r"Time window: ([\d.]+\s*ms to [\d.]+\s*ms).*?"
-            r"Number of channels: (\d+)",
+            r"Number of channels: (\d+).*?"
+            r"Channels involved: ([^\n]+)",
             re.DOTALL
         )
         matches = pattern.findall(text)
         for match in matches:
             cluster_id = int(match[0])
+            # Parse channel list
+            channels_str = match[5].strip()
+            channels = [ch.strip() for ch in channels_str.split(',') if ch.strip()]
+
             details[cluster_id] = {
                 "p_value": float(match[1]),
                 "peak_t": float(match[2]),
                 "time_window": str(match[3]),
-                "n_channels": int(match[4])
+                "n_channels": int(match[4]),
+                "channels": channels
             }
     except Exception as e:
         log.warning(f"Could not parse sensor report for cluster details: {e}")
@@ -613,12 +675,29 @@ def create_html_report(sensor_config_path, sensor_output_dir, source_output_dir,
             for rank, erp_img, topo_img in sorted(extra_pairs, key=lambda x: x[0]):
                 erp_rel = os.path.relpath(erp_img.resolve(), start=report_dir)
                 topo_rel = os.path.relpath(topo_img.resolve(), start=report_dir)
-                
-                # Create a detailed caption for each extra sensor cluster
-                extra_caption_detail = ""
+
+                # Generate enhanced caption for extra sensor clusters
+                extra_caption_full = f"Additional significant sensor cluster #{rank}."
                 if rank in sensor_cluster_details:
                     info = sensor_cluster_details[rank]
-                    extra_caption_detail = f" (p={info['p_value']:.4f}, peak t={info['peak_t']:.2f}, {info['n_channels']} channels, {info['time_window']})"
+                    # Infer topography from channels if available
+                    channels = info.get('channels', [])
+                    topography = infer_topography_from_channels(channels) if channels else ""
+                    # Infer time window label
+                    time_window_label = infer_time_window_label(info.get('time_window', ''))
+                    # Add topography to info dict for caption generation
+                    info_with_topo = {**info, 'topography': topography}
+
+                    try:
+                        extra_caption_full = generate_sensor_caption(
+                            cluster_id=rank,
+                            cluster_info=info_with_topo,
+                            contrast_name=config['contrast']['name'],
+                            time_window_label=time_window_label
+                        )
+                    except Exception:
+                        # Fallback to simple caption
+                        extra_caption_full = f"Additional significant sensor cluster #{rank} (p={info['p_value']:.4f}, peak t={info['peak_t']:.2f}, {info['n_channels']} channels, {info['time_window']})."
 
                 blocks.append(
                     f"""
@@ -627,7 +706,7 @@ def create_html_report(sensor_config_path, sensor_output_dir, source_output_dir,
                             <div><img src="{erp_rel}" alt="ERP Cluster {rank}"></div>
                             <div><img src="{topo_rel}" alt="Topomap Cluster {rank}"></div>
                         </div>
-                        <figcaption><strong>Figure 1.{rank-1}.</strong> Additional significant sensor cluster #{rank}{extra_caption_detail}.</figcaption>
+                        <figcaption><strong>Figure 1.{rank-1}.</strong> {extra_caption_full}</figcaption>
                     </div>
                     """
                 )
@@ -635,35 +714,49 @@ def create_html_report(sensor_config_path, sensor_output_dir, source_output_dir,
     except Exception:
         sensor_extra_clusters_section = ""
 
-    # --- Build dSPM Section ---
+    # --- Build dSPM Section(s) ---
     source_section_html = ""
-    if source_output_dir:
-        try:
-            dSPM_analysis_name = Path(source_output_dir).name.split("-", 1)[1]
-        except Exception:
-            dSPM_analysis_name = analysis_name.replace("sensor", "source")
-        source_section_html = _build_source_section_html(
-            source_output_dir=Path(source_output_dir),
-            analysis_name_base=dSPM_analysis_name,
-            report_dir=report_dir,
-            section_title="Source-Space Localization (dSPM)",
-            figure_number_prefix="2"
-        )
+    sods = source_output_dir
+    if sods and not isinstance(sods, (list, tuple)):
+        sods = [sods]
+    if sods:
+        for sod in sods:
+            try:
+                dSPM_analysis_name = Path(sod).name.split("-", 1)[1]
+            except Exception:
+                dSPM_analysis_name = analysis_name.replace("sensor", "source")
+            source_section_html += _build_source_section_html(
+                source_output_dir=Path(sod),
+                analysis_name_base=dSPM_analysis_name,
+                report_dir=report_dir,
+                section_title="Source-Space Localization (dSPM)",
+                figure_number_prefix="2",
+                contrast_name=config['contrast']['name'],
+                method="dSPM",
+                analysis_window=config.get('stats', {}).get('analysis_window', '')
+            )
     
-    # --- Build eLORETA Section ---
+    # --- Build eLORETA Section(s) ---
     eloreta_section_html = ""
-    if loreta_output_dir:
-        try:
-            loreta_analysis_name = Path(loreta_output_dir).name.split("-", 1)[1]
-        except Exception:
-            loreta_analysis_name = analysis_name.replace("sensor", "loreta")
-        eloreta_section_html = _build_source_section_html(
-            source_output_dir=Path(loreta_output_dir),
-            analysis_name_base=loreta_analysis_name,
-            report_dir=report_dir,
-            section_title="Source-Space Localization (eLORETA)",
-            figure_number_prefix="3"
-        )
+    lods = loreta_output_dir
+    if lods and not isinstance(lods, (list, tuple)):
+        lods = [lods]
+    if lods:
+        for lod in lods:
+            try:
+                loreta_analysis_name = Path(lod).name.split("-", 1)[1]
+            except Exception:
+                loreta_analysis_name = analysis_name.replace("sensor", "loreta")
+            eloreta_section_html += _build_source_section_html(
+                source_output_dir=Path(lod),
+                analysis_name_base=loreta_analysis_name,
+                report_dir=report_dir,
+                section_title="Source-Space Localization (eLORETA)",
+                figure_number_prefix="3",
+                contrast_name=config['contrast']['name'],
+                method="eLORETA",
+                analysis_window=config.get('stats', {}).get('analysis_window', '')
+            )
 
     # --- Populate Template ---
     # Calculate relative paths for sensor images from the new report location
@@ -684,23 +777,56 @@ def create_html_report(sensor_config_path, sensor_output_dir, source_output_dir,
 
     analysis_parameters_section = _build_analysis_parameters_table(sensor_config_path, config, report_dir)
 
+    # Generate data quality section
+    data_quality_section = ""
+    try:
+        project_root = sensor_config_path.resolve().parents[2]
+        data_quality_info = get_preprocessing_info_from_config(project_root=project_root)
+        if data_quality_info:
+            data_quality_section = data_quality_info.to_html()
+    except Exception as e:
+        log.warning(f"Could not generate data quality section: {e}")
+        data_quality_section = ""
+
     methods_summary_paragraph = (
         "We performed group-level statistical analysis using a non-parametric cluster-based permutation test to control for multiple comparisons across space and time. "
         "When sensor-space effects reached significance, they were localized to the cortical surface using the configured source estimation methods (e.g., dSPM, eLORETA). "
         "We then conducted region-of-interest (ROI) cluster-based permutation testing on the source data to identify the anatomical origins of the effect."
     )
 
-    # Detailed caption for the main sensor plot (Cluster #1)
+    # Generate enhanced caption for the main sensor plot (Cluster #1)
     sensor_caption_detail = ""
     if 1 in sensor_cluster_details:
         info = sensor_cluster_details[1]
-        sensor_caption_detail = f" (p={info['p_value']:.4f}, peak t={info['peak_t']:.2f}, {info['n_channels']} channels, {info['time_window']})"
+        # Infer topography from channels
+        channels = info.get('channels', [])
+        topography = infer_topography_from_channels(channels) if channels else "posterior"
+        # Infer time window label
+        time_window_label = infer_time_window_label(info.get('time_window', ''))
+        # Add topography to info dict
+        info_with_topo = {**info, 'topography': topography}
+
+        try:
+            # Generate full enhanced caption
+            full_caption = generate_sensor_caption(
+                cluster_id=1,
+                cluster_info=info_with_topo,
+                contrast_name=config['contrast']['name'],
+                time_window_label=time_window_label
+            )
+            # Use the full caption as the detail
+            sensor_caption_detail = f" {full_caption}"
+        except Exception as e:
+            # Fallback to simple caption
+            log.warning(f"Failed to generate enhanced sensor caption: {e}")
+            sensor_caption_detail = f" (p={info['p_value']:.4f}, peak t={info['peak_t']:.2f}, {info['n_channels']} channels, {info['time_window']})"
 
     final_html = HTML_TEMPLATE.format(
         title=f"{base_title} — Sensor + Source Report",
         date=datetime.now().strftime("%Y-%m-%d"),
         contrast_name=config['contrast']['name'],
         run_details_section=_build_run_details_section(run_command, accuracy, data_source, sensor_config_path, report_dir),
+        data_quality_section=data_quality_section,
         sensor_stats=sensor_stats,
         erp_plot_path=erp_plot_rel_path,
         topo_plot_path=topo_plot_rel_path,

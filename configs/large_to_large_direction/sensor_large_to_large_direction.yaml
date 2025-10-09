@@ -25,7 +25,7 @@ contrast:
 # 4. Statistical Analysis Parameters
 stats:
   analysis_window: [0.00, 0.496]
-  p_threshold: 0.005
+  p_threshold: 0.01
   cluster_alpha: 0.05
   n_permutations: 5000
   tail: 0  # two-sided test

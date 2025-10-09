@@ -52,6 +52,25 @@ def _load_condition_sets():
 CONDITION_SETS = _load_condition_sets()
 # ---
 
+def load_common_config(project_root: str | Path = "."):
+    """Load the common configuration file (configs/common.yaml).
+
+    Parameters
+    ----------
+    project_root : str | Path
+        Project root directory
+
+    Returns
+    -------
+    dict
+        Common configuration dictionary
+    """
+    common_path = Path(project_root) / "configs" / "common.yaml"
+    if common_path.exists():
+        with open(common_path, 'r', encoding='utf-8') as f:
+            return yaml.safe_load(f)
+    return {}
+
 def load_config(config_path, project_root: str | Path = "."):
     """Loads and validates a YAML configuration file and applies common defaults.
 
@@ -535,7 +554,7 @@ def generate_template_inverse_operator_from_epochs(epochs, subject_dir, config):
     # 7. Save the inverse operator for future runs
     inv_fname = subject_dir / f"{subject_dir.name}-inv.fif"
     inv_fname.parent.mkdir(exist_ok=True, parents=True)
-    write_inverse_operator(inv_fname, inv, verbose=False)
+    write_inverse_operator(inv_fname, inv, overwrite=True, verbose=False)
     log.info(f"Saved inverse operator to {inv_fname}")
 
     return inv
