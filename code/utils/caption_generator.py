@@ -12,54 +12,78 @@ import ast
 from typing import Dict, Optional, Any
 
 
-def _interpret_t_value_direction(peak_t: float, contrast_name: str) -> tuple[str, str, str]:
+def _clean_condition_label(label: str) -> str:
+    """Lightly clean condition labels for readability."""
+    if not isinstance(label, str):
+        return "Unknown condition"
+
+    cleaned = label.strip()
+    replacements = {
+        " Changes": "",
+        " changes": "",
+        " Transitions": "",
+        " transitions": "",
+        " (Full 1-6 Range)": "",
+    }
+    for src, tgt in replacements.items():
+        cleaned = cleaned.replace(src, tgt)
+
+    return " ".join(cleaned.split())
+
+
+def _interpret_t_value_direction(
+    peak_t: float,
+    contrast: Dict[str, Any]
+) -> tuple[str, str, str]:
     """
-    Interpret the direction of a t-value based on contrast structure.
+    Interpret the direction of a t-value based on the contrast definition.
 
     Args:
         peak_t: Peak t-value (positive or negative)
-        contrast_name: Name of the contrast (e.g., "Increasing vs. Decreasing")
+        contrast: Full contrast dictionary from the YAML config
 
     Returns:
         Tuple of (polarity_phrase, direction_phrase, color_hint)
-
-    Example:
-        For "Increasing vs. Decreasing" with negative t:
-        Returns ("Negative t-values (blue)", "stronger activation for Increasing relative to Decreasing", "blue")
     """
-    # Extract condition names from contrast
-    # Typical format: "ConditionA vs. ConditionB" or "All X vs. All Y"
-    parts = contrast_name.split(" vs. ")
-    if len(parts) == 2:
-        cond_a = parts[0].strip()
-        cond_b = parts[1].strip()
+    contrast = contrast or {}
+    contrast_name = contrast.get("name", "")
 
-        # Clean up common prefixes
-        for prefix in ["All ", "Small ", "Large "]:
-            if cond_a.startswith(prefix):
-                cond_a = cond_a[len(prefix):]
-            if cond_b.startswith(prefix):
-                cond_b = cond_b[len(prefix):]
+    cond_a_info = contrast.get("condition_A") or {}
+    cond_b_info = contrast.get("condition_B") or {}
+    cond_a = _clean_condition_label(cond_a_info.get("name") or cond_a_info.get("condition_set_name") or "Condition A")
+    cond_b = _clean_condition_label(cond_b_info.get("name") or cond_b_info.get("condition_set_name") or "Condition B")
 
-        # Further cleanup for common suffixes
-        for suffix in [" Changes", " (Full 1-6 Range)", " Transitions"]:
-            cond_a = cond_a.replace(suffix, "")
-            cond_b = cond_b.replace(suffix, "")
-    else:
-        # Fallback
-        cond_a = "Condition A"
-        cond_b = "Condition B"
+    weights = contrast.get("combination_weights") or []
+    positive_favors = negative_favors = None
 
-    if peak_t < 0:
-        # Negative t-value: Condition A > Condition B
-        polarity = "Negative t-values (blue)"
-        direction = f"stronger activation for {cond_a} relative to {cond_b} changes"
-        color = "blue"
-    else:
-        # Positive t-value: Condition B > Condition A
+    if isinstance(weights, (list, tuple)) and len(weights) >= 2:
+        w_a = weights[0]
+        w_b = weights[1]
+        if w_a > 0 and w_b < 0:
+            positive_favors = cond_a
+            negative_favors = cond_b
+        elif w_a < 0 and w_b > 0:
+            positive_favors = cond_b
+            negative_favors = cond_a
+
+    if positive_favors is None or negative_favors is None:
+        # Fallback to parsing the contrast name if weights are ambiguous (e.g., >2 conditions)
+        parts = contrast_name.split(" vs. ")
+        if len(parts) == 2:
+            positive_favors = _clean_condition_label(parts[0])
+            negative_favors = _clean_condition_label(parts[1])
+        else:
+            positive_favors = "Condition A"
+            negative_favors = "Condition B"
+
+    if peak_t >= 0:
         polarity = "Positive t-values (red)"
-        direction = f"stronger activation for {cond_b} relative to {cond_a} changes"
+        direction = f"stronger activation for {positive_favors} relative to {negative_favors}"
         color = "red"
+    else:
+        polarity = "Negative t-values (blue)"
+        direction = f"stronger activation for {negative_favors} relative to {positive_favors}"
+        color = "blue"
 
     return polarity, direction, color
 
@@ -67,7 +91,7 @@ def _interpret_t_value_direction(peak_t: float, contrast_name: str) -> tuple[str
 def generate_sensor_caption(
     cluster_id: int,
     cluster_info: Dict[str, Any],
-    contrast_name: str,
+    contrast: Dict[str, Any],
     time_window_label: Optional[str] = None
 ) -> str:
     """
@@ -82,7 +106,7 @@ def generate_sensor_caption(
             - time_window: Time window string (e.g., "104.0 ms to 176.0 ms")
             - topography: Optional scalp region (e.g., "posterior", "frontal")
             - cluster_mass: Optional cluster mass
-        contrast_name: Name of the contrast
+        contrast: Contrast dictionary
         time_window_label: Optional component label (e.g., "N1", "P3b")
 
     Returns:
@@ -95,7 +119,7 @@ def generate_sensor_caption(
     topography = cluster_info.get('topography', '')
 
     # Get directional interpretation
-    polarity, direction, color = _interpret_t_value_direction(peak_t, contrast_name)
+    polarity, direction, color = _interpret_t_value_direction(peak_t, contrast)
 
     # Determine cluster description
     if cluster_id == 1:
@@ -125,7 +149,7 @@ def generate_sensor_caption(
 def generate_source_caption(
     cluster_id: int,
     cluster_info: Dict[str, Any],
-    contrast_name: str,
+    contrast: Dict[str, Any],
     method: str = "dSPM",
     time_window_label: Optional[str] = None,
     analysis_window: Optional[str] = None
@@ -142,7 +166,7 @@ def generate_source_caption(
             - peak_mni: MNI coordinates string (e.g., "(-22.6, -97.4, 10.8)")
             - primary_region: Primary anatomical region
             - top_regions: Optional list of contributing regions
-        contrast_name: Name of the contrast
+        contrast: Contrast dictionary
         method: Source estimation method (e.g., "dSPM", "eLORETA")
         time_window_label: Optional component label (e.g., "N1", "P3b")
         analysis_window: Optional analysis time window (e.g., "80-200 ms")
@@ -167,7 +191,7 @@ def generate_source_caption(
         region_display = "cortical source"
 
     # Get directional interpretation
-    polarity, direction, color = _interpret_t_value_direction(peak_t, contrast_name)
+    polarity, direction, color = _interpret_t_value_direction(peak_t, contrast)
 
     # Build opening phrase
     if cluster_id == 1:

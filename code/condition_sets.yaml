@@ -37,6 +37,13 @@ CARDINALITY_2:
 CARDINALITY_3:
   "Cardinality 3": ["33"]
 
+CARDINALITY_NON1:
+  "Cardinality 2": ["22"]
+  "Cardinality 3": ["33"]
+  "Cardinality 4": ["44"]
+  "Cardinality 5": ["55"]
+  "Cardinality 6": ["66"]
+
 DIRECTION_CHANGE:
   "Decreasing": [
     "21", "31", "32", "41", "42", "43", "52", "53", "54", "63", "64", "65"

@@ -359,7 +359,11 @@ def generate_data_quality_report(
     return report
 
 
-def get_preprocessing_info_from_config(config_path: Path = None, project_root: Path = None) -> Optional[DataQualityInfo]:
+def get_preprocessing_info_from_config(
+    config_path: Path = None,
+    project_root: Path = None,
+    data_source: Optional[str] = None,
+) -> Optional[DataQualityInfo]:
     """
     Extract preprocessing info based on common.yaml configuration.
 
@@ -369,6 +373,11 @@ def get_preprocessing_info_from_config(config_path: Path = None, project_root: P
         Path to common.yaml (defaults to configs/common.yaml)
     project_root : Path, optional
         Project root directory
+    data_source : str, optional
+        Explicit data source selection passed at runtime. When provided and not
+        equal to ``"new"``, this takes precedence over the preprocessing value
+        stored in ``common.yaml`` so the report reflects the dataset that was
+        actually analysed.
 
     Returns
     -------
@@ -387,6 +396,21 @@ def get_preprocessing_info_from_config(config_path: Path = None, project_root: P
             config = yaml.safe_load(f)
 
         preprocessing_name = config.get('data', {}).get('preprocessing')
+
+        # Allow runtime override so the report matches the dataset that was used
+        if data_source and data_source != "new":
+            if data_source in {"old"}:
+                # No dedicated HAPPE summaries for legacy split files; fall back to config.
+                pass
+            else:
+                ds_path = Path(data_source)
+                if not ds_path.is_absolute():
+                    ds_path = (project_root / ds_path).resolve()
+                if ds_path.is_file():
+                    ds_path = ds_path.parent
+                candidate = ds_path.name
+                if candidate:
+                    preprocessing_name = candidate
 
         if not preprocessing_name:
             print("Warning: No preprocessing name found in common.yaml")

@@ -1,0 +1,41 @@
+# configs/cardinality1_vs_cardinalitynon1/sensor_cardinality1_vs_cardinalitynon1.yaml
+
+# 1. General Analysis Information
+analysis_name: "sensor_cardinality1_vs_cardinalitynon1"
+domain: "sensor"
+
+# 2. Epoch Time Window and Baseline Correction
+epoch_window:
+  tmin: -0.2
+  tmax: 0.496
+  baseline: [-0.2, 0.0]
+
+# 3. Contrast Definition
+contrast:
+  name: "Cardinality 1 vs. Cardinality Non-1"
+  condition_A:
+    name: "Cardinality 1"
+    condition_set_name: "CARDINALITY_1"
+  condition_B:
+    name: "Cardinality Non-1"
+    condition_set_name: "CARDINALITY_NON1"
+  combination_weights: [1, -1]
+
+# 4. Statistical Analysis Parameters
+stats:
+  analysis_window: [0.00, 0.496]
+  p_threshold: 0.005
+  cluster_alpha: 0.05
+  n_permutations: 5000
+  tail: 0  # two-sided test
+  seed: 42 # for reproducibility
+  connectivity:
+    method: "distance"
+    threshold: 0.04 # 4 cm
+
+# 5. Visualization Parameters
+visualizations:
+  erp:
+    channels: []
+  topomap:
+    times: []

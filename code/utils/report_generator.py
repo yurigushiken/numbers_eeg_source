@@ -389,7 +389,7 @@ def _build_source_section_html(
     report_dir: Path,
     section_title: str,
     figure_number_prefix: str,
-    contrast_name: str = "",
+    contrast: dict | None = None,
     method: str = "dSPM",
     analysis_window: str = ""
 ) -> str:
@@ -473,7 +473,7 @@ def _build_source_section_html(
                 caption_full = generate_source_caption(
                     cluster_id=1,
                     cluster_info=info,
-                    contrast_name=contrast_name if contrast_name else "Condition A vs. Condition B",
+                    contrast=contrast or {},
                     method=method,
                     time_window_label=time_window_label,
                     analysis_window=analysis_window
@@ -692,7 +692,7 @@ def create_html_report(sensor_config_path, sensor_output_dir, source_output_dir,
                         extra_caption_full = generate_sensor_caption(
                             cluster_id=rank,
                             cluster_info=info_with_topo,
-                            contrast_name=config['contrast']['name'],
+                            contrast=config.get('contrast'),
                             time_window_label=time_window_label
                         )
                     except Exception:
@@ -731,7 +731,7 @@ def create_html_report(sensor_config_path, sensor_output_dir, source_output_dir,
                 report_dir=report_dir,
                 section_title="Source-Space Localization (dSPM)",
                 figure_number_prefix="2",
-                contrast_name=config['contrast']['name'],
+                contrast=config.get('contrast'),
                 method="dSPM",
                 analysis_window=config.get('stats', {}).get('analysis_window', '')
             )
@@ -753,7 +753,7 @@ def create_html_report(sensor_config_path, sensor_output_dir, source_output_dir,
                 report_dir=report_dir,
                 section_title="Source-Space Localization (eLORETA)",
                 figure_number_prefix="3",
-                contrast_name=config['contrast']['name'],
+                contrast=config.get('contrast'),
                 method="eLORETA",
                 analysis_window=config.get('stats', {}).get('analysis_window', '')
             )
@@ -781,7 +781,10 @@ def create_html_report(sensor_config_path, sensor_output_dir, source_output_dir,
     data_quality_section = ""
     try:
         project_root = sensor_config_path.resolve().parents[2]
-        data_quality_info = get_preprocessing_info_from_config(project_root=project_root)
+        data_quality_info = get_preprocessing_info_from_config(
+            project_root=project_root,
+            data_source=data_source,
+        )
         if data_quality_info:
             data_quality_section = data_quality_info.to_html()
     except Exception as e:
@@ -811,7 +814,7 @@ def create_html_report(sensor_config_path, sensor_output_dir, source_output_dir,
             full_caption = generate_sensor_caption(
                 cluster_id=1,
                 cluster_info=info_with_topo,
-                contrast_name=config['contrast']['name'],
+                contrast=config.get('contrast'),
                 time_window_label=time_window_label
             )
             # Use the full caption as the detail
