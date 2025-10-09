@@ -102,29 +102,49 @@ def main():
         num_significant_clusters = int(match.group(1))
 
     # --- Step 3: The Decision ---
+    sensor_config_path = Path(args.config)
     source_output_dir = None
     loreta_output_dir = None
     if num_significant_clusters > 0:
         log.info(f"Found {num_significant_clusters} significant sensor-level cluster(s). Proceeding to source analysis.")
-        
-        # --- Run dSPM analysis (Primary) ---
-        source_config_path = args.config.replace("sensor", "source")
-        
-        if not Path(source_config_path).exists():
-            log.warning(f"Could not find corresponding dSPM config file at: {source_config_path}. Skipping dSPM analysis.")
-        else:
-            log.info(f"--- Running dSPM analysis for {source_config_path} ---")
-            source_output_dir = run_source_analysis(config_path=source_config_path, accuracy=args.accuracy, data_source=args.data_source)
-            log.info(f"dSPM analysis complete. Outputs are in: {source_output_dir}")
 
-        # --- Run eLORETA analysis (Secondary) ---
-        loreta_config_path = args.config.replace("sensor", "loreta")
-        if not Path(loreta_config_path).exists():
-            log.warning(f"Could not find corresponding eLORETA config file at: {loreta_config_path}. Skipping eLORETA analysis.")
+        # Identify matching source-domain configs that share the analysis slug
+        analysis_slug = sensor_config_path.stem
+        if analysis_slug.startswith("sensor_"):
+            analysis_slug = analysis_slug[len("sensor_"):]
+        candidate_paths = sorted(sensor_config_path.parent.glob(f"*_{analysis_slug}.yaml"))
+        if not candidate_paths:
+            log.warning("No companion source-space configs found in directory; skipping source analyses.")
         else:
-            log.info(f"--- Running eLORETA analysis for {loreta_config_path} ---")
-            loreta_output_dir = run_source_analysis(config_path=loreta_config_path, accuracy=args.accuracy, data_source=args.data_source)
-            log.info(f"eLORETA analysis complete. Outputs are in: {loreta_output_dir}")
+            for candidate in candidate_paths:
+                if candidate.resolve() == sensor_config_path.resolve():
+                    continue
+                try:
+                    with open(candidate, 'r') as cf:
+                        candidate_cfg = yaml.safe_load(cf)
+                except Exception as exc:
+                    log.warning(f"Failed to load candidate source config {candidate}: {exc}")
+                    continue
+
+                if (candidate_cfg or {}).get("domain") != "source":
+                    continue
+
+                method = (candidate_cfg.get("source") or {}).get("method", "unknown")
+                log.info(f"--- Running source analysis ({method}) for {candidate} ---")
+                output_dir = run_source_analysis(
+                    config_path=str(candidate),
+                    accuracy=args.accuracy,
+                    data_source=args.data_source
+                )
+                log.info(f"Source analysis ({method}) complete. Outputs are in: {output_dir}")
+
+                method_lower = str(method).lower()
+                if method_lower == "dspm":
+                    source_output_dir = output_dir
+                elif method_lower == "eloreta":
+                    loreta_output_dir = output_dir
+                else:
+                    log.info(f"Recorded outputs for additional method '{method}' at {output_dir}")
 
     else:
         log.info("No significant sensor-level effect found. Skipping all source analyses.")
@@ -140,12 +160,21 @@ def main():
     timestamped_base_name = f"{timestamp}-{base_name}"
     report_output_path = reports_dir / f"{timestamped_base_name}_report.html"
 
+    # Build a reproducible command string for the report
+    run_cmd = (
+        f"python -m code.run_full_analysis_pipeline --config {args.config} "
+        f"--accuracy {args.accuracy} --data-source {args.data_source}"
+    )
+
     create_html_report(
         sensor_config_path=args.config,
         sensor_output_dir=sensor_output_dir,
         source_output_dir=source_output_dir,  # This will be None if source was skipped
         loreta_output_dir=loreta_output_dir, # Pass the new directory
-        report_output_path=report_output_path
+        report_output_path=report_output_path,
+        run_command=run_cmd,
+        accuracy=args.accuracy,
+        data_source=args.data_source
     )
     log.info(f"Analysis and reporting complete. Final report at: {report_output_path}")
 

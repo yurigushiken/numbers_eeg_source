@@ -1,0 +1,43 @@
+# configs/sensor_small_vs_large_magnitude.yaml
+
+# 1. Metadata
+analysis_name: "sensor_small_vs_large_magnitude"
+domain: "sensor"
+
+# 2. Epoch Time Window and Baseline Correction
+epoch_window:
+  tmin: -0.2
+  tmax: 0.496
+  baseline: [-0.2, 0.0]
+
+# 3. Contrast Definition
+# Tests: "N1 amplitudes varied across the 1~6 range, with stronger modulation in the 1~3 range"
+# Tests dual-stage model: Parallel individuation (1-3) vs. Estimation (4-6)
+contrast:
+  name: "Small (1-3) vs. Large (4-6) Magnitude"
+  condition_A:
+    name: "Small Magnitude"
+    condition_set_name: "ALL_SMALL_TRANSITIONS"
+  condition_B:
+    name: "Large Magnitude"
+    condition_set_name: "ALL_LARGE_TRANSITIONS"
+  combination_weights: [1, -1]
+
+# 4. Statistical Analysis Parameters
+stats:
+  analysis_window: [0.00, 0.496]
+  p_threshold: 0.005
+  cluster_alpha: 0.05
+  n_permutations: 5000
+  tail: 0  # two-sided test
+  seed: 42 # for reproducibility
+  connectivity:
+    method: "distance"
+    threshold: 0.04 # 4 cm
+
+# 5. Visualization Parameters
+visualizations:
+  erp:
+    channels: []
+  topomap:
+    times: []

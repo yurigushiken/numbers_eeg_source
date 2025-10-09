@@ -1,0 +1,42 @@
+# configs/sensor_large_to_large_direction.yaml
+
+# 1. Metadata
+analysis_name: "sensor_large_to_large_direction"
+domain: "sensor"
+
+# 2. Epoch Time Window and Baseline Correction
+epoch_window:
+  tmin: -0.2
+  tmax: 0.496
+  baseline: [-0.2, 0.0]
+
+# 3. Contrast Definition
+# Tests: "Decreasing Large-to-Large showed the weakest [P3b]"
+contrast:
+  name: "Large-to-Large: Increasing vs. Decreasing"
+  condition_A:
+    name: "Large Increasing"
+    condition_set_name: "LARGE_TO_LARGE_INCREASING"
+  condition_B:
+    name: "Large Decreasing"
+    condition_set_name: "LARGE_TO_LARGE_DECREASING"
+  combination_weights: [1, -1]
+
+# 4. Statistical Analysis Parameters
+stats:
+  analysis_window: [0.00, 0.496]
+  p_threshold: 0.005
+  cluster_alpha: 0.05
+  n_permutations: 5000
+  tail: 0  # two-sided test
+  seed: 42 # for reproducibility
+  connectivity:
+    method: "distance"
+    threshold: 0.04 # 4 cm
+
+# 5. Visualization Parameters
+visualizations:
+  erp:
+    channels: []
+  topomap:
+    times: []

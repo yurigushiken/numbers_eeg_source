@@ -1,7 +1,7 @@
-# configs/loreta_cardinality1_vs_cardinality2.yaml
+# configs/source_dspm_cardinality1_vs_cardinality2.yaml
 
 # 1. General Analysis Information
-analysis_name: "loreta_cardinality1_vs_cardinality2"
+analysis_name: "source_dspm_cardinality1_vs_cardinality2"
 domain: "source"
 
 # 2. Epoch Time Window and Baseline Correction
@@ -23,7 +23,7 @@ contrast:
 
 # 4. Source Reconstruction Parameters
 source:
-  method: "eLORETA"
+  method: "dSPM"
   snr: 2.0
 
 # --- Inverse Solution Parameters ---
@@ -44,12 +44,12 @@ stats:
   method: threshold
   n_jobs: -1
   buffer_size: 1000
-  roi:
-    parc: aparc
-    labels:
-      # ROIs from Hyde & Spelke (2012) N1 localization
-      - lateraloccipital  # For their "extrastriate visual regions"
-      - fusiform          # Also mentioned in their "extrastriate" cluster
-      - inferiorparietal
-      - superiorparietal  # To cover the intraparietal sulcus
-      - precuneus
+  # roi:
+  #   parc: aparc
+  #   labels:
+  #     # Key ROIs from Hyde & Spelke (2012) N1 localization
+  #     - lateraloccipital  # For their "extrastriate visual regions"
+  #     - fusiform          # Also mentioned in their "extrastriate" cluster
+  #     - inferiorparietal
+  #     - superiorparietal  # To cover the intraparietal sulcus
+  #     - precuneus

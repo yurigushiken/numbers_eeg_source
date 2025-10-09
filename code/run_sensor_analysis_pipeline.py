@@ -68,17 +68,25 @@ def main(config_path=None, accuracy=None, data_source=None):
     condB_evokeds_per_subject = []
     for subject_dir in tqdm(subject_dirs, desc="Processing subjects (sensor)"):
         # Unpack the tuple; contrast + all epochs
-        contrast_evoked, _ = data_loader.create_subject_contrast(subject_dir, config)
+        contrast_evoked, _ = data_loader.create_subject_contrast(
+            subject_dir, config, accuracy=accuracy
+        )
         if contrast_evoked is not None:
             contrasts.append(contrast_evoked)
 
         # Also collect condition-specific evokeds to build group ERPs
         try:
             evoked_A, _ = data_loader.get_evoked_for_condition(
-                subject_dir, config['contrast']['condition_A'], baseline=baseline
+                subject_dir,
+                config['contrast']['condition_A'],
+                baseline=baseline,
+                accuracy=accuracy,
             )
             evoked_B, _ = data_loader.get_evoked_for_condition(
-                subject_dir, config['contrast']['condition_B'], baseline=baseline
+                subject_dir,
+                config['contrast']['condition_B'],
+                baseline=baseline,
+                accuracy=accuracy,
             )
             if evoked_A:
                 condA_evokeds_per_subject.append(mne.grand_average(evoked_A))

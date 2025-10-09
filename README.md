@@ -59,7 +59,8 @@ conda activate numbers_eeg_source; python -m code.run_source_analysis_pipeline -
 **Arguments:**
 
 -   `--config`: The path to the `.yaml` file defining the entire analysis from contrast to statistics.
--   `--accuracy`: The dataset to use (`acc1` for correct trials, `all` for all trials).
+-   `--accuracy`: The dataset to use (`acc1` for correct trials, `all` for all trials).  
+    When `--data-source new` (the default), `acc1` filters the combined epochs using the metadata column `Target.ACC` (values >= 0.5 are treated as accurate); if that column is missing or no accurate trials survive, the loader logs a message and falls back to all trials for the affected condition.
 -   `--data-source`: Data source selection. `new` (default) uses combined preprocessed files under `data/data_preprocessed/<preprocessing>`; `old` uses legacy split condition folders under `data/<accuracy>/sub-XX`; you may also pass a custom path (e.g., `data/data_preprocessed/hpf_1.5_lpf_40_baseline-on`).
 
 > Note: On Windows/PowerShell use semicolons to chain commands (e.g., `conda activate ...; python ...`).
@@ -68,12 +69,12 @@ conda activate numbers_eeg_source; python -m code.run_source_analysis_pipeline -
 
 -   Always pass a sensor-space YAML to the full pipeline.
 -   The full pipeline runs sensor analysis first and parses the sensor stats report.
--   If at least one significant sensor cluster is found, it then runs source analysis.
--   The source config is inferred by replacing "sensor" with "source" in the sensor config path and in the analysis name.
-    -   Example pair: `configs/sensor_any_landing1_vs_any_landing3.yaml` ↔ `configs/source_any_landing1_vs_any_landing3.yaml`
--   If the matching source YAML is missing, source analysis is skipped and the report is still created with sensor-only results.
--   Note: The YAML key `domain` is informational; the full pipeline uses filename pairing (sensor→source), not the `domain` value, to decide which analyses to run.
+-   If at least one significant sensor cluster is found, the pipeline searches the sensor config directory for every YAML that (a) ends with the same contrast slug (for example `_cardinality1_vs_cardinality2.yaml`) and (b) declares `domain: "source"`.
+    -   Keep the sensor file named `sensor_<slug>.yaml`. Name each source method `source_<method>_<slug>.yaml` (e.g., `source_dspm_cardinality1_vs_cardinality2.yaml`, `source_loreta_cardinality1_vs_cardinality2.yaml`).
+    -   All discovered source configs are executed in alphabetical order, so you can run multiple inverse methods without touching the CLI command.
+-   If no companion source configs are found (or none produce significant clusters), the combined report still includes the full sensor results and notes that the corresponding source analysis was skipped.
 
+### Output locations
 ### Output locations
 
 -   Sensor outputs: `derivatives/sensor/<analysis_name>/`
@@ -116,20 +117,20 @@ conda install -c conda-forge mne numpy scipy matplotlib pandas tqdm imageio niba
 # Optional (PDF export): conda install -c conda-forge weasyprint cairo pango gdk-pixbuf -y
 
 # Activate env and run SENSOR pipeline
-python -m code.run_sensor_analysis_pipeline --config configs/sensor_prime1-land3_vs_prime3-land1.yaml --accuracy all
+python -m code.run_sensor_analysis_pipeline --config configs/cardinality1_vs_cardinality2/sensor_cardinality1_vs_cardinality2.yaml --accuracy all
 
-# Activate env and run SOURCE pipeline
-python -m code.run_source_analysis_pipeline --config configs/source_prime1-land3_vs_prime3-land1.yaml --accuracy all
+# Activate env and run SOURCE pipeline (single method)
+python -m code.run_source_analysis_pipeline --config configs/cardinality1_vs_cardinality2/source_dspm_cardinality1_vs_cardinality2.yaml --accuracy all
 
 # Precompute inverse operators (recommended before source analyses)
 # Note: Use --depth 3.0 for an EEG-appropriate depth weighting.
 python -m code.build_inverse_solutions --depth 3.0
 
-# Run FULL pipeline (builds combined HTML report)
-python -m code.run_full_analysis_pipeline --config configs/sensor_prime1-land3_vs_prime3-land1.yaml --accuracy all
+# Run FULL pipeline (sensor + all matching source configs)
+python -m code.run_full_analysis_pipeline --config configs/cardinality1_vs_cardinality2/sensor_cardinality1_vs_cardinality2.yaml --accuracy all
 
-# Aggregated-power example: All landing on 1 vs All landing on 3
-python -m code.run_full_analysis_pipeline --config configs/sensor_any_landing1_vs_any_landing3.yaml --accuracy all
+# Correct-trial example (filters Target.ACC == 1)
+python -m code.run_full_analysis_pipeline --config configs/change_vs_no-change/sensor_change_vs_no-change.yaml --accuracy acc1
 ```
 
 ## Configuration tips (YAML)

@@ -1,7 +1,7 @@
-# configs/sensor_cardinality1_vs_cardinality2.yaml
+# configs/sensor_small_to_small_direction.yaml
 
-# 1. General Analysis Information
-analysis_name: "sensor_cardinality1_vs_cardinality2"
+# 1. Metadata
+analysis_name: "sensor_small_to_small_direction"
 domain: "sensor"
 
 # 2. Epoch Time Window and Baseline Correction
@@ -11,14 +11,16 @@ epoch_window:
   baseline: [-0.2, 0.0]
 
 # 3. Contrast Definition
+# Tests: "Decreasing Small-to-Small transitions elicited especially shallow N1 amplitudes"
+# This is your STRONGEST effect from the abstract
 contrast:
-  name: "Cardinality 1 vs. Cardinality 2"
+  name: "Small-to-Small: Increasing vs. Decreasing"
   condition_A:
-    name: "Cardinality 1"
-    condition_set_name: "CARDINALITY_1"
+    name: "Small Increasing"
+    condition_set_name: "SMALL_TO_SMALL_INCREASING"
   condition_B:
-    name: "Cardinality 2"
-    condition_set_name: "CARDINALITY_2"
+    name: "Small Decreasing"
+    condition_set_name: "SMALL_TO_SMALL_DECREASING"
   combination_weights: [1, -1]
 
 # 4. Statistical Analysis Parameters
@@ -26,7 +28,7 @@ stats:
   analysis_window: [0.00, 0.496]
   p_threshold: 0.005
   cluster_alpha: 0.05
-  n_permutations: 1024
+  n_permutations: 5000
   tail: 0  # two-sided test
   seed: 42 # for reproducibility
   connectivity:

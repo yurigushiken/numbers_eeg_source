@@ -50,20 +50,28 @@ def main(config_path=None, accuracy=None, data_source=None):
     fsaverage_src = data_loader.get_fsaverage_src()
 
     all_source_contrasts = []
+    provenance = []  # Track inverse operator provenance per subject
+    project_root = Path(__file__).resolve().parents[1]
     log.info("Processing subjects for source analysis...")
     for subject_dir in tqdm(subject_dirs, desc="Processing subjects (source)"):
-        contrast_evoked, _ = data_loader.create_subject_contrast(subject_dir, config)
+        contrast_evoked, _ = data_loader.create_subject_contrast(
+            subject_dir, config, accuracy=accuracy
+        )
         if contrast_evoked is None:
             continue
 
         try:
             inv_operator = data_loader.get_inverse_operator(subject_dir)
+            used = "precomputed"
+            inv_path = subject_dir / f"{subject_dir.name}-inv.fif"
         except FileNotFoundError:
             log.warning(f"Inverse operator not found for {subject_dir.name}. "
                         f"Generating a template inverse on-the-fly.")
             # We need the concatenated epochs for this subject to compute covariance.
             # Note: This re-loads data, but it's an exceptional case.
-            _, all_epochs = data_loader.create_subject_contrast(subject_dir, config)
+            _, all_epochs = data_loader.create_subject_contrast(
+                subject_dir, config, accuracy=accuracy
+            )
             if all_epochs is None:
                 log.error(f"Could not load epochs for {subject_dir.name} to generate "
                           f"template inverse. Skipping.")
@@ -72,6 +80,29 @@ def main(config_path=None, accuracy=None, data_source=None):
             inv_operator = data_loader.generate_template_inverse_operator_from_epochs(
                 all_epochs, subject_dir, config
             )
+            used = "template"
+            inv_path = subject_dir / f"{subject_dir.name}-inv.fif"
+
+        # Record provenance for this subject
+        try:
+            inv_path_abs = inv_path.resolve()
+            path_rel = inv_path_abs
+            try:
+                path_rel = inv_path_abs.relative_to(project_root.resolve())
+            except Exception:
+                from os import path as _path
+                path_rel = _path.relpath(str(inv_path_abs), start=str(project_root.resolve()))
+            stat = inv_path_abs.stat()
+            from datetime import datetime as _dt
+            provenance.append({
+                "subject": subject_dir.name,
+                "used": used,
+                "path": str(path_rel),
+                "size_mb": round(stat.st_size / (1024 * 1024), 2),
+                "modified": _dt.fromtimestamp(stat.st_mtime).strftime("%Y-%m-%d %H:%M:%S"),
+            })
+        except Exception:
+            pass
 
         stc = data_loader.compute_subject_source_contrast(
             contrast_evoked, inv_operator, config
@@ -163,6 +194,13 @@ def main(config_path=None, accuracy=None, data_source=None):
                     log.warning(f"Failed to write label time-series summary: {e}")
     except Exception as e:
         log.warning(f"Label time-course fallback failed: {e}")
+
+    # Persist provenance JSON next to outputs
+    try:
+        import json as _json
+        (output_dir / "inverse_provenance.json").write_text(_json.dumps(provenance, indent=2))
+    except Exception:
+        pass
 
     # --- 6. Generate Report and Visualizations ---
     log.info("Generating source report and plots...")

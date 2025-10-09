@@ -128,3 +128,42 @@ NO_CROSS_INCREASING:
 
 NO_CROSS_DECREASING:
   "No Cross Decreasing": ["21", "31", "32", "64", "65", "54"]
+
+# ============================================================================
+# NEW CONDITION SETS FOR APS 2025 ABSTRACT SOURCE LOCALIZATION
+# Supporting dual-stage model and direction × magnitude interactions
+# ============================================================================
+
+# OPTION 1: Small-to-Small Direction Effects
+# Tests: "Decreasing Small-to-Small transitions elicited especially shallow N1"
+SMALL_TO_SMALL_DECREASING:
+  "Small Decreasing": ["21", "31", "32"]
+
+SMALL_TO_SMALL_INCREASING:
+  "Small Increasing": ["12", "13", "23"]
+
+# OPTION 2: Large-to-Large Direction Effects
+# Tests: "Decreasing Large-to-Large showed the weakest [P3b]"
+LARGE_TO_LARGE_DECREASING:
+  "Large Decreasing": ["64", "65", "54"]
+
+LARGE_TO_LARGE_INCREASING:
+  "Large Increasing": ["45", "46", "56"]
+
+# OPTION 3: Magnitude Main Effects
+# Tests: Parallel individuation (1-3) vs. estimation (4-6)
+# Supports "dual-stage model" with N1 modulation "stronger in the 1~3 range"
+ALL_SMALL_TRANSITIONS:
+  "Small Magnitude": ["11", "22", "33", "12", "21", "13", "31", "23", "32"]
+
+ALL_LARGE_TRANSITIONS:
+  "Large Magnitude": ["44", "55", "66", "45", "54", "46", "64", "56", "65"]
+
+# CRITICAL: Full Direction Effects (INCLUDING crossovers)
+# This is the MAIN direction contrast for testing abstract claims
+# Tests: "Decreasing changes...elicited shallower N1 and higher P3b"
+INCREASING_ALL_CHANGES:
+  "All Increasing Changes": ["12", "13", "14", "23", "24", "25", "34", "35", "36", "45", "46", "56"]
+
+DECREASING_ALL_CHANGES:
+  "All Decreasing Changes": ["21", "31", "32", "41", "42", "43", "52", "53", "54", "63", "64", "65"]

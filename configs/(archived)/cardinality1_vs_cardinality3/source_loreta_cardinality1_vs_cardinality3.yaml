@@ -1,0 +1,55 @@
+# configs/source_loreta_cardinality1_vs_cardinality3.yaml
+
+# 1. General Analysis Information
+analysis_name: "source_loreta_cardinality1_vs_cardinality3"
+domain: "source"
+
+# 2. Epoch Time Window and Baseline Correction
+epoch_window:
+  tmin: -0.1
+  tmax: 0.6
+  baseline: [-0.1, 0.0]
+
+# 3. Contrast Definition
+contrast:
+  name: "Cardinality 1 vs. Cardinality 3"
+  condition_A:
+    name: "Cardinality 1"
+    condition_set_name: "CARDINALITY_1"
+  condition_B:
+    name: "Cardinality 3"
+    condition_set_name: "CARDINALITY_3"
+  combination_weights: [1, -1]
+
+# 4. Source Reconstruction Parameters
+source:
+  method: "eLORETA"
+  snr: 2.0
+
+# --- Inverse Solution Parameters ---
+# loose: Orientation constraint (0.2 is a good default for EEG)
+# depth: Depth weighting. 0.8 is for MEG; ~3.0 is better for EEG.
+inverse:
+  loose: 0.2
+  depth: 3.0
+
+# 5. Statistical Analysis Parameters
+stats:
+  analysis_window: [0.08, 0.22]
+  p_threshold: 0.1
+  cluster_alpha: 0.1
+  n_permutations: 10000
+  tail: 0 # two-sided test initially
+  seed: 42 # for reproducibility
+  method: tfce
+  n_jobs: -1
+  buffer_size: 1000
+  roi:
+    parc: aparc
+    labels:
+      # Key ROIs from Hyde & Spelke (2012) N1 localization
+      # - lateraloccipital  # For their "extrastriate visual regions"
+      # - fusiform          # Also mentioned in their "extrastriate" cluster
+      - inferiorparietal
+      - superiorparietal  # To cover the intraparietal sulcus
+      # - precuneus

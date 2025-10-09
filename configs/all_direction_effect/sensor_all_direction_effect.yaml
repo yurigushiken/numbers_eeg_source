@@ -1,0 +1,44 @@
+# configs/sensor_all_direction_effect.yaml
+
+# 1. General Analysis Information
+analysis_name: "sensor_all_direction_effect"
+domain: "sensor"
+
+# 2. Epoch Time Window and Baseline Correction
+epoch_window:
+  tmin: -0.2
+  tmax: 0.496
+  baseline: [-0.2, 0.0]
+
+# 3. Contrast Definition
+# CRITICAL: Tests main direction effect across FULL 1-6 range (INCLUDING crossovers)
+# Directly supports abstract claim: "Decreasing changes...elicited shallower N1 and higher P3b"
+# This is the PRIMARY direction contrast - includes all 12 increasing vs all 12 decreasing transitions
+contrast:
+  name: "All Increasing vs. All Decreasing (Full 1-6 Range)"
+  condition_A:
+    name: "All Increasing Changes"
+    condition_set_name: "INCREASING_ALL_CHANGES"
+  condition_B:
+    name: "All Decreasing Changes"
+    condition_set_name: "DECREASING_ALL_CHANGES"
+  combination_weights: [1, -1]
+
+# 4. Statistical Analysis Parameters
+stats:
+  analysis_window: [0.00, 0.496]
+  p_threshold: 0.005
+  cluster_alpha: 0.05
+  n_permutations: 5000
+  tail: 0  # two-sided test
+  seed: 42 # for reproducibility
+  connectivity:
+    method: "distance"
+    threshold: 0.04 # 4 cm
+
+# 5. Visualization Parameters
+visualizations:
+  erp:
+    channels: []
+  topomap:
+    times: []

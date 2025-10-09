@@ -1,0 +1,10 @@
+from pathlib import Path
+
+readme = Path("README.md")
+text = readme.read_text(encoding="utf-8")
+old_block = """# Activate env and run SENSOR pipeline\npython -m code.run_sensor_analysis_pipeline --config configs/sensor_prime1-land3_vs_prime3-land1.yaml --accuracy all\n\n# Activate env and run SOURCE pipeline\npython -m code.run_source_analysis_pipeline --config configs/source_prime1-land3_vs_prime3-land1.yaml --accuracy all\n\n# Precompute inverse operators (recommended before source analyses)\n# Note: Use --depth 3.0 for an EEG-appropriate depth weighting.\npython -m code.build_inverse_solutions --depth 3.0\n\n# Run FULL pipeline (builds combined HTML report)\npython -m code.run_full_analysis_pipeline --config configs/sensor_prime1-land3_vs_prime3-land1.yaml --accuracy all\n\n# Aggregated-power example: All landing on 1 vs All landing on 3\npython -m code.run_full_analysis_pipeline --config configs/sensor_any_landing1_vs_any_landing3.yaml --accuracy all\n"""
+new_block = """# Activate env and run SENSOR pipeline\npython -m code.run_sensor_analysis_pipeline --config configs/cardinality1_vs_cardinality2/sensor_cardinality1_vs_cardinality2.yaml --accuracy all\n\n# Activate env and run SOURCE pipeline (single method)\npython -m code.run_source_analysis_pipeline --config configs/cardinality1_vs_cardinality2/source_dspm_cardinality1_vs_cardinality2.yaml --accuracy all\n\n# Precompute inverse operators (recommended before source analyses)\n# Note: Use --depth 3.0 for an EEG-appropriate depth weighting.\npython -m code.build_inverse_solutions --depth 3.0\n\n# Run FULL pipeline (sensor + all matching source configs)\npython -m code.run_full_analysis_pipeline --config configs/cardinality1_vs_cardinality2/sensor_cardinality1_vs_cardinality2.yaml --accuracy all\n\n# Correct-trial example (filters Target.ACC == 1)\npython -m code.run_full_analysis_pipeline --config configs/change_vs_no-change/sensor_change_vs_no-change.yaml --accuracy acc1\n"""
+if old_block not in text:
+    raise SystemExit("Quickstart block not found")
+readme.write_text(text.replace(old_block, new_block), encoding="utf-8")
+

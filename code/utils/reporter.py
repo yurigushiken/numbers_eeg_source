@@ -3,6 +3,8 @@ SFN2 Reporting Utilities
 """
 import logging
 import numpy as np
+from pathlib import Path
+import json as _json
 
 log = logging.getLogger()
 
@@ -153,6 +155,26 @@ def generate_source_report(stats_results, stc_grand_average, config, output_dir)
         f.write(f"Cluster significance alpha: {alpha}\n")
         f.write(f"Number of permutations: {config['stats']['n_permutations']}\n")
         f.write("\n")
+
+        # Inverse operator provenance (if available)
+        try:
+            prov_path = Path(output_dir) / "inverse_provenance.json"
+            if prov_path.exists():
+                rows = _json.loads(prov_path.read_text())
+                used_types = [r.get('used', '') for r in rows]
+                pre_count = sum(1 for u in used_types if u == 'precomputed')
+                tpl_count = sum(1 for u in used_types if u == 'template')
+                f.write("Inverse Operators:\n")
+                f.write("-" * 20 + "\n")
+                f.write(f"Precomputed: {pre_count}, Template: {tpl_count}\n")
+                preview = rows[:min(5, len(rows))]
+                for r in preview:
+                    f.write(f"  - {r.get('subject','?')}: {r.get('used','?')} ({r.get('size_mb','?')} MB) -> {r.get('path','')}\n")
+                if len(rows) > len(preview):
+                    f.write(f"  ... ({len(rows) - len(preview)} more; see inverse_provenance.json)\n")
+                f.write("\n")
+        except Exception:
+            pass
 
         f.write("=" * 80 + "\n")
         f.write("RESULTS\n")

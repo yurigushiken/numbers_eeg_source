@@ -6,6 +6,7 @@ import os
 import pandas as pd
 import shutil
 import subprocess
+import json as _json
 
 log = logging.getLogger()
 
@@ -55,6 +56,11 @@ HTML_TEMPLATE = """
             <div class="summary">
                 <p>This report shows the sensor- and source-space analysis of the contrast: <strong>{contrast_name}</strong>. The goal is to identify the spatiotemporal characteristics of the neural response differences between these conditions.</p>
             </div>
+        </section>
+
+        <section id="run-details">
+            <h2>Run Details</h2>
+            {run_details_section}
         </section>
 
         <section id="analysis-parameters">
@@ -115,6 +121,26 @@ SENSOR_ROI_ERP_SECTION_TEMPLATE = """
   <br/>
 </div>
 """
+
+def _build_run_details_section(run_command: str | None, accuracy: str | None, data_source: str | None, sensor_config_path: Path, report_dir: Path) -> str:
+    rows = []
+    if run_command:
+        rows.append(("Command Invoked", run_command))
+    if accuracy:
+        rows.append(("Accuracy", accuracy))
+    if data_source:
+        rows.append(("Data Source", data_source))
+    try:
+        cfg_rel = os.path.relpath(sensor_config_path.resolve(), start=report_dir)
+    except Exception:
+        cfg_rel = str(sensor_config_path)
+    rows.append(("Sensor Config", cfg_rel))
+
+    html = ["<div class=\"summary\"><table>", "<tbody>"]
+    for k, v in rows:
+        html.append(f"<tr><th style='width:180px'>{k}</th><td>{v}</td></tr>")
+    html.extend(["</tbody>", "</table>", "</div>"])
+    return "\n".join(html)
 
 
 SOURCE_SECTION_TEMPLATE = """
@@ -180,39 +206,44 @@ def _build_analysis_parameters_table(sensor_config_path: Path, sensor_config: di
     s_nperm = s_stats.get('n_permutations')
     s_tail = _format_tail_descriptor(int(s_stats.get('tail', 0)))
 
-    # Try to find matching source YAML by filename substitution (sensor->source)
-    source_cfg = None
+    # Discover matching source-space configs in the same directory
+    source_entries: list[dict] = []
     try:
-        candidate_name = sensor_config_path.name.replace('sensor_', 'source_').replace('sensor', 'source')
-        candidate = sensor_config_path.with_name(candidate_name)
-        if candidate.exists():
-            with open(candidate, 'r') as f:
-                source_cfg = yaml.safe_load(f)
-        else:
-            alt_path = Path(str(sensor_config_path).replace('sensor_', 'source_').replace('sensor', 'source'))
-            if alt_path.exists():
-                with open(alt_path, 'r') as f:
-                    source_cfg = yaml.safe_load(f)
-    except Exception:
-        source_cfg = None
-
-    # Source parameters (if available)
-    src_tmin = src_tmax = src_method = src_snr = src_p = src_alpha = src_nperm = src_tail = src_roi = None
-    if isinstance(source_cfg, dict):
-        src_tmin = source_cfg.get('tmin')
-        src_tmax = source_cfg.get('tmax')
-        src_method = (source_cfg.get('source') or {}).get('method')
-        src_snr = (source_cfg.get('source') or {}).get('snr')
-        src_stats = (source_cfg.get('stats') or {})
-        src_p = src_stats.get('p_threshold')
-        src_alpha = src_stats.get('cluster_alpha')
-        src_nperm = src_stats.get('n_permutations')
-        src_tail = _format_tail_descriptor(int(src_stats.get('tail', 0)))
-        roi = (src_stats.get('roi') or {}).get('labels')
-        if isinstance(roi, list):
-            src_roi = ", ".join(str(x) for x in roi)
-        elif isinstance(roi, str):
-            src_roi = roi
+        analysis_slug = sensor_config_path.stem
+        if analysis_slug.startswith("sensor_"):
+            analysis_slug = analysis_slug[len("sensor_"):]
+        candidate_paths = sorted(sensor_config_path.parent.glob(f"*_{analysis_slug}.yaml"))
+        for candidate in candidate_paths:
+            if candidate.resolve() == sensor_config_path.resolve():
+                continue
+            with open(candidate, "r", encoding="utf-8") as f:
+                cfg = yaml.safe_load(f) or {}
+            if cfg.get("domain") != "source":
+                continue
+            src_epoch = cfg.get("epoch_window") or {}
+            src_stats = cfg.get("stats") or {}
+            roi = (src_stats.get("roi") or {}).get("labels")
+            if isinstance(roi, list):
+                roi_str = ", ".join(str(x) for x in roi)
+            elif isinstance(roi, str):
+                roi_str = roi
+            else:
+                roi_str = None
+            source_entries.append({
+                "method": (cfg.get("source") or {}).get("method"),
+                "snr": (cfg.get("source") or {}).get("snr"),
+                "analysis_window": src_stats.get("analysis_window"),
+                "p_threshold": src_stats.get("p_threshold"),
+                "cluster_alpha": src_stats.get("cluster_alpha"),
+                "n_permutations": src_stats.get("n_permutations"),
+                "tail": _format_tail_descriptor(int(src_stats.get("tail", 0))) if "tail" in src_stats else None,
+                "roi": roi_str,
+                "tmin": src_epoch.get("tmin"),
+                "tmax": src_epoch.get("tmax")
+            })
+    except Exception as exc:
+        log.warning(f"Failed to gather source configuration details: {exc}")
+        source_entries = []
 
     # Build rows
     rows = []
@@ -231,24 +262,36 @@ def _build_analysis_parameters_table(sensor_config_path: Path, sensor_config: di
     if s_nperm is not None:
         rows.append(("Sensor Statistics", "Permutations", f"{s_nperm}"))
 
-    # Source localization (if present)
-    if any(v is not None for v in [src_method, src_snr, src_tmin, src_tmax, src_p, src_alpha, src_nperm, src_roi]):
-        if src_method is not None:
-            rows.append(("Source Localization", "Method", str(src_method)))
-        if src_snr is not None:
-            rows.append(("Source Localization", "SNR Estimate", str(src_snr)))
-        # Source stats
-        rows.append(("Source Statistics", "Test Type", "Spatio-temporal Cluster Permutation"))
-        if src_tmin is not None and src_tmax is not None:
-            rows.append(("Source Statistics", "Analysis Window", f"{_format_seconds(src_tmin)} to {_format_seconds(src_tmax)} s"))
-        if src_roi is not None:
-            rows.append(("Source Statistics", "Region of Interest (ROI)", src_roi))
-        if src_p is not None:
-            rows.append(("Source Statistics", "Cluster-forming Threshold (p)", f"{src_p} ({src_tail})"))
-        if src_alpha is not None:
-            rows.append(("Source Statistics", "Cluster Significance (alpha)", f"{src_alpha}"))
-        if src_nperm is not None:
-            rows.append(("Source Statistics", "Permutations", f"{src_nperm}"))
+    for entry in source_entries:
+        method = entry.get("method")
+        label_prefix = "Source Localization"
+        if method:
+            label_prefix += f" ({method})"
+        if method:
+            rows.append((label_prefix, "Method", str(method)))
+        snr = entry.get("snr")
+        if snr is not None:
+            rows.append((label_prefix, "SNR Estimate", str(snr)))
+        rows.append((label_prefix.replace("Localization", "Statistics"), "Test Type", "Spatio-temporal Cluster Permutation"))
+        tmin, tmax = entry.get("tmin"), entry.get("tmax")
+        if tmin is not None and tmax is not None:
+            rows.append((label_prefix.replace("Localization", "Statistics"), "Epoch Window", f"{_format_seconds(tmin)} to {_format_seconds(tmax)} s"))
+        analysis_window = entry.get("analysis_window")
+        if isinstance(analysis_window, (list, tuple)) and len(analysis_window) == 2:
+            rows.append((label_prefix.replace("Localization", "Statistics"), "Analysis Window", f"{_format_seconds(analysis_window[0])} to {_format_seconds(analysis_window[1])} s"))
+        roi = entry.get("roi")
+        if roi:
+            rows.append((label_prefix.replace("Localization", "Statistics"), "Region of Interest (ROI)", roi))
+        p_thr = entry.get("p_threshold")
+        if p_thr is not None:
+            tail = entry.get("tail") or ""
+            rows.append((label_prefix.replace("Localization", "Statistics"), "Cluster-forming Threshold (p)", f"{p_thr} ({tail})".strip()))
+        cluster_alpha = entry.get("cluster_alpha")
+        if cluster_alpha is not None:
+            rows.append((label_prefix.replace("Localization", "Statistics"), "Cluster Significance (alpha)", str(cluster_alpha)))
+        n_perm = entry.get("n_permutations")
+        if n_perm is not None:
+            rows.append((label_prefix.replace("Localization", "Statistics"), "Permutations", str(n_perm)))
 
     # Render table
     html = [
@@ -363,7 +406,28 @@ def _build_source_section_html(
         </div>
     """
 
-    # 2. Cortical Cluster Localization Summary (HS Table)
+    # 2. Inverse provenance summary & table (if present)
+    inverse_block_html = ""
+    try:
+        prov_path = Path(source_output_dir) / "inverse_provenance.json"
+        if prov_path.exists():
+            rows = _json.loads(prov_path.read_text())
+            pre = sum(1 for r in rows if r.get('used') == 'precomputed')
+            tpl = sum(1 for r in rows if r.get('used') == 'template')
+            try:
+                prov_rel = os.path.relpath(prov_path.resolve(), start=report_dir)
+            except Exception:
+                prov_rel = str(prov_path)
+            inverse_block_html = f"""
+                <div class=\"findings\">
+                    <h3>Inverse Operators</h3>
+                    <p>Precomputed: {pre}, Template: {tpl}. Full details: <code>{prov_rel}</code></p>
+                </div>
+            """
+    except Exception:
+        inverse_block_html = ""
+
+    # 3. Cortical Cluster Localization Summary (HS Table)
     hs_summary_html = ""
     if hs_summary_path.exists():
         try:
@@ -376,10 +440,10 @@ def _build_source_section_html(
         except Exception:
             pass
     
-    # 3. Detailed Anatomical Localization Summary
+    # 4. Detailed Anatomical Localization Summary
     anatomical_table_html = _generate_anatomical_table_html(anatomical_report_path)
 
-    # 4. Plots (Main and additional)
+    # 5. Plots (Main and additional)
     plots_html = ""
     if source_plot_path.exists():
         rel_path = os.path.relpath(source_plot_path.resolve(), start=report_dir)
@@ -426,6 +490,7 @@ def _build_source_section_html(
     <section>
         <h2>{section_title}</h2>
         {statistical_findings_html}
+        {inverse_block_html}
         {hs_summary_html}
         {anatomical_table_html}
         {plots_html}
@@ -492,7 +557,7 @@ def _parse_sensor_report_for_cluster_details(report_path: Path) -> dict:
     return details
 
 
-def create_html_report(sensor_config_path, sensor_output_dir, source_output_dir, loreta_output_dir, report_output_path):
+def create_html_report(sensor_config_path, sensor_output_dir, source_output_dir, loreta_output_dir, report_output_path, run_command: str | None = None, accuracy: str | None = None, data_source: str | None = None):
     """
     Generates a standalone HTML report from the analysis outputs.
     """
@@ -573,7 +638,10 @@ def create_html_report(sensor_config_path, sensor_output_dir, source_output_dir,
     # --- Build dSPM Section ---
     source_section_html = ""
     if source_output_dir:
-        dSPM_analysis_name = analysis_name.replace("sensor", "source")
+        try:
+            dSPM_analysis_name = Path(source_output_dir).name.split("-", 1)[1]
+        except Exception:
+            dSPM_analysis_name = analysis_name.replace("sensor", "source")
         source_section_html = _build_source_section_html(
             source_output_dir=Path(source_output_dir),
             analysis_name_base=dSPM_analysis_name,
@@ -585,7 +653,10 @@ def create_html_report(sensor_config_path, sensor_output_dir, source_output_dir,
     # --- Build eLORETA Section ---
     eloreta_section_html = ""
     if loreta_output_dir:
-        loreta_analysis_name = analysis_name.replace("sensor", "loreta")
+        try:
+            loreta_analysis_name = Path(loreta_output_dir).name.split("-", 1)[1]
+        except Exception:
+            loreta_analysis_name = analysis_name.replace("sensor", "loreta")
         eloreta_section_html = _build_source_section_html(
             source_output_dir=Path(loreta_output_dir),
             analysis_name_base=loreta_analysis_name,
@@ -615,8 +686,8 @@ def create_html_report(sensor_config_path, sensor_output_dir, source_output_dir,
 
     methods_summary_paragraph = (
         "We performed group-level statistical analysis using a non-parametric cluster-based permutation test to control for multiple comparisons across space and time. "
-        "Significant sensor-space effects were then localized to the cortical surface using dSPM. "
-        "We performed a subsequent region-of-interest (ROI) cluster-based permutation test on the source data to identify the anatomical origins of the effect."
+        "When sensor-space effects reached significance, they were localized to the cortical surface using the configured source estimation methods (e.g., dSPM, eLORETA). "
+        "We then conducted region-of-interest (ROI) cluster-based permutation testing on the source data to identify the anatomical origins of the effect."
     )
 
     # Detailed caption for the main sensor plot (Cluster #1)
@@ -629,6 +700,7 @@ def create_html_report(sensor_config_path, sensor_output_dir, source_output_dir,
         title=f"{base_title} — Sensor + Source Report",
         date=datetime.now().strftime("%Y-%m-%d"),
         contrast_name=config['contrast']['name'],
+        run_details_section=_build_run_details_section(run_command, accuracy, data_source, sensor_config_path, report_dir),
         sensor_stats=sensor_stats,
         erp_plot_path=erp_plot_rel_path,
         topo_plot_path=topo_plot_rel_path,
