@@ -220,14 +220,23 @@ def load_and_concatenate_subject_epochs(subject_dir):
         return None
 
 
-def create_subject_contrast(subject_dir, config):
+def create_subject_contrast(subject_dir, config, accuracy: str = "all"):
     """
     Creates a contrast between two conditions for a single subject.
 
-    Returns:
-        tuple: A tuple containing the contrast Evoked object and the concatenated
-               Epochs object used for covariance computation. Returns (None, None)
-               if data cannot be loaded.
+    Parameters
+    ----------
+    subject_dir : Path
+        Location of the subject's data (combined or split structure).
+    config : dict
+        Parsed analysis configuration.
+    accuracy : str
+        'all' for all trials, 'acc1' to include only accurate trials (requires metadata).
+
+    Returns
+    -------
+    tuple
+        (contrast_evoked, concatenated_epochs). Returns (None, None) if data cannot be loaded.
     """
     log.debug(f"Creating contrast for subject {subject_dir.name}")
     try:
@@ -236,10 +245,16 @@ def create_subject_contrast(subject_dir, config):
         baseline = epoch_cfg.get('baseline')
 
         evoked_A, epochs_A = get_evoked_for_condition(
-            subject_dir, config['contrast']['condition_A'], baseline=baseline
+            subject_dir,
+            config['contrast']['condition_A'],
+            baseline=baseline,
+            accuracy=accuracy,
         )
         evoked_B, epochs_B = get_evoked_for_condition(
-            subject_dir, config['contrast']['condition_B'], baseline=baseline
+            subject_dir,
+            config['contrast']['condition_B'],
+            baseline=baseline,
+            accuracy=accuracy,
         )
 
         if not evoked_A or not evoked_B:
@@ -266,7 +281,7 @@ def create_subject_contrast(subject_dir, config):
         return None, None
 
 
-def get_evoked_for_condition(subject_dir, condition_info, baseline=None, use_combined=True):
+def get_evoked_for_condition(subject_dir, condition_info, baseline=None, use_combined=True, accuracy: str = "all"):
     """
     Loads all epoch files for a given condition set and averages them.
 
@@ -284,6 +299,8 @@ def get_evoked_for_condition(subject_dir, condition_info, baseline=None, use_com
     use_combined : bool
         If True, try to load from combined file with metadata first.
         If False or if combined file not found, fall back to split files.
+    accuracy : str
+        'all' for all trials, 'acc1' for accurate-only filtering (requires metadata).
 
     Returns
     -------
@@ -331,6 +348,33 @@ def get_evoked_for_condition(subject_dir, condition_info, baseline=None, use_com
         if combined_epochs is not None:
             log.debug(f"Using combined file approach for {condition_set_name}")
 
+            accuracy_mask = None
+            acc_flag = (accuracy or "all").lower()
+            if acc_flag == "acc1":
+                metadata = combined_epochs.metadata
+                if metadata is not None and 'Target.ACC' in metadata.columns:
+                    try:
+                        acc_series = metadata['Target.ACC'].astype(float)
+                        accuracy_mask = acc_series >= 0.5
+                        if accuracy_mask.sum() == 0:
+                            log.warning(
+                                "Accuracy filtering removed all epochs for %s (%s).",
+                                subject_dir,
+                                condition_set_name,
+                            )
+                    except Exception as exc:
+                        log.warning(
+                            "Failed to interpret Target.ACC metadata for %s: %s; using all trials.",
+                            subject_dir,
+                            exc,
+                        )
+                        accuracy_mask = None
+                else:
+                    log.warning(
+                        "Target.ACC metadata not found for %s; unable to filter accurate trials.",
+                        subject_dir,
+                    )
+
             # Filter epochs by condition codes using metadata
             for cond_num in condition_numbers:
                 # Filter by metadata - condition codes might be int or str
@@ -341,11 +385,18 @@ def get_evoked_for_condition(subject_dir, condition_info, baseline=None, use_com
                     # Try as int
                     cond_mask = combined_epochs.metadata['Condition'] == int(cond_num)
 
-                epochs_cond = combined_epochs[cond_mask]
+                mask = cond_mask
+                if accuracy_mask is not None:
+                    mask = cond_mask & accuracy_mask
 
-                if len(epochs_cond) == 0:
-                    log.debug(f"No epochs found for condition {cond_num} in metadata")
+                if not mask.any():
+                    log.debug(
+                        "No epochs remaining for condition %s after accuracy filtering.",
+                        cond_num,
+                    )
                     continue
+
+                epochs_cond = combined_epochs[mask]
 
                 # Make a copy to avoid modifying original
                 epochs_cond = epochs_cond.copy()
