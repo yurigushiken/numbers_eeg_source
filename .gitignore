@@ -33,6 +33,11 @@ data_behavior/
 zMysteryData/
 temp/
 .claude/
+tests/
+temp_tests/
+docs/
+(archive)/
+(code_from_other_project)/
 
 # Analysis outputs (do not track)
 derivatives/
