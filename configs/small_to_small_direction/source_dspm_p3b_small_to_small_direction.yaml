@@ -39,7 +39,7 @@ inverse:
 stats:
   analysis_window: [0.30, 0.496]
   # p_threshold is ignored when using TFCE; retained here for reference only.
-  p_threshold: 0.2
+  p_threshold: 0.15
   cluster_alpha: 0.05
   n_permutations: 10000
   tail: 0 # two-sided test
