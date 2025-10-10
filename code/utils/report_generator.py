@@ -105,7 +105,7 @@ HTML_TEMPLATE = """
                         <img src="{topo_plot_path}" alt="Topomap Cluster Plot">
                     </div>
                 </div>
-                <figcaption><strong>Figure 1.</strong>{sensor_main_caption_detail}</figcaption>
+                <figcaption><strong>Figure 1.1</strong></figcaption>
             </div>
             {sensor_extra_clusters_section}
         </section>
@@ -129,7 +129,7 @@ SENSOR_ROI_ERP_SECTION_TEMPLATE = """
     <div><img src=\"{roi_n1_path}\" alt=\"N1 ROI Condition ERPs\"></div>
     <div><img src=\"{roi_p3b_path}\" alt=\"P3b ROI Condition ERPs\"></div>
   </div>
-  <figcaption><strong>Figure 0.</strong> Condition ERPs over canonical ROIs: P1 (Oz), N1 (bilateral), P3b (midline).</figcaption>
+  <figcaption><strong>Figure 0.1</strong></figcaption>
   <br/>
 </div>
 """
@@ -462,31 +462,11 @@ def _build_source_section_html(
     plots_html = ""
     if source_plot_path.exists():
         rel_path = os.path.relpath(source_plot_path.resolve(), start=report_dir)
-        caption_full = "T-Values for Cluster #1."
-        if 1 in cluster_details:
-            info = cluster_details[1]
-            # Infer time window label from analysis window
-            time_window_label = infer_time_window_label(analysis_window) if analysis_window else None
-
-            try:
-                # Generate enhanced source caption
-                caption_full = generate_source_caption(
-                    cluster_id=1,
-                    cluster_info=info,
-                    contrast=contrast or {},
-                    method=method,
-                    time_window_label=time_window_label,
-                    analysis_window=analysis_window
-                )
-            except Exception as e:
-                # Fallback to simple caption
-                log.warning(f"Failed to generate enhanced source caption: {e}")
-                caption_full = f"T-Values for Cluster #1 (p={info['p_value']:.4f}, peak t={info['peak_t']:.2f}, {info['n_vertices']} vertices)."
 
         plots_html += f"""
         <div class="figure-container">
             <img src="{rel_path}" alt="Source Plot for {analysis_name_base}">
-            <figcaption><strong>Figure {figure_number_prefix}.</strong> {caption_full}</figcaption>
+            <figcaption><strong>Figure {figure_number_prefix}.1</strong></figcaption>
         </div>
         """
     else:
@@ -503,15 +483,11 @@ def _build_source_section_html(
             if rank <= 1: continue
 
             rel_path = os.path.relpath(plot_file.resolve(), start=report_dir)
-            caption_detail = ""
-            if rank in cluster_details:
-                info = cluster_details[rank]
-                caption_detail = f" (p={info['p_value']:.4f}, peak t={info['peak_t']:.2f}, {info['n_vertices']} vertices)"
-            
+
             plots_html += f"""
             <div class="figure-container">
                 <img src="{rel_path}" alt="Source Cluster {rank}">
-                <figcaption><strong>Figure {figure_number_prefix}.{rank-1}. Additional significant source cluster #{rank}{caption_detail}.</strong></figcaption>
+                <figcaption><strong>Figure {figure_number_prefix}.{rank}</strong></figcaption>
             </div>
             """
     except Exception:
@@ -676,29 +652,6 @@ def create_html_report(sensor_config_path, sensor_output_dir, source_output_dir,
                 erp_rel = os.path.relpath(erp_img.resolve(), start=report_dir)
                 topo_rel = os.path.relpath(topo_img.resolve(), start=report_dir)
 
-                # Generate enhanced caption for extra sensor clusters
-                extra_caption_full = f"Additional significant sensor cluster #{rank}."
-                if rank in sensor_cluster_details:
-                    info = sensor_cluster_details[rank]
-                    # Infer topography from channels if available
-                    channels = info.get('channels', [])
-                    topography = infer_topography_from_channels(channels) if channels else ""
-                    # Infer time window label
-                    time_window_label = infer_time_window_label(info.get('time_window', ''))
-                    # Add topography to info dict for caption generation
-                    info_with_topo = {**info, 'topography': topography}
-
-                    try:
-                        extra_caption_full = generate_sensor_caption(
-                            cluster_id=rank,
-                            cluster_info=info_with_topo,
-                            contrast=config.get('contrast'),
-                            time_window_label=time_window_label
-                        )
-                    except Exception:
-                        # Fallback to simple caption
-                        extra_caption_full = f"Additional significant sensor cluster #{rank} (p={info['p_value']:.4f}, peak t={info['peak_t']:.2f}, {info['n_channels']} channels, {info['time_window']})."
-
                 blocks.append(
                     f"""
                     <div class="figure-container">
@@ -706,7 +659,7 @@ def create_html_report(sensor_config_path, sensor_output_dir, source_output_dir,
                             <div><img src="{erp_rel}" alt="ERP Cluster {rank}"></div>
                             <div><img src="{topo_rel}" alt="Topomap Cluster {rank}"></div>
                         </div>
-                        <figcaption><strong>Figure 1.{rank-1}.</strong> {extra_caption_full}</figcaption>
+                        <figcaption><strong>Figure 1.{rank}</strong></figcaption>
                     </div>
                     """
                 )
@@ -797,33 +750,6 @@ def create_html_report(sensor_config_path, sensor_output_dir, source_output_dir,
         "We then conducted region-of-interest (ROI) cluster-based permutation testing on the source data to identify the anatomical origins of the effect."
     )
 
-    # Generate enhanced caption for the main sensor plot (Cluster #1)
-    sensor_caption_detail = ""
-    if 1 in sensor_cluster_details:
-        info = sensor_cluster_details[1]
-        # Infer topography from channels
-        channels = info.get('channels', [])
-        topography = infer_topography_from_channels(channels) if channels else "posterior"
-        # Infer time window label
-        time_window_label = infer_time_window_label(info.get('time_window', ''))
-        # Add topography to info dict
-        info_with_topo = {**info, 'topography': topography}
-
-        try:
-            # Generate full enhanced caption
-            full_caption = generate_sensor_caption(
-                cluster_id=1,
-                cluster_info=info_with_topo,
-                contrast=config.get('contrast'),
-                time_window_label=time_window_label
-            )
-            # Use the full caption as the detail
-            sensor_caption_detail = f" {full_caption}"
-        except Exception as e:
-            # Fallback to simple caption
-            log.warning(f"Failed to generate enhanced sensor caption: {e}")
-            sensor_caption_detail = f" (p={info['p_value']:.4f}, peak t={info['peak_t']:.2f}, {info['n_channels']} channels, {info['time_window']})"
-
     final_html = HTML_TEMPLATE.format(
         title=f"{base_title} — Sensor + Source Report",
         date=datetime.now().strftime("%Y-%m-%d"),
@@ -833,7 +759,6 @@ def create_html_report(sensor_config_path, sensor_output_dir, source_output_dir,
         sensor_stats=sensor_stats,
         erp_plot_path=erp_plot_rel_path,
         topo_plot_path=topo_plot_rel_path,
-        sensor_main_caption_detail=sensor_caption_detail, # Add this
         sensor_roi_erp_section=sensor_roi_erp_section,
         sensor_extra_clusters_section=sensor_extra_clusters_section,
         dSPM_section=source_section_html,
