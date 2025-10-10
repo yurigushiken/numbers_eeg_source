@@ -5,10 +5,6 @@ A reproducible workflow for **sensor-space** and **source-space** EEG analyses u
 **Jas, M., Larson, E., Engemann, D. A., Leppäkangas, J., Taulu, S., Hämäläinen, M., & Gramfort, A. (2018).** *A reproducible MEG/EEG group study with the MNE software: Recommendations, quality assessments, and good practices.* https://pmc.ncbi.nlm.nih.gov/articles/PMC6088222/
 
 
-## Overview
-
-The core philosophy is to let the data reveal statistically significant differences without a priori assumptions about when or where effects will occur. This method controls for multiple comparisons across all time points, sensors, and source vertices.
-
 ## How it Works
 
 You can control the analysis with a single YAML (`.yaml`) configuration file and execute with a single Python script. The pipeline performs the following steps automatically:
