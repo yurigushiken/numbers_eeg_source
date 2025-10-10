@@ -47,3 +47,5 @@ derivatives/
 *.tmp
 *.bak
 *.swp
+# Records (do not track)
+records/preprocessing_variants/
