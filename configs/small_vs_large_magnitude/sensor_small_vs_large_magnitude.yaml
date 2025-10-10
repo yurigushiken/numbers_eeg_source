@@ -26,7 +26,7 @@ contrast:
 # 4. Statistical Analysis Parameters
 stats:
   analysis_window: [0.00, 0.496]
-  p_threshold: 0.005
+  p_threshold: 0.01
   cluster_alpha: 0.05
   n_permutations: 5000
   tail: 0  # two-sided test
@@ -34,6 +34,18 @@ stats:
   connectivity:
     method: "distance"
     threshold: 0.04 # 4 cm
+  # --- Optional ROI restriction (sensor space, uncomment to enable) ---
+  # Restricts cluster-based permutation testing to specified sensor regions.
+  # ROI definitions are centrally managed in configs/sensor_roi_definitions.yaml
+  # roi:
+  #   channel_groups:
+  #     - posterior_visual_parietal  # Combined N1 + P1 + P3b regions
+  # Or specify individual regions:
+  # roi:
+  #   channel_groups:
+  #     - N1_bilateral
+  #     - P1_Oz
+  #     - P3b_midline
 
 # 5. Visualization Parameters
 visualizations:

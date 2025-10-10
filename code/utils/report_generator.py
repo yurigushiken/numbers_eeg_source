@@ -64,7 +64,7 @@ HTML_TEMPLATE = """
         <section id="summary">
             <h2>Brief analysis description</h2>
             <div class="summary">
-                <p>This report shows the sensor- and source-space analysis of the contrast: <strong>{contrast_name}</strong>. The goal is to identify the spatiotemporal characteristics of the neural response differences between these conditions.</p>
+                <p>This report shows the sensor- and source-space analysis of the contrast: <strong>{contrast_name}</strong>.</p>
             </div>
         </section>
 
@@ -83,11 +83,6 @@ HTML_TEMPLATE = """
         <section id="condition-erps">
             <h2>Condition ERPs (Canonical ROIs)</h2>
             {sensor_roi_erp_section}
-        </section>
-
-        <section id="methods-summary">
-            <h2>Methods Summary</h2>
-            <p>{methods_summary_paragraph}</p>
         </section>
 
         <section id="sensor-results">
@@ -219,7 +214,7 @@ def _build_analysis_parameters_table(sensor_config_path: Path, sensor_config: di
     s_tail = _format_tail_descriptor(int(s_stats.get('tail', 0)))
 
     # Discover matching source-space configs in the same directory
-    source_entries: list[dict] = []
+    source_configs: list[tuple[Path, dict]] = []
     try:
         analysis_slug = sensor_config_path.stem
         if analysis_slug.startswith("sensor_"):
@@ -232,33 +227,21 @@ def _build_analysis_parameters_table(sensor_config_path: Path, sensor_config: di
                 cfg = yaml.safe_load(f) or {}
             if cfg.get("domain") != "source":
                 continue
-            src_epoch = cfg.get("epoch_window") or {}
-            src_stats = cfg.get("stats") or {}
-            roi = (src_stats.get("roi") or {}).get("labels")
-            if isinstance(roi, list):
-                roi_str = ", ".join(str(x) for x in roi)
-            elif isinstance(roi, str):
-                roi_str = roi
-            else:
-                roi_str = None
-            source_entries.append({
-                "method": (cfg.get("source") or {}).get("method"),
-                "snr": (cfg.get("source") or {}).get("snr"),
-                "analysis_window": src_stats.get("analysis_window"),
-                "p_threshold": src_stats.get("p_threshold"),
-                "cluster_alpha": src_stats.get("cluster_alpha"),
-                "n_permutations": src_stats.get("n_permutations"),
-                "tail": _format_tail_descriptor(int(src_stats.get("tail", 0))) if "tail" in src_stats else None,
-                "roi": roi_str,
-                "tmin": src_epoch.get("tmin"),
-                "tmax": src_epoch.get("tmax")
-            })
+            source_configs.append((candidate, cfg))
     except Exception as exc:
         log.warning(f"Failed to gather source configuration details: {exc}")
-        source_entries = []
+        source_configs = []
 
-    # Build rows
+    # Build rows with config file headers
     rows = []
+
+    # Add sensor config header
+    try:
+        sensor_rel = os.path.relpath(sensor_config_path.resolve(), start=report_dir)
+    except Exception:
+        sensor_rel = str(sensor_config_path)
+    rows.append(("header", sensor_rel, ""))
+
     if sensor_contrast_name:
         rows.append(("Data", "Contrast", str(sensor_contrast_name)))
     if sensor_tmin is not None and sensor_tmax is not None:
@@ -274,34 +257,59 @@ def _build_analysis_parameters_table(sensor_config_path: Path, sensor_config: di
     if s_nperm is not None:
         rows.append(("Sensor Statistics", "Permutations", f"{s_nperm}"))
 
-    for entry in source_entries:
-        method = entry.get("method")
+    # Add each source config section
+    for source_path, cfg in source_configs:
+        # Add source config header
+        try:
+            source_rel = os.path.relpath(source_path.resolve(), start=report_dir)
+        except Exception:
+            source_rel = str(source_path)
+        rows.append(("header", source_rel, ""))
+
+        src_epoch = cfg.get("epoch_window") or {}
+        src_stats = cfg.get("stats") or {}
+        roi_cfg = src_stats.get("roi") or {}
+        roi_items = None
+        if isinstance(roi_cfg, dict):
+            roi_items = roi_cfg.get("labels") or roi_cfg.get("channels")
+        elif isinstance(roi_cfg, (list, tuple)):
+            roi_items = roi_cfg
+        elif isinstance(roi_cfg, str):
+            roi_items = [roi_cfg]
+
+        if isinstance(roi_items, (list, tuple)):
+            roi_str = ", ".join(str(x) for x in roi_items)
+        elif isinstance(roi_items, str):
+            roi_str = roi_items
+        else:
+            roi_str = None
+
+        method = (cfg.get("source") or {}).get("method")
         label_prefix = "Source Localization"
         if method:
             label_prefix += f" ({method})"
         if method:
             rows.append((label_prefix, "Method", str(method)))
-        snr = entry.get("snr")
+        snr = (cfg.get("source") or {}).get("snr")
         if snr is not None:
             rows.append((label_prefix, "SNR Estimate", str(snr)))
         rows.append((label_prefix.replace("Localization", "Statistics"), "Test Type", "Spatio-temporal Cluster Permutation"))
-        tmin, tmax = entry.get("tmin"), entry.get("tmax")
+        tmin, tmax = src_epoch.get("tmin"), src_epoch.get("tmax")
         if tmin is not None and tmax is not None:
             rows.append((label_prefix.replace("Localization", "Statistics"), "Epoch Window", f"{_format_seconds(tmin)} to {_format_seconds(tmax)} s"))
-        analysis_window = entry.get("analysis_window")
+        analysis_window = src_stats.get("analysis_window")
         if isinstance(analysis_window, (list, tuple)) and len(analysis_window) == 2:
             rows.append((label_prefix.replace("Localization", "Statistics"), "Analysis Window", f"{_format_seconds(analysis_window[0])} to {_format_seconds(analysis_window[1])} s"))
-        roi = entry.get("roi")
-        if roi:
-            rows.append((label_prefix.replace("Localization", "Statistics"), "Region of Interest (ROI)", roi))
-        p_thr = entry.get("p_threshold")
+        if roi_str:
+            rows.append((label_prefix.replace("Localization", "Statistics"), "Region of Interest (ROI)", roi_str))
+        p_thr = src_stats.get("p_threshold")
         if p_thr is not None:
-            tail = entry.get("tail") or ""
+            tail = _format_tail_descriptor(int(src_stats.get("tail", 0))) if "tail" in src_stats else ""
             rows.append((label_prefix.replace("Localization", "Statistics"), "Cluster-forming Threshold (p)", f"{p_thr} ({tail})".strip()))
-        cluster_alpha = entry.get("cluster_alpha")
+        cluster_alpha = src_stats.get("cluster_alpha")
         if cluster_alpha is not None:
             rows.append((label_prefix.replace("Localization", "Statistics"), "Cluster Significance (alpha)", str(cluster_alpha)))
-        n_perm = entry.get("n_permutations")
+        n_perm = src_stats.get("n_permutations")
         if n_perm is not None:
             rows.append((label_prefix.replace("Localization", "Statistics"), "Permutations", str(n_perm)))
 
@@ -314,7 +322,11 @@ def _build_analysis_parameters_table(sensor_config_path: Path, sensor_config: di
         "  <tbody>"
     ]
     for domain, name, value in rows:
-        html.append(f"    <tr><td>{domain}</td><td>{name}</td><td>{value}</td></tr>")
+        if domain == "header":
+            # Config file header row
+            html.append(f"    <tr style='background-color: #e8f4f8;'><td colspan='3'><strong>{name}</strong></td></tr>")
+        else:
+            html.append(f"    <tr><td>{domain}</td><td>{name}</td><td>{value}</td></tr>")
     html.extend(["  </tbody>", "</table>"])
     return "\n".join(html)
 
@@ -331,56 +343,66 @@ def read_report_file(report_path):
     return "Report file not found."
 
 
-def _generate_anatomical_table_html(anatomical_report_path, top_n=7):
-    """Generates an HTML table from the anatomical report CSV."""
+def _generate_anatomical_table_html_per_cluster(anatomical_report_path, cluster_id: int, top_n=7):
+    """Generates an HTML table from the anatomical report CSV for a specific cluster."""
     if not anatomical_report_path or not anatomical_report_path.exists():
         return ""
-    
+
     try:
         df = pd.read_csv(anatomical_report_path)
         if df.empty:
             return ""
 
         # FIX: Convert contribution column to a numeric type for sorting.
-        # The original CSV stores this as a string (e.g., "8.5%"), which
-        # prevents the use of numerical methods like nlargest().
         df['Contribution_numeric'] = pd.to_numeric(
             df['Region Contribution (%)'].astype(str).str.rstrip('%'),
             errors='coerce'
         ).fillna(0)
 
-        html = "<h3>Anatomical Localization Summary</h3>"
-        
-        for cluster_id in sorted(df['Cluster ID'].unique()):
-            cluster_df = df[df['Cluster ID'] == cluster_id]
-            
-            # Use the new numeric column to find the top N rows
-            top_df = cluster_df.nlargest(top_n, 'Contribution_numeric')
+        cluster_df = df[df['Cluster ID'] == cluster_id]
+        if cluster_df.empty:
+            return ""
 
-            if top_df.empty:
-                continue
+        # Use the new numeric column to find the top N rows
+        top_df = cluster_df.nlargest(top_n, 'Contribution_numeric')
 
-            # p-value is already a formatted string in the CSV
-            p_value = top_df['p-value'].iloc[0]
-            peak_mni = top_df['Peak Activation MNI (mm)'].iloc[0]
+        if top_df.empty:
+            return ""
 
-            html += f"<h4>Cluster #{cluster_id} (p={p_value}, Peak MNI: {peak_mni})</h4>"
-            
-            # Select, rename, and format columns for the final display table
-            table_df = top_df[['Anatomical Region', 'Contribution_numeric']].copy()
-            table_df.rename(columns={
-                'Anatomical Region': 'Region', 
-                'Contribution_numeric': 'Contribution (%)'
-            }, inplace=True)
-            
-            table_df['Contribution (%)'] = table_df['Contribution (%)'].map('{:.1f}%'.format)
-            
-            html += table_df.to_html(index=False, classes='anatomical-table')
+        # p-value is already a formatted string in the CSV
+        p_value = top_df['p-value'].iloc[0]
+        peak_mni = top_df['Peak Activation MNI (mm)'].iloc[0]
+
+        html = f"<h4>Cluster #{cluster_id} (p={p_value}, Peak MNI: {peak_mni})</h4>"
+
+        # Select, rename, and format columns for the final display table
+        table_df = top_df[['Anatomical Region', 'Contribution_numeric']].copy()
+        table_df.rename(columns={
+            'Anatomical Region': 'Region',
+            'Contribution_numeric': 'Contribution (%)'
+        }, inplace=True)
+
+        table_df['Contribution (%)'] = table_df['Contribution (%)'].map('{:.1f}%'.format)
+
+        html += table_df.to_html(index=False, classes='anatomical-table')
 
         return html
     except Exception as e:
-        log.error(f"Failed to generate anatomical table: {e}")
+        log.error(f"Failed to generate anatomical table for cluster {cluster_id}: {e}")
         return "<p><em>Error generating anatomical summary table.</em></p>"
+
+def _get_cluster_ids_from_anatomical_report(anatomical_report_path) -> list:
+    """Get list of cluster IDs from the anatomical report CSV."""
+    if not anatomical_report_path or not anatomical_report_path.exists():
+        return []
+
+    try:
+        df = pd.read_csv(anatomical_report_path)
+        if df.empty:
+            return []
+        return sorted(df['Cluster ID'].unique())
+    except Exception:
+        return []
 
 
 def _build_source_section_html(
@@ -391,7 +413,8 @@ def _build_source_section_html(
     figure_number_prefix: str,
     contrast: dict | None = None,
     method: str = "dSPM",
-    analysis_window: str = ""
+    analysis_window: str = "",
+    source_config_path: Path | None = None
 ) -> str:
     """Helper function to build the HTML for a generic source analysis section (dSPM or eLORETA)."""
     if not source_output_dir or not source_output_dir.exists():
@@ -454,54 +477,87 @@ def _build_source_section_html(
                 )
         except Exception:
             pass
-    
-    # 4. Detailed Anatomical Localization Summary
-    anatomical_table_html = _generate_anatomical_table_html(anatomical_report_path)
 
-    # 5. Plots (Main and additional)
-    plots_html = ""
+    # 4. Build interleaved cluster anatomical tables + plots
+    # For each cluster: show anatomical table, then the plot right after
+    cluster_blocks_html = ""
+
+    # Get all cluster IDs from the anatomical report
+    cluster_ids = _get_cluster_ids_from_anatomical_report(anatomical_report_path)
+
+    # Build a map of cluster_id -> plot_path
+    cluster_plots = {}
     if source_plot_path.exists():
-        rel_path = os.path.relpath(source_plot_path.resolve(), start=report_dir)
-
-        plots_html += f"""
-        <div class="figure-container">
-            <img src="{rel_path}" alt="Source Plot for {analysis_name_base}">
-            <figcaption><strong>Figure {figure_number_prefix}.1</strong></figcaption>
-        </div>
-        """
-    else:
-         label_ts_summary = label_ts_summary_path.read_text() if label_ts_summary_path.exists() else ""
-         label_ts_section = LABEL_TS_SECTION_TEMPLATE.format(label_ts_summary=label_ts_summary) if label_ts_summary else ""
-         plots_html += NULL_SOURCE_SECTION_TEMPLATE.format(label_ts_section=label_ts_section)
+        cluster_plots[1] = source_plot_path
 
     try:
         import re as _re
         for plot_file in sorted(source_output_dir.glob(f"{analysis_name_base}_source_cluster_*.png")):
             m = _re.search(r"_cluster_(\d+)\.png$", plot_file.name)
-            if not m: continue
-            rank = int(m.group(1))
-            if rank <= 1: continue
-
-            rel_path = os.path.relpath(plot_file.resolve(), start=report_dir)
-
-            plots_html += f"""
-            <div class="figure-container">
-                <img src="{rel_path}" alt="Source Cluster {rank}">
-                <figcaption><strong>Figure {figure_number_prefix}.{rank}</strong></figcaption>
-            </div>
-            """
+            if m:
+                rank = int(m.group(1))
+                cluster_plots[rank] = plot_file
     except Exception:
         pass
+
+    # If we have plots but no anatomical data, fall back to showing plots only
+    if cluster_plots and not cluster_ids:
+        for cluster_id in sorted(cluster_plots.keys()):
+            plot_path = cluster_plots[cluster_id]
+            rel_path = os.path.relpath(plot_path.resolve(), start=report_dir)
+            fig_num = f"{figure_number_prefix}.{cluster_id}"
+
+            cluster_blocks_html += f"""
+            <div class="figure-container">
+                <img src="{rel_path}" alt="Source Cluster {cluster_id}">
+                <figcaption><strong>Figure {fig_num} (Cluster #{cluster_id})</strong></figcaption>
+            </div>
+            """
+    else:
+        # Interleave: anatomical table for cluster, then plot for cluster
+        for cluster_id in cluster_ids:
+            # Add anatomical table for this cluster
+            anatomical_html = _generate_anatomical_table_html_per_cluster(anatomical_report_path, cluster_id)
+            if anatomical_html:
+                cluster_blocks_html += anatomical_html
+
+            # Add plot for this cluster right after (if it exists)
+            if cluster_id in cluster_plots:
+                plot_path = cluster_plots[cluster_id]
+                rel_path = os.path.relpath(plot_path.resolve(), start=report_dir)
+                fig_num = f"{figure_number_prefix}.{cluster_id}"
+
+                cluster_blocks_html += f"""
+                <div class="figure-container">
+                    <img src="{rel_path}" alt="Source Cluster {cluster_id}">
+                    <figcaption><strong>Figure {fig_num} (Cluster #{cluster_id})</strong></figcaption>
+                </div>
+                """
+
+    # If no clusters found at all, show null result
+    if not cluster_blocks_html:
+        label_ts_summary = label_ts_summary_path.read_text() if label_ts_summary_path.exists() else ""
+        label_ts_section = LABEL_TS_SECTION_TEMPLATE.format(label_ts_summary=label_ts_summary) if label_ts_summary else ""
+        cluster_blocks_html = NULL_SOURCE_SECTION_TEMPLATE.format(label_ts_section=label_ts_section)
+
+    # Build section title with config path if available
+    title_with_config = section_title
+    if source_config_path:
+        try:
+            config_rel = os.path.relpath(source_config_path.resolve(), start=report_dir)
+            title_with_config = f"{section_title} <code style='font-size: 0.7em; font-weight: normal;'>({config_rel})</code>"
+        except Exception:
+            pass
 
     # --- Assemble the final section in the correct order ---
     return f"""
     <section>
-        <h2>{section_title}</h2>
+        <h2>{title_with_config}</h2>
         {statistical_findings_html}
         {inverse_block_html}
         {hs_summary_html}
-        {anatomical_table_html}
-        {plots_html}
+        <h3>Anatomical Localization Summary</h3>
+        {cluster_blocks_html}
     </section>
     """
 
@@ -678,6 +734,27 @@ def create_html_report(sensor_config_path, sensor_output_dir, source_output_dir,
                 dSPM_analysis_name = Path(sod).name.split("-", 1)[1]
             except Exception:
                 dSPM_analysis_name = analysis_name.replace("sensor", "source")
+
+            # Find matching config file for this source analysis
+            source_config = None
+            try:
+                # Look for matching source config in the same directory as sensor config
+                analysis_slug = sensor_config_path.stem
+                if analysis_slug.startswith("sensor_"):
+                    analysis_slug = analysis_slug[len("sensor_"):]
+                # Match pattern: source_dspm_{timewindow}_{analysis_slug}.yaml
+                candidates = list(sensor_config_path.parent.glob(f"source_*_{analysis_slug}.yaml"))
+                for candidate in candidates:
+                    with open(candidate, 'r') as f:
+                        cand_cfg = yaml.safe_load(f)
+                    if (cand_cfg.get("source") or {}).get("method", "").lower() == "dspm":
+                        # Check if this matches the analysis name
+                        if dSPM_analysis_name in candidate.stem or candidate.stem in dSPM_analysis_name:
+                            source_config = candidate
+                            break
+            except Exception:
+                pass
+
             source_section_html += _build_source_section_html(
                 source_output_dir=Path(sod),
                 analysis_name_base=dSPM_analysis_name,
@@ -686,7 +763,8 @@ def create_html_report(sensor_config_path, sensor_output_dir, source_output_dir,
                 figure_number_prefix="2",
                 contrast=config.get('contrast'),
                 method="dSPM",
-                analysis_window=config.get('stats', {}).get('analysis_window', '')
+                analysis_window=config.get('stats', {}).get('analysis_window', ''),
+                source_config_path=source_config
             )
     
     # --- Build eLORETA Section(s) ---
@@ -700,6 +778,27 @@ def create_html_report(sensor_config_path, sensor_output_dir, source_output_dir,
                 loreta_analysis_name = Path(lod).name.split("-", 1)[1]
             except Exception:
                 loreta_analysis_name = analysis_name.replace("sensor", "loreta")
+
+            # Find matching config file for this source analysis
+            source_config = None
+            try:
+                # Look for matching source config in the same directory as sensor config
+                analysis_slug = sensor_config_path.stem
+                if analysis_slug.startswith("sensor_"):
+                    analysis_slug = analysis_slug[len("sensor_"):]
+                # Match pattern: source_loreta_{timewindow}_{analysis_slug}.yaml
+                candidates = list(sensor_config_path.parent.glob(f"source_*_{analysis_slug}.yaml"))
+                for candidate in candidates:
+                    with open(candidate, 'r') as f:
+                        cand_cfg = yaml.safe_load(f)
+                    if (cand_cfg.get("source") or {}).get("method", "").lower() == "eloreta":
+                        # Check if this matches the analysis name
+                        if loreta_analysis_name in candidate.stem or candidate.stem in loreta_analysis_name:
+                            source_config = candidate
+                            break
+            except Exception:
+                pass
+
             eloreta_section_html += _build_source_section_html(
                 source_output_dir=Path(lod),
                 analysis_name_base=loreta_analysis_name,
@@ -708,7 +807,8 @@ def create_html_report(sensor_config_path, sensor_output_dir, source_output_dir,
                 figure_number_prefix="3",
                 contrast=config.get('contrast'),
                 method="eLORETA",
-                analysis_window=config.get('stats', {}).get('analysis_window', '')
+                analysis_window=config.get('stats', {}).get('analysis_window', ''),
+                source_config_path=source_config
             )
 
     # --- Populate Template ---
@@ -744,12 +844,6 @@ def create_html_report(sensor_config_path, sensor_output_dir, source_output_dir,
         log.warning(f"Could not generate data quality section: {e}")
         data_quality_section = ""
 
-    methods_summary_paragraph = (
-        "We performed group-level statistical analysis using a non-parametric cluster-based permutation test to control for multiple comparisons across space and time. "
-        "When sensor-space effects reached significance, they were localized to the cortical surface using the configured source estimation methods (e.g., dSPM, eLORETA). "
-        "We then conducted region-of-interest (ROI) cluster-based permutation testing on the source data to identify the anatomical origins of the effect."
-    )
-
     final_html = HTML_TEMPLATE.format(
         title=f"{base_title} — Sensor + Source Report",
         date=datetime.now().strftime("%Y-%m-%d"),
@@ -763,8 +857,7 @@ def create_html_report(sensor_config_path, sensor_output_dir, source_output_dir,
         sensor_extra_clusters_section=sensor_extra_clusters_section,
         dSPM_section=source_section_html,
         eloreta_section=eloreta_section_html,
-        analysis_parameters_section=analysis_parameters_section,
-        methods_summary_paragraph=methods_summary_paragraph
+        analysis_parameters_section=analysis_parameters_section
     )
 
     # --- 3. Write Report ---

@@ -131,7 +131,7 @@ def main(config_path=None, accuracy=None, data_source=None):
     times = grand_average.times
 
     # Generate text report
-    reporter.generate_report(stats_results, times, ch_names, config, output_dir)
+    reporter.generate_report(stats_results, times, ch_names, config, output_dir, grand_average, len(contrasts))
 
     # Generate ERP plot
     plotting.plot_contrast_erp(grand_average, stats_results, config, output_dir, ch_names)

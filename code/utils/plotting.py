@@ -230,7 +230,11 @@ def plot_source_clusters(stats_results, stc_grand_average, config, output_dir):
             tail = int(config.get('stats', {}).get('tail', 0))
             pthr = config.get('stats', {}).get('p_threshold')
             perms = config.get('stats', {}).get('n_permutations')
-            roi_labels = ", ".join(config.get('stats', {}).get('roi', {}).get('labels', [])) or 'whole brain'
+            roi_cfg = config.get('stats', {}).get('roi', {}) or {}
+            roi_labels = (
+                ", ".join(roi_cfg.get('labels') or roi_cfg.get('channels', []))
+                or 'whole brain'
+            )
 
             peak_info = {
                 't': peak_t,
@@ -358,6 +362,8 @@ def plot_t_value_topomap(grand_average, stats_results, config, output_dir, ch_na
     """
     Plot topomap figures for all significant clusters; preserve legacy single-file
     output for the top-ranked cluster.
+
+    Handles both full-scalp and ROI-restricted analyses.
     """
     t_obs, clusters, cluster_p_values, _ = stats_results
     alpha = config['stats']['cluster_alpha']
@@ -373,6 +379,17 @@ def plot_t_value_topomap(grand_average, stats_results, config, output_dir, ch_na
     # Reshape t-values to (n_times, n_channels)
     t_obs_tc = t_obs.reshape(len(grand_average.times), len(ch_names))
 
+    # Check if ROI restriction was used
+    roi_restricted = len(ch_names) != len(grand_average.info['ch_names'])
+
+    if roi_restricted:
+        # Create a subset info object that matches the ROI channels
+        roi_picks = mne.pick_channels(grand_average.info['ch_names'], include=ch_names, ordered=True)
+        roi_info = mne.pick_info(grand_average.info, roi_picks)
+        log.info(f"ROI-restricted analysis: plotting {len(ch_names)} channels on topomap")
+    else:
+        roi_info = grand_average.info
+
     for rank, idx in enumerate(ordered, start=1):
         time_mask = clusters[idx].any(axis=1)
         cluster_times = grand_average.times[time_mask]
@@ -384,13 +401,16 @@ def plot_t_value_topomap(grand_average, stats_results, config, output_dir, ch_na
         # Use p-rank for cluster numbering to match text report
         cluster_rank = int(np.where(p_order == idx)[0][0]) + 1
         fig, ax = plt.subplots(figsize=(6.5, 5.5))
-        title = (f"T-Values ({tmin*1000:.0f} - {tmax*1000:.0f} ms)\n"
+
+        # Add ROI info to title if restricted
+        roi_note = " (ROI-restricted)" if roi_restricted else ""
+        title = (f"T-Values ({tmin*1000:.0f} - {tmax*1000:.0f} ms){roi_note}\n"
                  f"Cluster #{cluster_rank}, p = {cluster_p_values[idx]:.4f}")
 
         mask_params = dict(marker='o', markerfacecolor='none', markeredgecolor='k',
                            linewidth=1.5, markersize=7)
         im, _ = mne.viz.plot_topomap(
-            t_topo, grand_average.info, axes=ax, show=False, cmap='RdBu_r',
+            t_topo, roi_info, axes=ax, show=False, cmap='RdBu_r',
             contours=6, sensors=False, mask=ch_mask, mask_params=mask_params,
         )
 

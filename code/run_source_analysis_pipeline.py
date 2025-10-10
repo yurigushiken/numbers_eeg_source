@@ -204,7 +204,7 @@ def main(config_path=None, accuracy=None, data_source=None):
 
     # --- 6. Generate Report and Visualizations ---
     log.info("Generating source report and plots...")
-    reporter.generate_source_report(stats_results, stc_ga_for_reporting, config, output_dir)
+    reporter.generate_source_report(stats_results, stc_ga_for_reporting, config, output_dir, len(all_source_contrasts_for_stats))
     plotting.plot_source_clusters(stats_results, stc_ga_for_reporting, config, output_dir)
 
     # --- 7. Generate and Save Anatomical Report ---

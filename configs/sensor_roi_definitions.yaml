@@ -1,0 +1,68 @@
+# Sensor ROI Definitions for EEG Analysis
+#
+# This file defines standard sensor ROI groups that can be referenced in analysis configs.
+# These channel groups correspond to functionally-defined regions used for ERP plotting
+# and can optionally be used to restrict statistical clustering to specific scalp regions.
+#
+# Channel selections are based on:
+# - N1: Bilateral posterior-occipital regions (Hyde & Spelke 2012)
+# - P1: Parieto-occipital midline region
+# - P3b: Centro-parietal midline region
+#
+# Reference: code/utils/electrodes.py
+
+sensor_rois:
+  # Bilateral N1 component (posterior-occipital)
+  N1_bilateral:
+    description: "Bilateral N1 Regions"
+    channels:
+      - E66
+      - E65
+      - E59
+      - E60
+      - E67
+      - E71
+      - E70
+      - E84
+      - E76
+      - E77
+      - E85
+      - E91
+      - E90
+      - E83
+
+  # P1 component (occipital midline around Oz)
+  P1_Oz:
+    description: "Parieto-Occipital Region"
+    channels:
+      - E71
+      - E75
+      - E76
+      - E70
+      - E83
+      - E74
+      - E81
+      - E82
+
+  # P3b component (centro-parietal midline)
+  P3b_midline:
+    description: "Centro-Parietal Region"
+    channels:
+      - E62
+      - E78
+      - E77
+      - E72
+      - E67
+      - E61
+      - E54
+      - E55
+      - E79
+
+  # Combined posterior visual-parietal ROI (union of all above)
+  # Useful for restricting analysis to posterior visual/parietal sensors
+  posterior_visual_parietal:
+    description: "Combined posterior visual-parietal ROI (N1 + P1 + P3b regions)"
+    channel_groups:
+      - N1_bilateral
+      - P1_Oz
+      - P3b_midline

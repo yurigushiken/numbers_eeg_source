@@ -28,8 +28,11 @@ You can control the analysis with a single YAML (`.yaml`) configuration file and
 -   `code/`: Contains all Python analysis scripts.
     -   `run_sensor_analysis_pipeline.py`: Main entrypoint for sensor-space analyses.
     -   `run_source_analysis_pipeline.py`: Main entrypoint for source-space analyses.
+    -   `run_full_analysis_pipeline.py`: Runs sensor analysis, then auto-discovers and runs matching source analyses.
     -   `utils/`: Helper modules for data loading, statistics, plotting, and reporting.
 -   `configs/`: Contains all analysis configuration files.
+    -   `sensor_roi_definitions.yaml`: Central repository for sensor-space ROI definitions (channel groups).
+    -   Individual analysis folders with sensor and source YAML configs.
 -   `derivatives/`: The output directory for all generated figures and reports, organized by analysis name and domain (sensor/source).
 
 ## How to Run an Analysis
@@ -89,13 +92,17 @@ conda activate numbers_eeg_source; python -m code.run_source_analysis_pipeline -
     -   Optional ROI ERPs for P1 (Oz), N1 (bilateral), and P3b (midline), shown when both condition grand averages are available.
 -   ERP Cluster (left):
     -   Grand‑average contrast over the channels in the most significant sensor cluster (p‑ranked).
-    -   Shaded band = that cluster’s time window; legend shows `Cluster #k (p=...)`.
+    -   Shaded band = that cluster's time window; legend shows `Cluster #k (p=...)`.
 -   T‑Value Topomap (right):
     -   T‑values averaged across the same cluster window.
     -   Only cluster channels are highlighted with hollow markers; peak sensor is annotated. Scalp isocontours may be hidden for clarity.
+    -   ROI-restricted analyses automatically adapt the topomap to show only tested channels; title includes "(ROI-restricted)" notation.
 -   Source Surface (six views):
     -   Summarizes significant source clusters at an informative time around the global peak using signed dSPM with `pick_ori='normal'`.
     -   ROI‑restricted runs plot on the ROI vertex set; a single unified colorbar sits below the grid.
+-   Statistical Reports:
+    -   Text reports (`..._report.txt`) document all analysis parameters, including ROI restrictions when used.
+    -   ROI-restricted analyses include dedicated "ROI Restriction" section listing channel groups, specific channels tested, and total vs. tested channel counts.
 
 ## Key pipeline updates and defaults
 
@@ -104,9 +111,30 @@ conda activate numbers_eeg_source; python -m code.run_source_analysis_pipeline -
 -   Inverse solution parameters: `loose` and `depth` values are now configurable in each source YAML file. The on-the-fly fallback uses EEG-appropriate defaults (`depth=3.0`), and you can specify these values via CLI arguments (`--loose`, `--depth`) when pre-computing operators.
 -   Time‑window discipline: source analyses (and label time‑series fallback) crop data to YAML `tmin`/`tmax`; sensor analyses evaluate the full epoch and report/plot the significant window found by clustering.
 -   Tail handling and thresholds: both domains honor `tail` (−1/0/+1) in the test; cluster‑forming threshold is tail‑aware in source, while sensor currently uses a two‑sided threshold.
--   ROI‑restricted clustering: optional anatomical restriction (e.g., `aparc` labels). Plotting respects ROI vertices.
+-   **ROI‑restricted clustering**: Both sensor and source space support optional ROI restriction to increase statistical power:
+    -   **Sensor space**: Uses centralized channel group definitions from [configs/sensor_roi_definitions.yaml](configs/sensor_roi_definitions.yaml) (e.g., `N1_bilateral`, `P1_Oz`, `P3b_midline`, `posterior_visual_parietal`).
+    -   **Source space**: Uses anatomical labels from FreeSurfer parcellation (e.g., `aparc` labels like `cuneus`, `lingual`, `lateraloccipital`).
+    -   Plotting and reporting automatically adapt to ROI-restricted analyses, showing only tested channels/vertices and documenting the restriction.
 -   Label time‑series fallback: include 1D ROI cluster results when full spatio‑temporal stats are null (config via YAML).
 -   Combined report naming is neutral: `<base_name>_report.{html,pdf}`; source figure uses six views and a unified colorbar.
+
+## Centralized Sensor ROI System
+
+The pipeline now includes a **centralized sensor ROI system** for clean, maintainable channel group definitions:
+
+-   **Central definitions**: All sensor ROIs defined in [configs/sensor_roi_definitions.yaml](configs/sensor_roi_definitions.yaml)
+-   **Available ROIs**:
+    -   `N1_bilateral` (14 channels): Bilateral occipital-temporal regions
+    -   `P1_Oz` (8 channels): Occipital midline (parieto-occipital)
+    -   `P3b_midline` (9 channels): Centro-parietal midline
+    -   `posterior_visual_parietal` (25 unique channels): Combined N1 + P1 + P3b regions
+-   **Usage**: Reference ROIs by name in sensor YAML configs (see Configuration tips section below)
+-   **Benefits**:
+    -   Reduces config file size by ~80% (from ~50 lines to ~10 lines per config)
+    -   Single source of truth for channel groups
+    -   Same channels used for both statistics and ERP plotting
+    -   Easy to maintain and update
+-   **Documentation**: See [SENSOR_ROI_SYSTEM_README.md](SENSOR_ROI_SYSTEM_README.md) for complete documentation, including scientific rationale, testing, and maintenance guidelines.
 
 ## Quickstart (PowerShell examples)
 
@@ -141,7 +169,20 @@ python -m code.run_full_analysis_pipeline --config configs/change_vs_no-change/s
     -   **tail**: use `1` or `-1` for one‑tailed tests if direction is known; `0` for two‑tailed.
     -   **n_permutations**: increase for stable p‑values (e.g., 5000–10000).
 -   Time window: set `tmin`/`tmax` to bracket the expected effect (often informed by sensors).
--   ROI restriction (optional):
+-   **ROI restriction (sensor-space, optional):**
+    ```yaml
+    stats:
+      roi:
+        channel_groups:
+          - N1_bilateral         # 14 channels over bilateral occipital regions
+          - P1_Oz                # 8 channels around Oz
+          - P3b_midline          # 9 channels over centro-parietal midline
+        # Or use the combined posterior ROI:
+        # channel_groups:
+        #   - posterior_visual_parietal  # All N1 + P1 + P3b regions (25 unique channels)
+    ```
+    **Note:** Sensor ROI definitions are centrally managed in [configs/sensor_roi_definitions.yaml](configs/sensor_roi_definitions.yaml). See [SENSOR_ROI_SYSTEM_README.md](SENSOR_ROI_SYSTEM_README.md) for complete documentation.
+-   **ROI restriction (source-space, optional):**
     ```yaml
     stats:
       roi:

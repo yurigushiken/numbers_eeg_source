@@ -6,9 +6,9 @@ domain: "source"
 
 # 2. Epoch Time Window and Baseline Correction
 epoch_window:
-  tmin: -0.1
-  tmax: 0.6
-  baseline: [-0.1, 0.0]
+  tmin: -0.2
+  tmax: 0.496
+  baseline: [-0.2, 0.0]
 
 # 3. Contrast Definition (same as sensor space)
 contrast:
