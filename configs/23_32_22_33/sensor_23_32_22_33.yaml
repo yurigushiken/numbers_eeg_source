@@ -1,0 +1,56 @@
+# configs/23_32_22_33/sensor_23_32_22_33.yaml
+
+# 1. General Analysis Information
+analysis_name: "sensor_23_32_22_33"
+domain: "sensor"
+
+# 2. Epoch Time Window and Baseline Correction
+epoch_window:
+  tmin: -0.2
+  tmax: 0.496
+  baseline: [-0.2, 0.0]
+
+# 3. Contrast Definition
+# Tests: Direction effect in 2-3 range combining change and no-change conditions
+# Increasing (23 + 33) vs. Decreasing (32 + 22)
+# Includes both transitions and cardinality-matched baselines
+contrast:
+  name: "2-3 Range Direction: (23+33) vs (32+22)"
+  condition_A:
+    name: "Increasing + Same (2-3 range)"
+    condition_set_name: "TRANSITIONS_23_33"
+  condition_B:
+    name: "Decreasing + Same (2-3 range)"
+    condition_set_name: "TRANSITIONS_32_22"
+  combination_weights: [1, -1]
+
+# 4. Statistical Analysis Parameters
+stats:
+  analysis_window: [0.00, 0.496]
+  p_threshold: 0.01
+  cluster_alpha: 0.05
+  n_permutations: 5000
+  tail: 0  # two-sided test
+  seed: 42 # for reproducibility
+  connectivity:
+    method: "distance"
+    threshold: 0.04 # 4 cm
+  # --- Optional ROI restriction (sensor space, uncomment to enable) ---
+  # Restricts cluster-based permutation testing to specified sensor regions.
+  # ROI definitions are centrally managed in configs/sensor_roi_definitions.yaml
+  # roi:
+  #   channel_groups:
+  #     - posterior_visual_parietal  # Combined N1 + P1 + P3b regions
+  # Or specify individual regions:
+  # roi:
+  #   channel_groups:
+  #     - N1_bilateral
+  #     - P1_Oz
+  #     - P3b_midline
+
+# 5. Visualization Parameters
+visualizations:
+  erp:
+    channels: []
+  topomap:
+    times: []

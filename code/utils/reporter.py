@@ -72,7 +72,7 @@ def generate_report(stats_results, times, ch_names, config, output_dir, grand_av
     report_path = output_dir / f"{config['analysis_name']}_report.txt"
     log.info(f"Generating statistical report at: {report_path}")
 
-    with open(report_path, 'w') as f:
+    with open(report_path, 'w', encoding='utf-8') as f:
         f.write("=" * 80 + "\n")
         f.write(f"Cluster Analysis Report: {config['analysis_name']}\n")
         f.write("=" * 80 + "\n\n")
@@ -208,7 +208,7 @@ def generate_source_report(stats_results, stc_grand_average, config, output_dir,
     report_path = output_dir / f"{config['analysis_name']}_report.txt"
     log.info(f"Generating source statistical report at: {report_path}")
 
-    with open(report_path, 'w') as f:
+    with open(report_path, 'w', encoding='utf-8') as f:
         f.write("=" * 80 + "\n")
         f.write(f"Source Cluster Analysis Report: {config['analysis_name']}\n")
         f.write("=" * 80 + "\n\n")

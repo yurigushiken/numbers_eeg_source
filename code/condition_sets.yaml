@@ -174,3 +174,33 @@ INCREASING_ALL_CHANGES:
 
 DECREASING_ALL_CHANGES:
   "All Decreasing Changes": ["21", "31", "32", "41", "42", "43", "52", "53", "54", "63", "64", "65"]
+
+# Single transition comparisons
+# Tests: Minimal pair 1↔2 direction effect (distance = 1)
+TRANSITION_12:
+  "1 to 2 (Increasing)": ["12"]
+
+TRANSITION_21:
+  "2 to 1 (Decreasing)": ["21"]
+
+# Tests: Minimal pair 1↔3 direction effect (distance = 2)
+TRANSITION_13:
+  "1 to 3 (Increasing)": ["13"]
+
+TRANSITION_31:
+  "3 to 1 (Decreasing)": ["31"]
+
+# Tests: Minimal pair 2↔3 direction effect (distance = 1, both subitizing)
+TRANSITION_23:
+  "2 to 3 (Increasing)": ["23"]
+
+TRANSITION_32:
+  "3 to 2 (Decreasing)": ["32"]
+
+# Combined transition sets (change + no-change) for 2-3 range
+# Tests: Direction effect combining change (23, 32) with no-change (22, 33)
+TRANSITIONS_23_33:
+  "Increasing + Same (2-3 range)": ["23", "33"]
+
+TRANSITIONS_32_22:
+  "Decreasing + Same (2-3 range)": ["32", "22"]

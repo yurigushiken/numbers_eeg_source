@@ -1,0 +1,55 @@
+# configs/inc_dec_within_small/sensor_inc_dec_within_small.yaml
+
+# 1. General Analysis Information
+analysis_name: "sensor_inc_dec_within_small"
+domain: "sensor"
+
+# 2. Epoch Time Window and Baseline Correction
+epoch_window:
+  tmin: -0.2
+  tmax: 0.496
+  baseline: [-0.2, 0.0]
+
+# 3. Contrast Definition
+# Tests: Direction effects (increasing vs. decreasing) within small numerosities (1-3)
+# Increasing: 12, 13, 23 vs. Decreasing: 21, 31, 32
+contrast:
+  name: "Small Numerosities: Increasing vs. Decreasing"
+  condition_A:
+    name: "Small Increasing"
+    condition_set_name: "SMALL_TO_SMALL_INCREASING"
+  condition_B:
+    name: "Small Decreasing"
+    condition_set_name: "SMALL_TO_SMALL_DECREASING"
+  combination_weights: [1, -1]
+
+# 4. Statistical Analysis Parameters
+stats:
+  analysis_window: [0.00, 0.496]
+  p_threshold: 0.01
+  cluster_alpha: 0.05
+  n_permutations: 5000
+  tail: 0  # two-sided test
+  seed: 42 # for reproducibility
+  connectivity:
+    method: "distance"
+    threshold: 0.04 # 4 cm
+  # --- Optional ROI restriction (sensor space, uncomment to enable) ---
+  # Restricts cluster-based permutation testing to specified sensor regions.
+  # ROI definitions are centrally managed in configs/sensor_roi_definitions.yaml
+  # roi:
+  #   channel_groups:
+  #     - posterior_visual_parietal  # Combined N1 + P1 + P3b regions
+  # Or specify individual regions:
+  # roi:
+  #   channel_groups:
+  #     - N1_bilateral
+  #     - P1_Oz
+  #     - P3b_midline
+
+# 5. Visualization Parameters
+visualizations:
+  erp:
+    channels: []
+  topomap:
+    times: []

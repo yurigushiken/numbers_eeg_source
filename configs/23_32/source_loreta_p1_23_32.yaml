@@ -1,0 +1,57 @@
+# configs/23_32/source_loreta_p1_23_32.yaml
+
+# 1. Metadata
+analysis_name: "source_loreta_p1_23_32"
+domain: "source"
+
+# 2. Epoch Time Window and Baseline Correction
+epoch_window:
+  tmin: -0.2
+  tmax: 0.496
+  baseline: [-0.2, 0.0]
+
+# 3. Contrast Definition
+# Tests: Early visual P1 modulation for 2↔3 direction effect (distance = 1)
+contrast:
+  name: "2↔3 Transition: Increasing vs. Decreasing"
+  condition_A:
+    name: "2 to 3 (Increasing)"
+    condition_set_name: "TRANSITION_23"
+  condition_B:
+    name: "3 to 2 (Decreasing)"
+    condition_set_name: "TRANSITION_32"
+  combination_weights: [1, -1]
+
+# 4. Source Reconstruction Parameters
+source:
+  method: "eLORETA"
+  snr: 2.0
+
+# --- Inverse Solution Parameters ---
+inverse:
+  loose: 0.2
+  depth: 3.0
+
+# 5. Statistical Analysis Parameters
+stats:
+  analysis_window: [0.060, 0.140]
+  p_threshold: 0.15
+  cluster_alpha: 0.05
+  n_permutations: 10000
+  tail: 0 # two-sided test
+  seed: 42 # for reproducibility
+  method: threshold
+  tfce:
+    start: 0.0
+    step: 0.2
+  n_jobs: -1
+  buffer_size: 1000
+  roi:
+    parc: aparc
+    labels:
+      # Early visual P1 generators
+      - pericalcarine
+      - cuneus
+      - lingual
+      - lateraloccipital
+      - fusiform

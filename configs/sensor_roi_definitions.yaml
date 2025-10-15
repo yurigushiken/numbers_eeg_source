@@ -48,15 +48,24 @@ sensor_rois:
   P3b_midline:
     description: "Centro-Parietal Region"
     channels:
-      - E62
-      - E78
-      - E77
-      - E72
-      - E67
-      - E61
+      # - E62
+      # - E78
+      # - E77
+      # - E72
+      # - E67
+      # - E61
+      # - E54
+      # - E55
+      # - E79
       - E54
-      - E55
+      - E61
+      - E78
       - E79
+      - E62
+      - E72
+      - E55
+      - E77
+      - E67
 
   # Combined posterior visual-parietal ROI (union of all above)
   # Useful for restricting analysis to posterior visual/parietal sensors

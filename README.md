@@ -261,3 +261,7 @@ reference: "average"
 ```
 
 Testing notes (TDD): lightweight unit tests for the config merge and data-source resolution live under `tests/test_config_utils.py`. They avoid importing heavy EEG libraries and validate that defaults merge correctly and path resolution behaves as expected.
+
+
+python -m code.run_full_analysis_pipeline --config configs/23_32_22_33/sensor_23_32_22_33.yaml --accuracy acc1 --data-source new
+>>
