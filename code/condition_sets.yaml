@@ -204,3 +204,22 @@ TRANSITIONS_23_33:
 
 TRANSITIONS_32_22:
   "Decreasing + Same (2-3 range)": ["32", "22"]
+
+# All numerosity transitions (for per-side accuracy contrasts)
+ALL_NUMEROSITY_TRANSITIONS:
+  "All": [
+    # No-change to reach full 30 unique codes (adds 6):
+    "11", "22", "33", "44", "55", "66",
+    # From 1 / To 1
+    "12", "13", "14", "21", "31", "41",
+    # From 2 / To 2
+    "21", "23", "24", "25", "12", "32", "42", "52",
+    # From 3 / To 3
+    "31", "32", "34", "35", "36", "13", "23", "43", "53", "63",
+    # From 4 / To 4
+    "41", "42", "43", "45", "46", "14", "24", "34", "54", "64",
+    # From 5 / To 5
+    "52", "53", "54", "56", "25", "35", "45", "65",
+    # From 6 / To 6
+    "63", "64", "65", "36", "46", "56"
+  ]

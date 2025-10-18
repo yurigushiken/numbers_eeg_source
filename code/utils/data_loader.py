@@ -86,7 +86,7 @@ def load_config(config_path, project_root: str | Path = "."):
     return cfg
 
 
-def get_subject_dirs(accuracy, project_root=".", data_source="new"):
+def get_subject_dirs(accuracy, project_root=".", data_source=None):
     """
     Finds all subject directories (e.g., 'sub-02') for a given accuracy dataset.
 
@@ -96,10 +96,9 @@ def get_subject_dirs(accuracy, project_root=".", data_source="new"):
         'all' for all trials, 'acc1' for accurate trials only
     project_root : str
         Project root directory (default: ".")
-    data_source : str
-        'new' for combined preprocessed files (default, recommended)
-        'old' for split condition files (legacy)
-        Can also be a custom path like 'data/data_preprocessed/hpf_1.5_lpf_40_baseline-on'
+    data_source : str | None
+        None or 'new' (combined preprocessed files; default behavior), or a custom path like
+        'data/data_preprocessed/hpf_1.5_lpf_40_baseline-on'.
 
     Returns
     -------
@@ -109,31 +108,24 @@ def get_subject_dirs(accuracy, project_root=".", data_source="new"):
     project_root = Path(project_root)
 
     # Determine data directory based on data_source
-    if data_source == "new":
+    if data_source in (None, "new"):
         # Determine preprocessing variant from common.yaml (if present)
         common = load_common_defaults(project_root)
         preprocessing = ((common.get("data") or {}).get("preprocessing")
                          or "hpf_1.0_lpf_35_baseline-on")
         data_dir = project_root / "data" / "data_preprocessed" / preprocessing
-        log.info(f"Using NEW preprocessed data: {data_dir}")
+        log.info(f"Using combined preprocessed data: {data_dir}")
 
     elif data_source == "old":
-        # OLD: Use split files (legacy, for comparison)
-        if accuracy == "all":
-            data_dir = project_root / "data" / "all"
-        elif accuracy == "acc1":
-            data_dir = project_root / "data" / "acc=1"
-        else:
-            raise ValueError("accuracy must be 'all' or 'acc1'")
-        log.info(f"Using OLD split files: {data_dir}")
+        raise ValueError("Legacy 'old' data pipeline is no longer supported.")
 
     else:
         # CUSTOM: User-specified path (e.g., different preprocessing parameters)
         data_dir = project_root / data_source
         log.info(f"Using CUSTOM data path: {data_dir}")
 
-    # For new combined files, we need to find .fif files and create pseudo-directories
-    if data_source == "new" or "data_preprocessed" in str(data_dir):
+    # For combined files, we need to find .fif files and create pseudo-directories
+    if data_source in (None, "new") or "data_preprocessed" in str(data_dir):
         # Look for combined .fif files
         fif_files = sorted(list(data_dir.glob("sub-*_preprocessed-epo.fif")))
 
@@ -154,11 +146,10 @@ def get_subject_dirs(accuracy, project_root=".", data_source="new"):
         return subject_dirs
 
     else:
-        # For old split files, look for directories
-        subject_dirs = sorted([
-            d for d in data_dir.iterdir() if d.is_dir() and d.name.startswith('sub-')
-        ])
-        log.info(f"Found {len(subject_dirs)} subject directories in {data_dir}.")
+        # If a custom path does not look like combined preprocessed data, still search for combined files
+        fif_files = sorted(list(data_dir.glob("sub-*_preprocessed-epo.fif")))
+        subject_dirs = [(data_dir / ff.stem.split('_')[0]) for ff in fif_files]
+        log.info(f"Found {len(subject_dirs)} subjects (custom combined path) in {data_dir}.")
         return subject_dirs
 
 
@@ -263,17 +254,20 @@ def create_subject_contrast(subject_dir, config, accuracy: str = "all"):
         epoch_cfg = config.get('epoch_window', {})
         baseline = epoch_cfg.get('baseline')
 
+        # Allow per-side accuracy override from config
+        acc_A = (config.get('contrast', {}).get('condition_A', {}) or {}).get('accuracy') or accuracy
         evoked_A, epochs_A = get_evoked_for_condition(
             subject_dir,
             config['contrast']['condition_A'],
             baseline=baseline,
-            accuracy=accuracy,
+            accuracy=acc_A,
         )
+        acc_B = (config.get('contrast', {}).get('condition_B', {}) or {}).get('accuracy') or accuracy
         evoked_B, epochs_B = get_evoked_for_condition(
             subject_dir,
             config['contrast']['condition_B'],
             baseline=baseline,
-            accuracy=accuracy,
+            accuracy=acc_B,
         )
 
         if not evoked_A or not evoked_B:
@@ -304,7 +298,7 @@ def get_evoked_for_condition(subject_dir, condition_info, baseline=None, use_com
     """
     Loads all epoch files for a given condition set and averages them.
 
-    Supports both combined files (with metadata) and split files (legacy).
+    Operates on combined files (with metadata).
 
     Parameters
     ----------
@@ -316,8 +310,7 @@ def get_evoked_for_condition(subject_dir, condition_info, baseline=None, use_com
     baseline : tuple | None
         Baseline correction period (tmin, tmax) or None
     use_combined : bool
-        If True, try to load from combined file with metadata first.
-        If False or if combined file not found, fall back to split files.
+        If True (default), load from combined file with metadata.
     accuracy : str
         'all' for all trials, 'acc1' for accurate-only filtering (requires metadata).
 
@@ -341,13 +334,12 @@ def get_evoked_for_condition(subject_dir, condition_info, baseline=None, use_com
     evoked_list = []
     epochs_list = []
 
-    # Try combined file approach first
+    # Combined file approach (only supported mode)
     if use_combined:
         # Extract subject ID from path
         # Could be: data_preprocessed/hpf_1.0_lpf_35_baseline-on (data_root)
-        #       or: data/all/sub-02 (subject_dir from old structure)
         if 'sub-' in str(subject_dir):
-            # Extract from path like "data/all/sub-02" or just "sub-02"
+            # Extract from a path that includes a subject directory name like "sub-02"
             subject_id = str(subject_dir).split('sub-')[-1].split('/')[0].split('\\')[0]
         else:
             # Assume subject_dir IS the data_root, will try later
@@ -369,18 +361,23 @@ def get_evoked_for_condition(subject_dir, condition_info, baseline=None, use_com
 
             accuracy_mask = None
             acc_flag = (accuracy or "all").lower()
-            if acc_flag == "acc1":
+            if acc_flag in {"acc1", "acc0"}:
                 metadata = combined_epochs.metadata
                 if metadata is not None and 'Target.ACC' in metadata.columns:
                     try:
                         acc_series = metadata['Target.ACC'].astype(float)
-                        accuracy_mask = acc_series >= 0.5
+                        if acc_flag == "acc1":
+                            accuracy_mask = acc_series >= 0.5
+                        else:
+                            accuracy_mask = acc_series < 0.5
                         if accuracy_mask.sum() == 0:
                             log.warning(
-                                "Accuracy filtering removed all epochs for %s (%s).",
+                                "Accuracy filtering removed all epochs for %s (%s); using all trials instead.",
                                 subject_dir,
                                 condition_set_name,
                             )
+                            # Fallback: do not filter by accuracy if it removes everything
+                            accuracy_mask = None
                     except Exception as exc:
                         log.warning(
                             "Failed to interpret Target.ACC metadata for %s: %s; using all trials.",
@@ -447,47 +444,42 @@ def get_evoked_for_condition(subject_dir, condition_info, baseline=None, use_com
                 log.debug(f"Successfully loaded {len(evoked_list)} conditions from combined file")
                 return evoked_list, epochs_list
 
-    # Fallback to split file approach (original implementation)
-    log.debug(f"Using split file approach for {condition_set_name}")
+            # If accuracy filtering produced no data overall, retry without accuracy filter
+            if acc_flag == "acc1":
+                log.debug("No epochs after accuracy filtering; retrying without accuracy mask for acc1")
+                evoked_list = []
+                epochs_list = []
+                for cond_num in condition_numbers:
+                    try:
+                        cond_mask = combined_epochs.metadata['Condition'].astype(str) == str(cond_num)
+                    except:
+                        cond_mask = combined_epochs.metadata['Condition'] == int(cond_num)
 
-    for cond_num in condition_numbers:
-        # NOTE: The bug was here. The real files use '_epo.fif'.
-        fname = subject_dir / f"{subject_dir.name}_task-numbers_cond-{cond_num}_epo.fif"
-        if fname.exists():
-            epochs = mne.read_epochs(fname, preload=True, verbose=False)
+                    if not cond_mask.any():
+                        continue
 
-            # Remove problematic 1 Hz FIR high-pass to avoid distortion on short epochs.
-            # Rely on baseline correction below for drift removal.
+                    epochs_cond = combined_epochs[cond_mask].copy()
+                    if baseline is not None:
+                        try:
+                            epochs_cond.apply_baseline(baseline=tuple(baseline), verbose=False)
+                        except Exception:
+                            epochs_cond.apply_baseline(baseline=(baseline[0], baseline[1]), verbose=False)
+                    if not any(p['desc'] == 'Average EEG reference' for p in epochs_cond.info['projs']):
+                        epochs_cond.set_eeg_reference('average', projection=True, verbose=False)
+                    if STANDARD_MONTAGE:
+                        epochs_cond.set_montage(STANDARD_MONTAGE, on_missing='warn')
+                    epochs_list.append(epochs_cond)
+                    evoked = epochs_cond.average()
+                    if not any(p['desc'] == 'Average EEG reference' for p in evoked.info['projs']):
+                        evoked.set_eeg_reference('average', projection=True, verbose=False)
+                    evoked_list.append(evoked)
 
-            # Apply baseline correction if provided by the analysis config
-            if baseline is not None:
-                try:
-                    epochs.apply_baseline(baseline=tuple(baseline), verbose=False)
-                except Exception:
-                    epochs.apply_baseline(baseline=(baseline[0], baseline[1]), verbose=False)
+                if evoked_list:
+                    return evoked_list, epochs_list
 
-            # Ensure average EEG reference is applied to match inverse operator assumptions
-            if not any(p['desc'] == 'Average EEG reference' for p in epochs.info['projs']):
-                epochs.set_eeg_reference('average', projection=True, verbose=False)
-
-            # Enforce the standard montage. This is a critical step to override
-            # any incorrect/generic digitization info embedded in the FIF files.
-            if STANDARD_MONTAGE:
-                epochs.set_montage(STANDARD_MONTAGE, on_missing='warn')
-
-            epochs_list.append(epochs)
-            evoked = epochs.average()
-            if not any(p['desc'] == 'Average EEG reference' for p in evoked.info['projs']):
-                evoked.set_eeg_reference('average', projection=True, verbose=False)
-            evoked_list.append(evoked)
-        else:
-            log.debug(f"Epoch file not found, skipping: {fname}")
-
-    if not evoked_list:
-        log.warning(f"No epoch files found for condition set {condition_set_name}")
-        return [], []
-
-    return evoked_list, epochs_list
+    # If we reach here, combined epochs were not found or yielded no data
+    log.warning(f"No epochs loaded for condition set {condition_set_name} using combined files")
+    return [], []
 
 
 def get_inverse_operator(subject_dir):
@@ -503,8 +495,12 @@ def get_fsaverage_src(project_root="."):
     """
     Gets the fsaverage source space strictly from data.
     """
-    subjects_dir = Path(project_root) / "data" / "all" / "fs_subjects_dir"
-    fsaverage_src_path = subjects_dir / "fsaverage" / "bem" / "fsaverage-ico-5-src.fif"
+    # Prefer MNE's configured SUBJECTS_DIR or fetch fsaverage if needed
+    subjects_dir = mne.get_config('SUBJECTS_DIR')
+    if subjects_dir is None:
+        fetch_fsaverage(verbose=False)
+        subjects_dir = mne.get_config('SUBJECTS_DIR')
+    fsaverage_src_path = Path(subjects_dir) / "fsaverage" / "bem" / "fsaverage-ico-5-src.fif"
     return mne.read_source_spaces(fsaverage_src_path, verbose=False)
 
 
@@ -584,7 +580,12 @@ def compute_subject_source_contrast(evoked, inv_operator, config):
         # Fallback for older MNE versions if subject info is not in STC
         subject_from = inv_operator['src'][0]['subject_his_id']
 
-    subjects_dir = Path(__file__).resolve().parents[2] / "data" / "all" / "fs_subjects_dir"
+    # Use configured SUBJECTS_DIR; fetch fsaverage if missing
+    subjects_dir = mne.get_config('SUBJECTS_DIR')
+    if subjects_dir is None:
+        fetch_fsaverage(verbose=False)
+        subjects_dir = mne.get_config('SUBJECTS_DIR')
+    subjects_dir = Path(subjects_dir)
     morph = mne.compute_source_morph(
         stc,
         subject_from=subject_from,

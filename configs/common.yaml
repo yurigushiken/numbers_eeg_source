@@ -1,7 +1,7 @@
 # Project-wide defaults for EEG pipeline
 
 data:
-  source: "new"                 # 'new' (combined), 'old' (split), or custom path
+  # Combined preprocessed data is the standard; specify preprocessing variant only
   preprocessing: "hpf_1.5_lpf_35_baseline-on"
 
 epoch_defaults:

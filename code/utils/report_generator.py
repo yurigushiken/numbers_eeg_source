@@ -135,8 +135,7 @@ def _build_run_details_section(run_command: str | None, accuracy: str | None, da
         rows.append(("Command Invoked", run_command))
     if accuracy:
         rows.append(("Accuracy", accuracy))
-    if data_source:
-        rows.append(("Data Source", data_source))
+    # Data source distinction removed; omit row if None
     try:
         cfg_rel = os.path.relpath(sensor_config_path.resolve(), start=report_dir)
     except Exception:
@@ -256,6 +255,16 @@ def _build_analysis_parameters_table(sensor_config_path: Path, sensor_config: di
         rows.append(("Sensor Statistics", "Cluster Significance (alpha)", f"{s_alpha}"))
     if s_nperm is not None:
         rows.append(("Sensor Statistics", "Permutations", f"{s_nperm}"))
+
+    # Per-side accuracy row (if provided in sensor config)
+    try:
+        c = sensor_config.get('contrast') or {}
+        acc_a = (c.get('condition_A') or {}).get('accuracy')
+        acc_b = (c.get('condition_B') or {}).get('accuracy')
+        if acc_a or acc_b:
+            rows.append(("Data", "Accuracy (A/B)", f"{acc_a or 'default'} / {acc_b or 'default'}"))
+    except Exception:
+        pass
 
     # Add each source config section
     for source_path, cfg in source_configs:

@@ -58,9 +58,7 @@ conda activate numbers_eeg_source; python -m code.run_source_analysis_pipeline -
 **Arguments:**
 
 -   `--config`: The path to the `.yaml` file defining the entire analysis from contrast to statistics.
--   `--accuracy`: The dataset to use (`acc1` for correct trials, `all` for all trials).  
-    When `--data-source new` (the default), `acc1` filters the combined epochs using the metadata column `Target.ACC` (values >= 0.5 are treated as accurate); if that column is missing or no accurate trials survive, the loader logs a message and falls back to all trials for the affected condition.
--   `--data-source`: Data source selection. `new` (default) uses combined preprocessed files under `data/data_preprocessed/<preprocessing>`; `old` uses legacy split condition folders under `data/<accuracy>/sub-XX`; you may also pass a custom path (e.g., `data/data_preprocessed/hpf_1.5_lpf_40_baseline-on`).
+-   `--accuracy` (optional): Override trial filtering for both conditions at once. Use `acc1` for correct trials, `acc0` for incorrect trials, or `all` for all trials. If omitted, the pipeline honors per‑condition `accuracy` fields in the YAML (falling back to `all` per side). The loader filters using the metadata column `Target.ACC` (≥0.5 treated as accurate); if that column is missing or filtering removes everything, it falls back to all trials for the affected condition and logs a warning.
 
 > Note: On Windows/PowerShell use semicolons to chain commands (e.g., `conda activate ...; python ...`).
 
@@ -73,7 +71,6 @@ conda activate numbers_eeg_source; python -m code.run_source_analysis_pipeline -
     -   All discovered source configs are executed in alphabetical order, so you can run multiple inverse methods without touching the CLI command.
 -   If no companion source configs are found (or none produce significant clusters), the combined report still includes the full sensor results and notes that the corresponding source analysis was skipped.
 
-### Output locations
 ### Output locations
 
 -   Sensor outputs: `derivatives/sensor/<analysis_name>/`
@@ -151,10 +148,11 @@ python -m code.run_source_analysis_pipeline --config configs/cardinality1_vs_car
 python -m code.build_inverse_solutions --depth 3.0
 
 # Run FULL pipeline (sensor + all matching source configs)
-python -m code.run_full_analysis_pipeline --config configs/cardinality1_vs_cardinality2/sensor_cardinality1_vs_cardinality2.yaml --accuracy all
+python -m code.run_full_analysis_pipeline --config configs/cardinality1_vs_cardinality2/sensor_cardinality1_vs_cardinality2.yaml
 
-# Correct-trial example (filters Target.ACC == 1)
+# Optional global override examples
 python -m code.run_full_analysis_pipeline --config configs/change_vs_no-change/sensor_change_vs_no-change.yaml --accuracy acc1
+python -m code.run_full_analysis_pipeline --config configs/change_vs_no-change/sensor_change_vs_no-change.yaml --accuracy acc0
 ```
 
 ## Configuration tips (YAML)
@@ -237,20 +235,18 @@ conda activate numbers_eeg_source
 
 ## Project-wide Defaults (common.yaml)
 
-- `configs/common.yaml` provides minimal, centralized defaults to improve reproducibility and make the default data choice explicit.
+- `configs/common.yaml` provides minimal, centralized defaults to improve reproducibility.
 - Current defaults:
-  - `data.source: new` and `data.preprocessing: hpf_1.0_lpf_35_baseline-on`
+  - `data.preprocessing: hpf_1.0_lpf_35_baseline-on`
   - `epoch_defaults.baseline: [-0.2, 0.0]`
 - Behavior:
   - When loading an analysis config, the loader fills in a missing `epoch_window.baseline` from `epoch_defaults.baseline` (does not overwrite if present).
-  - Subject discovery for `--data-source new` uses the preprocessing variant from `common.yaml` (no hardcoded path).
-  - CLI `--data-source` always overrides the default (you can pass `new`, `old`, or a custom path).
+  - Subject discovery uses the preprocessing variant from `common.yaml` to locate combined data under `data/data_preprocessed/<preprocessing>`.
 
 Example `configs/common.yaml`:
 
 ```
 data:
-  source: "new"
   preprocessing: "hpf_1.0_lpf_35_baseline-on"
 
 epoch_defaults:
@@ -260,8 +256,14 @@ montage: "GSN-HydroCel-129"
 reference: "average"
 ```
 
-Testing notes (TDD): lightweight unit tests for the config merge and data-source resolution live under `tests/test_config_utils.py`. They avoid importing heavy EEG libraries and validate that defaults merge correctly and path resolution behaves as expected.
+Testing notes (TDD): lightweight unit tests validate that defaults merge correctly and path resolution behaves as expected.
 
 
-python -m code.run_full_analysis_pipeline --config configs/23_32_22_33/sensor_23_32_22_33.yaml --accuracy acc1 --data-source new
+python -m code.run_full_analysis_pipeline --config configs/23_32_22_33/sensor_23_32_22_33.yaml --accuracy acc1
 >>
+
+
+
+
+intraparietal sulcus 
+

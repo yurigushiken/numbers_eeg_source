@@ -143,6 +143,15 @@ def generate_sensor_caption(
         f"**{polarity} indicate {direction}**."
     ]
 
+    # Add light functional interpretation when consistent with canonical effects
+    try:
+        tw_label_l = (time_window_label or "").lower()
+        topo_l = (topography or "").lower()
+        if tw_label_l == "n1" and ("posterior" in topo_l or "occipital" in topo_l):
+            caption_parts.append("This pattern is consistent with early visual/perceptual processing.")
+    except Exception:
+        pass
+
     return " ".join(caption_parts)
 
 

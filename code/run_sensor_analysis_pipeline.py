@@ -20,27 +20,24 @@ logging.basicConfig(level=logging.INFO,
 log = logging.getLogger()
 
 
-def main(config_path=None, accuracy=None, data_source=None):
+def main(config_path=None, accuracy=None):
     """
     Main function to orchestrate the sensor-space analysis pipeline.
     """
-    if config_path is None or accuracy is None:
+    if config_path is None:
         # If not called with args, parse from command line
         parser = argparse.ArgumentParser(description="Run Sensor-Space Analysis Pipeline")
         parser.add_argument("--config", type=str, required=True,
                             help="Path to the analysis configuration YAML file.")
-        parser.add_argument("--accuracy", type=str, required=True, choices=['all', 'acc1'],
-                            help="Dataset to use ('all' for all trials, 'acc1' for correct trials).")
-        parser.add_argument("--data-source", type=str, default="new",
-                            help="Data source: 'new' (default), 'old', or custom path.")
+        parser.add_argument("--accuracy", type=str, required=False, default=None, choices=['all', 'acc1', 'acc0'],
+                            help=("Optional override for trial filtering. "
+                                  "Use 'all', 'acc1' (correct only), or 'acc0' (incorrect only). "
+                                  "If omitted, per-condition YAML 'accuracy' fields are used (fallback 'all')."))
+        # Data source flag removed; combined preprocessed data is the standard
         args = parser.parse_args()
         config_path = args.config
         accuracy = args.accuracy
-        data_source = args.data_source
-
-    # Use default if data_source still None
-    if data_source is None:
-        data_source = "new"
+    
 
     # --- 1. Load Configuration and Setup ---
     config = data_loader.load_config(config_path)
@@ -55,7 +52,7 @@ def main(config_path=None, accuracy=None, data_source=None):
     log.info(f"Output directory created at: {output_dir}")
 
     # --- 2. Load Data and Compute Contrasts for Each Subject ---
-    subject_dirs = data_loader.get_subject_dirs(accuracy, data_source=data_source)
+    subject_dirs = data_loader.get_subject_dirs(accuracy)
     if not subject_dirs:
         log.error("No subject directories found. Exiting.")
         return
@@ -63,6 +60,11 @@ def main(config_path=None, accuracy=None, data_source=None):
     log.info("Creating contrasts for each subject...")
     epoch_cfg = config.get('epoch_window', {})
     baseline = epoch_cfg.get('baseline')
+
+    # Resolve per-condition accuracy with YAML taking precedence; CLI acts as a global fallback
+    contrast_cfg = (config.get('contrast') or {})
+    acc_A = ((contrast_cfg.get('condition_A') or {}).get('accuracy')) or accuracy
+    acc_B = ((contrast_cfg.get('condition_B') or {}).get('accuracy')) or accuracy
     contrasts = []
     condA_evokeds_per_subject = []
     condB_evokeds_per_subject = []
@@ -80,13 +82,13 @@ def main(config_path=None, accuracy=None, data_source=None):
                 subject_dir,
                 config['contrast']['condition_A'],
                 baseline=baseline,
-                accuracy=accuracy,
+                accuracy=acc_A,
             )
             evoked_B, _ = data_loader.get_evoked_for_condition(
                 subject_dir,
                 config['contrast']['condition_B'],
                 baseline=baseline,
-                accuracy=accuracy,
+                accuracy=acc_B,
             )
             if evoked_A:
                 condA_evokeds_per_subject.append(mne.grand_average(evoked_A))

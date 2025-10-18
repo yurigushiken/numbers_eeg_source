@@ -36,31 +36,24 @@ def main():
     parser.add_argument(
         "--accuracy",
         type=str,
-        choices=['all', 'acc1'],
-        required=True,
-        help="Dataset to use ('all' or 'acc1' for correct trials)."
+        choices=['all', 'acc1', 'acc0'],
+        required=False,
+        default=None,
+        help=("Optional override for trial filtering. Use 'all', 'acc1' (correct only), or 'acc0' (incorrect only). "
+              "If omitted, per-condition YAML 'accuracy' fields are used (fallback 'all').")
     )
-    parser.add_argument(
-        "--data-source",
-        type=str,
-        default="new",
-        help=(
-            "Data source to use: 'new' (default, recommended) for combined preprocessed files, "
-            "'old' for split condition files, or custom path like "
-            "'data/data_preprocessed/hpf_1.5_lpf_40_baseline-on'"
-        )
-    )
+    # Data source flag removed; combined preprocessed data is the standard
     args = parser.parse_args()
 
     # --- Step 1: Run Sensor Analysis ---
     log.info(f"Starting sensor-space analysis for config: {args.config}")
-    log.info(f"Using data source: {args.data_source}")
+    # No data-source distinction; combined preprocessed data is standard
     if "sensor" not in args.config:
         log.error("The provided config file must be a sensor-space config file.")
         return
 
     # The pipeline scripts return the output directory path
-    sensor_output_dir = run_sensor_analysis(config_path=args.config, accuracy=args.accuracy, data_source=args.data_source)
+    sensor_output_dir = run_sensor_analysis(config_path=args.config, accuracy=args.accuracy)
     if not sensor_output_dir:
         log.error("Sensor analysis pipeline failed to return an output directory. Aborting.")
         return
@@ -135,7 +128,6 @@ def main():
                 output_dir = run_source_analysis(
                     config_path=str(candidate),
                     accuracy=args.accuracy,
-                    data_source=args.data_source
                 )
                 log.info(f"Source analysis ({method}) complete. Outputs are in: {output_dir}")
 
@@ -162,10 +154,13 @@ def main():
     report_output_path = reports_dir / f"{timestamped_base_name}_report.html"
 
     # Build a reproducible command string for the report
-    run_cmd = (
-        f"python -m code.run_full_analysis_pipeline --config {args.config} "
-        f"--accuracy {args.accuracy} --data-source {args.data_source}"
-    )
+    if args.accuracy is not None:
+        run_cmd = (
+            f"python -m code.run_full_analysis_pipeline --config {args.config} "
+            f"--accuracy {args.accuracy}"
+        )
+    else:
+        run_cmd = f"python -m code.run_full_analysis_pipeline --config {args.config}"
 
     create_html_report(
         sensor_config_path=args.config,
@@ -175,7 +170,7 @@ def main():
         report_output_path=report_output_path,
         run_command=run_cmd,
         accuracy=args.accuracy,
-        data_source=args.data_source
+        data_source=None
     )
     log.info(f"Analysis and reporting complete. Final report at: {report_output_path}")
 

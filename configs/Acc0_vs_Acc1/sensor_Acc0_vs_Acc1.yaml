@@ -1,0 +1,40 @@
+# configs/Acc0_vs_Acc1/sensor_Acc0_vs_Acc1.yaml
+
+analysis_name: "sensor_Acc0_vs_Acc1"
+domain: "sensor"
+
+epoch_window:
+  tmin: -0.2
+  tmax: 0.496
+  baseline: [-0.2, 0.0]
+
+contrast:
+  name: "All Conditions: Acc0 vs Acc1"
+  condition_A:
+    name: "AllConditions-Acc0"
+    condition_set_name: "ALL_NUMEROSITY_TRANSITIONS"
+    accuracy: "acc0"
+  condition_B:
+    name: "AllConditions-Acc1"
+    condition_set_name: "ALL_NUMEROSITY_TRANSITIONS"
+    accuracy: "acc1"
+  combination_weights: [1, -1]
+
+stats:
+  analysis_window: [0.00, 0.496]
+  p_threshold: 0.01
+  cluster_alpha: 0.05
+  n_permutations: 5000
+  tail: 0
+  seed: 42
+  connectivity:
+    method: "distance"
+    threshold: 0.04
+
+visualizations:
+  erp:
+    channels: []
+  topomap:
+    times: []
+
+

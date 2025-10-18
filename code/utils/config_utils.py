@@ -61,13 +61,12 @@ def resolve_data_source_dir(
     data_source: Optional[str],
     preprocessing: Optional[str],
 ) -> Tuple[Path, str]:
-    """Return (data_dir, mode) for locating subject files based on inputs.
+    """Return (data_dir, mode='combined') for locating subject files.
 
     - If data_source is a directory path, return it with mode 'combined'.
-    - If data_source == 'new' or None, use combined preprocessed data under
+    - If data_source in {None, 'new'}, use combined preprocessed data under
       data/data_preprocessed/<preprocessing>.
-    - If data_source == 'old', return legacy roots under data/<accuracy>/ (mode 'split').
-    The caller still needs to append accuracy folder when mode == 'split'.
+    - If data_source == 'old', raise to indicate legacy path is unsupported.
     """
     project_root = Path(project_root)
     if data_source and data_source not in {"new", "old"}:
@@ -82,5 +81,5 @@ def resolve_data_source_dir(
         return project_root / "data" / "data_preprocessed" / pp, "combined"
 
     # old
-    return project_root / "data", "split"
+    raise ValueError("Legacy 'old' data pipeline is no longer supported.")
 

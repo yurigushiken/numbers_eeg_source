@@ -374,10 +374,7 @@ def get_preprocessing_info_from_config(
     project_root : Path, optional
         Project root directory
     data_source : str, optional
-        Explicit data source selection passed at runtime. When provided and not
-        equal to ``"new"``, this takes precedence over the preprocessing value
-        stored in ``common.yaml`` so the report reflects the dataset that was
-        actually analysed.
+        Optional custom combined data path. Legacy 'old' split paths are not supported.
 
     Returns
     -------
@@ -395,22 +392,20 @@ def get_preprocessing_info_from_config(
         with open(config_path, 'r') as f:
             config = yaml.safe_load(f)
 
-        preprocessing_name = config.get('data', {}).get('preprocessing')
+        preprocessing_name = (config.get('data') or {}).get('preprocessing')
 
-        # Allow runtime override so the report matches the dataset that was used
-        if data_source and data_source != "new":
-            if data_source in {"old"}:
-                # No dedicated HAPPE summaries for legacy split files; fall back to config.
-                pass
-            else:
-                ds_path = Path(data_source)
-                if not ds_path.is_absolute():
-                    ds_path = (project_root / ds_path).resolve()
-                if ds_path.is_file():
-                    ds_path = ds_path.parent
-                candidate = ds_path.name
-                if candidate:
-                    preprocessing_name = candidate
+        # Optional runtime override if a custom combined path was used
+        if data_source:
+            if data_source == "old":
+                raise ValueError("Legacy 'old' data pipeline is no longer supported.")
+            ds_path = Path(data_source)
+            if not ds_path.is_absolute():
+                ds_path = (project_root / ds_path).resolve()
+            if ds_path.is_file():
+                ds_path = ds_path.parent
+            candidate = ds_path.name
+            if candidate:
+                preprocessing_name = candidate
 
         if not preprocessing_name:
             print("Warning: No preprocessing name found in common.yaml")
