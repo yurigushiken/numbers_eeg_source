@@ -179,7 +179,7 @@
 </head>
 <body>
 
-<h1>Pre-Meeting Setup Guide</h1>
+<h1>Pre-Training Setup Guide</h1>
 <h2>EEG Analysis Pipeline - New User Onboarding</h2>
 
 <p><strong>Complete these steps BEFORE our first meeting.</strong> This will take approximately 45-60 minutes.</p>
@@ -214,7 +214,7 @@
 
 <h2>Step 1: Install Cursor IDE</h2>
 
-<p>Cursor is an AI-powered code editor with a built-in terminal. We'll use Cursor for everything!</p>
+<p>Cursor is an AI-powered code editor with a built-in terminal. We'll use Cursor for everything.</p>
 
 <p><strong>Official Website:</strong> <a href="https://cursor.com">https://cursor.com</a></p>
 
@@ -258,12 +258,6 @@
 <pre><code>./Cursor-*.AppImage
 </code></pre>
 
-<p><strong>System Requirements:</strong></p>
-<ul>
-<li>At least 4 GB RAM</li>
-<li>2 GB available disk space</li>
-</ul>
-
 <h3>Open Cursor's Terminal</h3>
 
 <p>Once Cursor is open, <strong>open the built-in terminal</strong>:</p>
@@ -285,9 +279,7 @@
 
 <h3>Why Git?</h3>
 <ul>
-<li>Downloads the analysis code from GitHub</li>
 <li>Keeps your code up-to-date with the latest fixes and features</li>
-<li>Industry-standard tool for managing code</li>
 <li>Required to clone (download) the repository</li>
 </ul>
 
@@ -328,6 +320,8 @@ git --version
 <h2>Step 3: Install Miniforge (Python)</h2>
 
 <p><strong>Miniforge</strong> is a lightweight conda installer that will manage Python and all scientific packages.</p>
+
+<p><strong>Note:</strong> If you already have Conda or Anaconda installed, you can skip Miniforge.</p>
 
 <h3>Why Miniforge?</h3>
 <ul>
@@ -371,8 +365,6 @@ bash Miniforge3-Linux-x86_64.sh
 conda --version
 </code></pre>
 
-<p><strong>Note:</strong> If you already have Conda or Anaconda installed, you can skip Miniforge.</p>
-
 <hr>
 
 <h2>✅ Phase 1 Checkpoint</h2>
@@ -398,8 +390,6 @@ conda --version
 <h2>Step 5: Clone the GitHub Repository</h2>
 
 <p>Now we'll download the analysis code from GitHub <strong>using Cursor's terminal</strong>.</p>
-
-<p><strong>Note:</strong> While the repository is cloning, you can start downloading the EEG data in the background (Step 6). The data download takes 5-10 minutes.</p>
 
 <h3>Choose a Location</h3>
 <p>Pick a location for the project. Recommended:</p>
