@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quickstart Guide - EEG Source Localization Pipeline</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/setup.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600;700&family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <!-- Background Animation -->
+    <div class="bg-animation"></div>
+
+    <!-- Header -->
+    <header class="header">
+        <div class="container">
+            <h1 class="lab-title">Language and Cognitive Neuroscience Lab</h1>
+            <h2 class="subtitle">Quickstart Guide</h2>
+            <p class="tagline">Get analyzing EEG data in minutes</p>
+        </div>
+    </header>
+
+    <!-- Navigation -->
+    <nav class="nav">
+        <div class="container">
+            <ul class="nav-list">
+                <li><a href="index.html" class="nav-link">Home</a></li>
+                <li><a href="setup.html" class="nav-link">Pre-Meeting Setup</a></li>
+                <li><a href="quickstart.html" class="nav-link active">Quickstart</a></li>
+                <li><a href="https://github.com/yurigushiken/numbers_eeg_source" class="nav-link" target="_blank">GitHub</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="main">
+        <div class="container">
+
+            <!-- Prerequisites Check -->
+            <section class="step-container">
+                <div class="step-header">
+                    <span class="step-badge">Prerequisites</span>
+                    <h3>Before You Begin</h3>
+                </div>
+
+                <p style="color: var(--text-secondary); margin-bottom: 1.5rem;">
+                    Make sure you've completed the <a href="setup.html" style="color: var(--cyan);">Pre-Meeting Setup</a> before starting this quickstart guide.
+                </p>
+
+                <div class="checklist">
+                    <div class="checklist-item">
+                        <input type="checkbox" id="quick-check-1">
+                        <label for="quick-check-1">Cursor IDE is installed and working</label>
+                    </div>
+                    <div class="checklist-item">
+                        <input type="checkbox" id="quick-check-2">
+                        <label for="quick-check-2">Git is installed</label>
+                    </div>
+                    <div class="checklist-item">
+                        <input type="checkbox" id="quick-check-3">
+                        <label for="quick-check-3">Miniforge (conda) is installed</label>
+                    </div>
+                    <div class="checklist-item">
+                        <input type="checkbox" id="quick-check-4">
+                        <label for="quick-check-4">Repository is cloned to your computer</label>
+                    </div>
+                    <div class="checklist-item">
+                        <input type="checkbox" id="quick-check-5">
+                        <label for="quick-check-5">Data folder is in the root directory</label>
+                    </div>
+                    <div class="checklist-item">
+                        <input type="checkbox" id="quick-check-6">
+                        <label for="quick-check-6">Python environment <code style="background: var(--bg-tertiary); color: var(--green); padding: 0.25rem 0.5rem; border-radius: 4px;">numbers_eeg_source</code> is created</label>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Quick Start Steps -->
+            <section class="quickstart-section">
+                <h2 class="section-title">Three Steps to Your First Analysis</h2>
+
+                <!-- Step 1: Open Project -->
+                <div class="step">
+                    <div class="step-number">1</div>
+                    <div class="step-content">
+                        <h3>Open Project in Cursor IDE</h3>
+                        <p style="color: var(--text-secondary); margin-bottom: 1rem;">
+                            Launch Cursor and open the <code class="inline-code">numbers_eeg_source</code> directory.
+                        </p>
+
+                        <div class="platform-tabs">
+                            <div class="tab-buttons">
+                                <button class="tab-button" data-platform="windows">Windows</button>
+                                <button class="tab-button" data-platform="macos">macOS</button>
+                                <button class="tab-button" data-platform="linux">Linux</button>
+                            </div>
+
+                            <div class="tab-content" data-platform="windows">
+                                <p style="color: var(--text-secondary);">In Cursor, press <kbd style="background: var(--bg-tertiary); padding: 0.25rem 0.5rem; border-radius: 4px;">Ctrl + K</kbd> then <kbd style="background: var(--bg-tertiary); padding: 0.25rem 0.5rem; border-radius: 4px;">Ctrl + O</kbd></p>
+                                <p style="color: var(--text-secondary);">Or: <strong>File → Open Folder</strong></p>
+                                <p style="color: var(--text-secondary);">Navigate to where you cloned the repository</p>
+                            </div>
+
+                            <div class="tab-content" data-platform="macos">
+                                <p style="color: var(--text-secondary);">In Cursor, press <kbd style="background: var(--bg-tertiary); padding: 0.25rem 0.5rem; border-radius: 4px;">Cmd + K</kbd> then <kbd style="background: var(--bg-tertiary); padding: 0.25rem 0.5rem; border-radius: 4px;">Cmd + O</kbd></p>
+                                <p style="color: var(--text-secondary);">Or: <strong>File → Open Folder</strong></p>
+                                <p style="color: var(--text-secondary);">Navigate to where you cloned the repository</p>
+                            </div>
+
+                            <div class="tab-content" data-platform="linux">
+                                <p style="color: var(--text-secondary);">In Cursor, press <kbd style="background: var(--bg-tertiary); padding: 0.25rem 0.5rem; border-radius: 4px;">Ctrl + K</kbd> then <kbd style="background: var(--bg-tertiary); padding: 0.25rem 0.5rem; border-radius: 4px;">Ctrl + O</kbd></p>
+                                <p style="color: var(--text-secondary);">Or: <strong>File → Open Folder</strong></p>
+                                <p style="color: var(--text-secondary);">Navigate to where you cloned the repository</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Step 2: Activate Environment -->
+                <div class="step">
+                    <div class="step-number">2</div>
+                    <div class="step-content">
+                        <h3>Activate Python Environment</h3>
+                        <p style="color: var(--text-secondary); margin-bottom: 1rem;">
+                            Open Cursor's integrated terminal and activate the environment.
+                        </p>
+
+                        <div class="platform-tabs">
+                            <div class="tab-buttons">
+                                <button class="tab-button" data-platform="windows">Windows</button>
+                                <button class="tab-button" data-platform="macos">macOS</button>
+                                <button class="tab-button" data-platform="linux">Linux</button>
+                            </div>
+
+                            <div class="tab-content" data-platform="windows">
+                                <p style="color: var(--text-secondary); margin-bottom: 1rem;">
+                                    Press <kbd style="background: var(--bg-tertiary); padding: 0.25rem 0.5rem; border-radius: 4px;">Ctrl + `</kbd> to open the terminal, then:
+                                </p>
+                                <div class="code-block">
+                                    <code>conda activate numbers_eeg_source</code>
+                                </div>
+                            </div>
+
+                            <div class="tab-content" data-platform="macos">
+                                <p style="color: var(--text-secondary); margin-bottom: 1rem;">
+                                    Press <kbd style="background: var(--bg-tertiary); padding: 0.25rem 0.5rem; border-radius: 4px;">Cmd + `</kbd> to open the terminal, then:
+                                </p>
+                                <div class="code-block">
+                                    <code>conda activate numbers_eeg_source</code>
+                                </div>
+                            </div>
+
+                            <div class="tab-content" data-platform="linux">
+                                <p style="color: var(--text-secondary); margin-bottom: 1rem;">
+                                    Press <kbd style="background: var(--bg-tertiary); padding: 0.25rem 0.5rem; border-radius: 4px;">Ctrl + `</kbd> to open the terminal, then:
+                                </p>
+                                <div class="code-block">
+                                    <code>conda activate numbers_eeg_source</code>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="checkpoint">
+                            <h4>Verify Environment</h4>
+                            <p style="color: var(--text-secondary);">
+                                You should see <code style="background: var(--bg-tertiary); color: var(--green); padding: 0.25rem 0.5rem; border-radius: 4px;">(numbers_eeg_source)</code> at the beginning of your terminal prompt.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Step 3: Run Analysis -->
+                <div class="step">
+                    <div class="step-number">3</div>
+                    <div class="step-content">
+                        <h3>Run Your First Analysis</h3>
+                        <p style="color: var(--text-secondary); margin-bottom: 1rem;">
+                            Execute the example analysis pipeline using the provided scripts.
+                        </p>
+
+                        <div class="platform-tabs">
+                            <div class="tab-buttons">
+                                <button class="tab-button" data-platform="windows">Windows</button>
+                                <button class="tab-button" data-platform="macos">macOS / Linux</button>
+                            </div>
+
+                            <div class="tab-content" data-platform="windows">
+                                <h4 style="color: var(--cyan); margin-bottom: 1rem;">Option A: Using the Batch Script (Easy)</h4>
+                                <div class="code-block">
+                                    <code>cd new_user<br>run_analysis.bat</code>
+                                </div>
+
+                                <h4 style="color: var(--cyan); margin: 2rem 0 1rem;">Option B: Direct Python Command</h4>
+                                <div class="code-block">
+                                    <code>python -m code.run_full_analysis_pipeline --config new_user/examples/sensor_13_31.yaml --accuracy all</code>
+                                </div>
+
+                                <div class="note-box">
+                                    <strong>Tip:</strong>
+                                    <p style="color: var(--text-secondary);">The batch script automatically activates the environment and runs the analysis. Use Option A if you want the simplest approach!</p>
+                                </div>
+                            </div>
+
+                            <div class="tab-content" data-platform="macos">
+                                <h4 style="color: var(--cyan); margin-bottom: 1rem;">Option A: Using the Shell Script (Easy)</h4>
+                                <div class="code-block">
+                                    <code>cd new_user<br>./run_analysis.sh</code>
+                                </div>
+
+                                <div class="note-box">
+                                    <strong>First Time?</strong>
+                                    <p style="color: var(--text-secondary);">If you get a "permission denied" error, make the script executable:</p>
+                                    <div class="code-block" style="margin-top: 0.5rem;">
+                                        <code>chmod +x run_analysis.sh</code>
+                                    </div>
+                                </div>
+
+                                <h4 style="color: var(--cyan); margin: 2rem 0 1rem;">Option B: Direct Python Command</h4>
+                                <div class="code-block">
+                                    <code>python -m code.run_full_analysis_pipeline --config new_user/examples/sensor_13_31.yaml --accuracy all</code>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="checkpoint">
+                            <h4>What to Expect</h4>
+                            <ul style="color: var(--text-secondary); margin-left: 1.5rem; margin-top: 1rem;">
+                                <li>Analysis will take 5-15 minutes depending on your computer</li>
+                                <li>You'll see progress messages in the terminal</li>
+                                <li>Results will be saved in the <code style="background: var(--bg-tertiary); color: var(--green); padding: 0.25rem 0.5rem; border-radius: 4px;">results/</code> directory</li>
+                                <li>Look for a success message when complete</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Exploring Results -->
+            <section class="features">
+                <h2 class="section-title">Exploring Your Results</h2>
+
+                <div class="feature-grid">
+                    <div class="feature-card">
+                        <div class="feature-icon">📊</div>
+                        <h3>Sensor-Space Plots</h3>
+                        <p style="color: var(--text-secondary);">
+                            Find ERP waveforms and topographic maps in <code class="inline-code">results/sensor/</code>
+                        </p>
+                    </div>
+
+                    <div class="feature-card">
+                        <div class="feature-icon">🧠</div>
+                        <h3>Source-Space Maps</h3>
+                        <p style="color: var(--text-secondary);">
+                            Brain activation maps are saved in <code class="inline-code">results/source/</code>
+                        </p>
+                    </div>
+
+                    <div class="feature-card">
+                        <div class="feature-icon">📈</div>
+                        <h3>Statistical Results</h3>
+                        <p style="color: var(--text-secondary);">
+                            Cluster statistics and ROI reports in <code class="inline-code">results/stats/</code>
+                        </p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Next Steps -->
+            <section class="step-container">
+                <h2 class="section-title">Next Steps</h2>
+
+                <div style="display: grid; gap: 2rem;">
+                    <div class="note-box">
+                        <strong>🎨 Customize Your Analysis</strong>
+                        <p style="color: var(--text-secondary); margin-top: 0.5rem;">
+                            Explore the example YAML files in <code class="inline-code">new_user/examples/</code>
+                        </p>
+                        <ul style="color: var(--text-secondary); margin-left: 1.5rem; margin-top: 0.5rem;">
+                            <li><code class="inline-code">sensor_13_31.yaml</code> - Sensor-space analysis</li>
+                            <li><code class="inline-code">source_dspm_*.yaml</code> - dSPM source localization</li>
+                            <li><code class="inline-code">source_loreta_*.yaml</code> - eLORETA source localization</li>
+                        </ul>
+                    </div>
+
+                    <div class="info-box">
+                        <strong>📝 Create Your Own YAML</strong>
+                        <p style="color: var(--text-secondary); margin-top: 0.5rem;">
+                            Use the templates in <code class="inline-code">new_user/templates/</code> as a starting point.
+                            Each template includes detailed comments explaining every parameter.
+                        </p>
+                    </div>
+
+                    <div class="warning-box">
+                        <strong>⚙️ Understanding the Pipeline</strong>
+                        <p style="color: var(--text-secondary); margin-top: 0.5rem;">
+                            Read the main <code class="inline-code">README.md</code> for detailed information about:
+                        </p>
+                        <ul style="color: var(--text-secondary); margin-left: 1.5rem; margin-top: 0.5rem;">
+                            <li>YAML configuration options</li>
+                            <li>Analysis pipeline stages</li>
+                            <li>Statistical methods</li>
+                            <li>Troubleshooting common issues</li>
+                        </ul>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Getting Help -->
+            <section class="features">
+                <h2 class="section-title">Need Help?</h2>
+
+                <div class="feature-grid">
+                    <div class="feature-card">
+                        <div class="feature-icon">📚</div>
+                        <h3>Documentation</h3>
+                        <p style="color: var(--text-secondary); margin-bottom: 1rem;">
+                            Check the detailed README and YAML templates
+                        </p>
+                        <a href="https://github.com/yurigushiken/numbers_eeg_source" target="_blank" class="step-link">View Documentation →</a>
+                    </div>
+
+                    <div class="feature-card">
+                        <div class="feature-icon">💬</div>
+                        <h3>Ask Questions</h3>
+                        <p style="color: var(--text-secondary); margin-bottom: 1rem;">
+                            Open an issue on GitHub for help
+                        </p>
+                        <a href="https://github.com/yurigushiken/numbers_eeg_source/issues" target="_blank" class="step-link">Report Issue →</a>
+                    </div>
+
+                    <div class="feature-card">
+                        <div class="feature-icon">🔧</div>
+                        <h3>Troubleshooting</h3>
+                        <p style="color: var(--text-secondary); margin-bottom: 1rem;">
+                            Common issues and solutions
+                        </p>
+                        <a href="setup.html#troubleshooting" class="step-link">View Troubleshooting →</a>
+                    </div>
+                </div>
+            </section>
+
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2025 Language and Cognitive Neuroscience Lab. Open source under MIT License.</p>
+            <p class="footer-links">
+                <a href="https://github.com/yurigushiken/numbers_eeg_source" target="_blank">GitHub</a> |
+                <a href="setup.html">Documentation</a> |
+                <a href="mailto:your-lab@university.edu">Contact</a>
+            </p>
+        </div>
+    </footer>
+
+    <script src="js/main.js"></script>
+    <script src="js/setup.js"></script>
+</body>
+</html>

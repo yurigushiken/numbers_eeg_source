@@ -1,0 +1,1100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pre-Meeting Setup Guide - EEG Source Localization Pipeline</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/setup.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600;700&family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <!-- Background Animation -->
+    <div class="bg-animation"></div>
+
+    <!-- Header -->
+    <header class="header">
+        <div class="container">
+            <h1 class="lab-title">Language and Cognitive Neuroscience Lab</h1>
+            <h2 class="subtitle">EEG Source Localization</h2>
+        </div>
+    </header>
+
+    <!-- Navigation -->
+    <nav class="nav">
+        <div class="container">
+            <ul class="nav-list">
+                <li><a href="index.html" class="nav-link">Home</a></li>
+                <li><a href="setup.html" class="nav-link active">Pre-Meeting Setup</a></li>
+                <li><a href="quickstart.html" class="nav-link">Quickstart</a></li>
+                <li><a href="https://github.com/yurigushiken/numbers_eeg_source" class="nav-link" target="_blank">GitHub</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="main setup-guide">
+        <div class="container">
+            <!-- Title Section -->
+            <section class="title-section">
+                <h1 class="page-title">Pre-Meeting Setup Guide</h1>
+                <p class="page-subtitle">EEG Analysis Pipeline - New User Onboarding</p>
+                <div class="time-estimate">
+                    <span class="clock-icon">⏱️</span>
+                    <span>Complete these steps <strong>BEFORE your first meeting</strong>. This will take approximately <strong>45-60 minutes</strong>.</span>
+                </div>
+            </section>
+
+            <!-- Overview Section -->
+            <section class="overview-section">
+                <h2 class="section-title">Overview</h2>
+                <div class="phase-cards">
+                    <div class="phase-card phase-1">
+                        <div class="phase-header">
+                            <span class="phase-number">PHASE 1</span>
+                            <span class="phase-duration">30 min</span>
+                        </div>
+                        <h3>Download & Install Everything</h3>
+                        <p>Get all the software and data</p>
+                    </div>
+                    <div class="phase-card phase-2">
+                        <div class="phase-header">
+                            <span class="phase-number">PHASE 2</span>
+                            <span class="phase-duration">15-30 min</span>
+                        </div>
+                        <h3>Configure & Verify</h3>
+                        <p>Set everything up and make sure it works</p>
+                    </div>
+                </div>
+
+                <div class="requirements-box">
+                    <h3>What you'll need:</h3>
+                    <ul class="requirements-list">
+                        <li><span class="highlight-first">Cursor IDE</span> (code editor) ← <strong>Install this FIRST!</strong></li>
+                        <li>Git (version control)</li>
+                        <li>Miniforge (Python package manager)</li>
+                        <li>EEG data (~1.7 GB download)</li>
+                    </ul>
+                </div>
+
+                <div class="important-note">
+                    <div class="note-icon">💡</div>
+                    <div class="note-content">
+                        <strong>Important:</strong> We'll be doing almost everything inside <strong>Cursor IDE's built-in terminal</strong>. You can also use your operating system's terminal if you prefer.
+                    </div>
+                </div>
+            </section>
+
+            <!-- PHASE 1 -->
+            <section class="phase-section phase-1-section">
+                <div class="phase-banner">
+                    <h2>PHASE 1: Download & Install Everything</h2>
+                    <p>Do ALL of these installations first before moving to Phase 2.</p>
+                </div>
+
+                <!-- Step 1: Install Cursor IDE -->
+                <div class="step-container" id="step-1">
+                    <div class="step-header">
+                        <span class="step-badge">Step 1</span>
+                        <h3>Install Cursor IDE <span class="do-this-first">[DO THIS FIRST!]</span></h3>
+                    </div>
+
+                    <p class="step-intro">Cursor is an AI-powered code editor with a built-in terminal. We'll use Cursor for everything!</p>
+
+                    <div class="screenshot-placeholder">
+                        <img src="images/cursor.png" alt="Cursor IDE homepage" class="setup-img">
+                        <p class="img-caption">[SCREENSHOT: Cursor IDE homepage at cursor.com]</p>
+                    </div>
+
+                    <div class="info-box">
+                        <h4>Official Website: <a href="https://cursor.com" target="_blank" class="external-link">https://cursor.com</a></h4>
+                    </div>
+
+                    <div class="why-box">
+                        <h4>Why Cursor?</h4>
+                        <ul>
+                            <li>AI-powered code completion and suggestions</li>
+                            <li>Built-in terminal (we'll use this for all commands!)</li>
+                            <li>Works with all VS Code extensions</li>
+                            <li>Available on Windows, macOS, and Linux</li>
+                        </ul>
+                    </div>
+
+                    <!-- Platform Tabs -->
+                    <div class="platform-tabs">
+                        <div class="tab-buttons">
+                            <button class="tab-btn active" data-tab="cursor-windows">Windows</button>
+                            <button class="tab-btn" data-tab="cursor-macos">macOS</button>
+                            <button class="tab-btn" data-tab="cursor-linux">Linux</button>
+                        </div>
+
+                        <div class="tab-content active" id="cursor-windows">
+                            <ol class="install-steps">
+                                <li>Go to <a href="https://cursor.com/download" target="_blank">https://cursor.com/download</a></li>
+                                <li>Click <strong>"Download for Windows"</strong></li>
+                                <li>Run the downloaded <code>.exe</code> file</li>
+                                <li>Follow the installation wizard (default settings are fine)</li>
+                                <li><strong>Launch Cursor</strong></li>
+                            </ol>
+                            <div class="screenshot-placeholder">
+                                <p class="img-caption">[SCREENSHOT: Cursor installation wizard on Windows]</p>
+                            </div>
+                        </div>
+
+                        <div class="tab-content" id="cursor-macos">
+                            <ol class="install-steps">
+                                <li>Go to <a href="https://cursor.com/download" target="_blank">https://cursor.com/download</a></li>
+                                <li>Click <strong>"Download for macOS"</strong></li>
+                                <li>Open the downloaded <code>.dmg</code> file</li>
+                                <li>Drag <strong>Cursor</strong> to your <strong>Applications</strong> folder</li>
+                                <li><strong>Launch Cursor</strong> from Applications</li>
+                            </ol>
+                            <div class="screenshot-placeholder">
+                                <p class="img-caption">[SCREENSHOT: Cursor .dmg installation on macOS]</p>
+                            </div>
+                        </div>
+
+                        <div class="tab-content" id="cursor-linux">
+                            <ol class="install-steps">
+                                <li>Go to <a href="https://cursor.com/download" target="_blank">https://cursor.com/download</a></li>
+                                <li>Download the <strong>AppImage</strong> for your architecture (x86_64 for most systems)</li>
+                                <li>Make it executable:</li>
+                            </ol>
+                            <div class="code-block">
+                                <code>chmod +x Cursor-*.AppImage</code>
+                            </div>
+                            <ol class="install-steps" start="4">
+                                <li>Run it:</li>
+                            </ol>
+                            <div class="code-block">
+                                <code>./Cursor-*.AppImage</code>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="system-req-box">
+                        <h4>System Requirements:</h4>
+                        <ul>
+                            <li>At least 4 GB RAM</li>
+                            <li>2 GB available disk space</li>
+                        </ul>
+                    </div>
+
+                    <!-- Open Terminal Section -->
+                    <div class="terminal-section">
+                        <h4>Open Cursor's Terminal</h4>
+                        <p>Once Cursor is open, <strong>open the built-in terminal</strong>:</p>
+
+                        <div class="hotkey-display">
+                            <div class="hotkey-row">
+                                <span class="platform-label">Windows/Linux:</span>
+                                <span class="hotkey-combo">
+                                    <kbd>Ctrl</kbd> + <kbd>`</kbd>
+                                </span>
+                                <span class="hotkey-desc">(backtick)</span>
+                            </div>
+                            <div class="hotkey-row">
+                                <span class="platform-label">macOS:</span>
+                                <span class="hotkey-combo">
+                                    <kbd>Cmd</kbd> + <kbd>`</kbd>
+                                </span>
+                                <span class="hotkey-desc">(backtick)</span>
+                            </div>
+                        </div>
+
+                        <p class="alt-method">OR: Go to <strong>Terminal → New Terminal</strong> in the menu</p>
+
+                        <div class="screenshot-placeholder">
+                            <img src="images/terminal.png" alt="Cursor IDE with terminal open" class="setup-img">
+                            <p class="img-caption">[SCREENSHOT: Cursor IDE with terminal panel open at bottom]</p>
+                        </div>
+
+                        <div class="emphasis-box">
+                            <strong>You'll use this terminal for all the commands below!</strong> (Or use your OS terminal if you prefer.)
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Step 2: Install Git -->
+                <div class="step-container" id="step-2">
+                    <div class="step-header">
+                        <span class="step-badge">Step 2</span>
+                        <h3>Install Git</h3>
+                    </div>
+
+                    <p class="step-intro">Git is version control software that lets you download and manage code.</p>
+
+                    <div class="platform-tabs">
+                        <div class="tab-buttons">
+                            <button class="tab-btn active" data-tab="git-windows">Windows</button>
+                            <button class="tab-btn" data-tab="git-macos">macOS</button>
+                            <button class="tab-btn" data-tab="git-linux">Linux</button>
+                        </div>
+
+                        <div class="tab-content active" id="git-windows">
+                            <ol class="install-steps">
+                                <li>Download Git from: <a href="https://git-scm.com/download/win" target="_blank">https://git-scm.com/download/win</a></li>
+                                <li>Run the installer (accept default options)</li>
+                            </ol>
+                            <div class="screenshot-placeholder">
+                                <p class="img-caption">[SCREENSHOT: Git for Windows installer]</p>
+                            </div>
+                            <ol class="install-steps" start="3">
+                                <li><strong>Verify in Cursor's terminal:</strong>
+                                    <ul>
+                                        <li>In Cursor, open terminal (Ctrl + `)</li>
+                                        <li>Type: <code>git --version</code></li>
+                                        <li>You should see something like <code>git version 2.x.x</code></li>
+                                    </ul>
+                                </li>
+                            </ol>
+                            <div class="screenshot-placeholder">
+                                <p class="img-caption">[SCREENSHOT: Cursor terminal showing 'git --version' output]</p>
+                            </div>
+                        </div>
+
+                        <div class="tab-content" id="git-macos">
+                            <ol class="install-steps">
+                                <li>In <strong>Cursor's terminal</strong> (or Terminal app), type: <code>git --version</code></li>
+                                <li>If not installed, macOS will prompt you to install Xcode Command Line Tools
+                                    <ul>
+                                        <li>Click "Install" and follow prompts</li>
+                                        <li>OR install via Homebrew: <code>brew install git</code></li>
+                                    </ul>
+                                </li>
+                                <li>Verify: <code>git --version</code></li>
+                            </ol>
+                            <div class="screenshot-placeholder">
+                                <p class="img-caption">[SCREENSHOT: macOS Xcode Command Line Tools installation prompt]</p>
+                            </div>
+                        </div>
+
+                        <div class="tab-content" id="git-linux">
+                            <p>In <strong>Cursor's terminal</strong>, run:</p>
+                            <div class="code-block">
+                                <code>sudo apt-get update<br>sudo apt-get install git<br>git --version</code>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Step 3: Install Miniforge -->
+                <div class="step-container" id="step-3">
+                    <div class="step-header">
+                        <span class="step-badge">Step 3</span>
+                        <h3>Install Miniforge (Python)</h3>
+                    </div>
+
+                    <p class="step-intro"><strong>Miniforge</strong> is a lightweight conda installer that will manage Python and all scientific packages.</p>
+
+                    <div class="platform-tabs">
+                        <div class="tab-buttons">
+                            <button class="tab-btn active" data-tab="conda-windows">Windows</button>
+                            <button class="tab-btn" data-tab="conda-macos">macOS</button>
+                            <button class="tab-btn" data-tab="conda-linux">Linux</button>
+                        </div>
+
+                        <div class="tab-content active" id="conda-windows">
+                            <ol class="install-steps">
+                                <li><strong>Download Miniforge:</strong> <a href="https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-Windows-x86_64.exe" target="_blank">Miniforge3-Windows-x86_64.exe</a></li>
+                                <li>Run the installer</li>
+                                <li><strong>IMPORTANT:</strong> Check the box "Add Miniforge to my PATH environment variable"</li>
+                            </ol>
+                            <div class="screenshot-placeholder">
+                                <p class="img-caption">[SCREENSHOT: Miniforge installer with PATH checkbox highlighted]</p>
+                            </div>
+                            <ol class="install-steps" start="4">
+                                <li>Complete installation</li>
+                                <li><strong>Close and reopen Cursor</strong> (so it picks up the new PATH)</li>
+                                <li><strong>Verify in Cursor's terminal:</strong></li>
+                            </ol>
+                            <div class="code-block">
+                                <code>conda --version</code>
+                            </div>
+                            <p>You should see <code>conda 24.x.x</code> or similar</p>
+                            <div class="screenshot-placeholder">
+                                <p class="img-caption">[SCREENSHOT: Cursor terminal showing 'conda --version' output]</p>
+                            </div>
+                        </div>
+
+                        <div class="tab-content" id="conda-macos">
+                            <p>In <strong>Cursor's terminal</strong>, run:</p>
+                            <div class="code-block">
+                                <code>curl -L -O "https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-MacOSX-$(uname -m).sh"<br>bash Miniforge3-MacOSX-$(uname -m).sh</code>
+                            </div>
+                            <ul class="install-steps">
+                                <li>Press Enter to continue</li>
+                                <li>Type "yes" when asked</li>
+                                <li><strong>Close and reopen Cursor's terminal</strong></li>
+                                <li>Verify: <code>conda --version</code></li>
+                            </ul>
+                            <div class="screenshot-placeholder">
+                                <p class="img-caption">[SCREENSHOT: Miniforge installation in terminal]</p>
+                            </div>
+                        </div>
+
+                        <div class="tab-content" id="conda-linux">
+                            <p>In <strong>Cursor's terminal</strong>, run:</p>
+                            <div class="code-block">
+                                <code>curl -L -O "https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-Linux-x86_64.sh"<br>bash Miniforge3-Linux-x86_64.sh<br># Follow prompts<br># Close and reopen terminal<br>conda --version</code>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="note-box">
+                        <strong>Note:</strong> If you already have Conda or Anaconda installed, you can skip Miniforge.
+                    </div>
+                </div>
+
+                <!-- Step 4: Download EEG Data -->
+                <div class="step-container" id="step-4">
+                    <div class="step-header">
+                        <span class="step-badge">Step 4</span>
+                        <h3>Download the EEG Data</h3>
+                    </div>
+
+                    <p class="step-intro">The preprocessed EEG data is stored on Google Drive (approximately 1.7 GB).</p>
+
+                    <div class="download-box">
+                        <h4>🔗 Download Link</h4>
+                        <a href="https://drive.google.com/drive/folders/1N_UNP1LtLRItqV5NyaFNz6h1iuHqiH5F?usp=drive_link" target="_blank" class="download-link">
+                            Google Drive: EEG Data Folder
+                        </a>
+                    </div>
+
+                    <div class="screenshot-placeholder">
+                        <p class="img-caption">[SCREENSHOT: Google Drive folder showing 'data' folder]</p>
+                    </div>
+
+                    <h4>Instructions</h4>
+                    <ol class="install-steps">
+                        <li>Click the link above (you may need to sign in to Google)</li>
+                        <li>You'll see a folder called <strong><code>data</code></strong></li>
+                        <li><strong>Download the entire <code>data</code> folder:</strong>
+                            <ul>
+                                <li>Right-click on the <strong><code>data</code></strong> folder</li>
+                                <li>Select <strong>"Download"</strong></li>
+                                <li>Google Drive will create a <code>.zip</code> file (this may take 5-10 minutes)</li>
+                            </ul>
+                        </li>
+                    </ol>
+
+                    <div class="screenshot-placeholder">
+                        <p class="img-caption">[SCREENSHOT: Google Drive right-click menu showing 'Download' option]</p>
+                    </div>
+
+                    <ol class="install-steps" start="4">
+                        <li><strong>Save the zip file</strong> to your Downloads folder</li>
+                        <li><strong>Extract the zip file</strong>
+                            <ul>
+                                <li>The extracted folder should be called <strong><code>data</code></strong></li>
+                                <li>Keep this folder - we'll move it into the project in Phase 2</li>
+                            </ul>
+                        </li>
+                    </ol>
+
+                    <div class="file-tree-box">
+                        <h4>What's Inside?</h4>
+                        <p>The <code>data</code> folder contains:</p>
+                        <pre class="file-tree"><code>data/
+└── data_preprocessed/
+    └── hpf_1.5_lpf_35_baseline-on/
+        ├── sub-02_preprocessed-epo.fif
+        ├── sub-02/
+        ├── sub-03_preprocessed-epo.fif
+        ├── sub-03/
+        └── ... (more subjects)</code></pre>
+                    </div>
+
+                    <div class="emphasis-box">
+                        <strong>This whole <code>data</code> folder will go directly into your project root!</strong> (We'll do this in Phase 2)
+                    </div>
+                </div>
+
+                <!-- Phase 1 Checkpoint -->
+                <div class="checkpoint-container">
+                    <h3>✅ Phase 1 Checkpoint</h3>
+                    <p>Before moving to Phase 2, verify you have:</p>
+                    <ul class="checklist">
+                        <li><input type="checkbox"> Git installed (<code>git --version</code> works)</li>
+                        <li><input type="checkbox"> Cursor IDE installed (application launches)</li>
+                        <li><input type="checkbox"> Miniforge installed (<code>conda --version</code> works)</li>
+                        <li><input type="checkbox"> EEG data downloaded and extracted</li>
+                    </ul>
+                    <div class="checkpoint-note">
+                        <strong>If any of these failed, check the Troubleshooting section at the bottom before continuing.</strong>
+                    </div>
+                </div>
+            </section>
+
+            <!-- PHASE 2 -->
+            <section class="phase-section phase-2-section">
+                <div class="phase-banner">
+                    <h2>PHASE 2: Configure & Verify</h2>
+                    <p>Now we'll set everything up and make sure it works.</p>
+                </div>
+
+                <!-- Step 5: Clone Repository -->
+                <div class="step-container" id="step-5">
+                    <div class="step-header">
+                        <span class="step-badge">Step 5</span>
+                        <h3>Clone the GitHub Repository</h3>
+                    </div>
+
+                    <p class="step-intro">Now we'll download the analysis code from GitHub <strong>using Cursor's terminal</strong>.</p>
+
+                    <div class="location-box">
+                        <h4>Choose a Location</h4>
+                        <p>Pick a location for the project. Recommended:</p>
+                        <ul>
+                            <li><strong>Windows:</strong> <code>C:/Users/YourName/Projects/</code> or <code>D:/Projects/</code></li>
+                            <li><strong>macOS:</strong> <code>~/Projects/</code> or <code>~/Documents/</code></li>
+                            <li><strong>Linux:</strong> <code>~/Projects/</code> or <code>~/workspace/</code></li>
+                        </ul>
+                    </div>
+
+                    <h4>Clone in Cursor's Terminal</h4>
+                    <p><strong>Open Cursor's terminal</strong> (Ctrl + ` or Cmd + `) and run:</p>
+
+                    <div class="platform-tabs">
+                        <div class="tab-buttons">
+                            <button class="tab-btn active" data-tab="clone-windows">Windows</button>
+                            <button class="tab-btn" data-tab="clone-unix">macOS/Linux</button>
+                        </div>
+
+                        <div class="tab-content active" id="clone-windows">
+                            <div class="code-block">
+                                <code># Create Projects folder if it doesn't exist
+mkdir C:/Users/YourName/Projects/ -ErrorAction SilentlyContinue
+
+# Navigate there
+cd C:/Users/YourName/Projects/
+
+# Clone the repository
+git clone https://github.com/yurigushiken/numbers_eeg_source.git
+
+# Enter the project directory
+cd numbers_eeg_source</code>
+                            </div>
+                        </div>
+
+                        <div class="tab-content" id="clone-unix">
+                            <div class="code-block">
+                                <code># Create Projects folder if it doesn't exist
+mkdir -p ~/Projects/
+
+# Navigate there
+cd ~/Projects/
+
+# Clone the repository
+git clone https://github.com/yurigushiken/numbers_eeg_source.git
+
+# Enter the project directory
+cd numbers_eeg_source</code>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="screenshot-placeholder">
+                        <p class="img-caption">[SCREENSHOT: Cursor terminal showing git clone in progress]</p>
+                    </div>
+
+                    <div class="screenshot-placeholder">
+                        <p class="img-caption">[SCREENSHOT: Successful git clone completion in Cursor terminal]</p>
+                    </div>
+
+                    <div class="open-project-box">
+                        <h4>Open the Project in Cursor</h4>
+                        <p>Once cloned, <strong>open the project folder in Cursor</strong>:</p>
+                        <ol>
+                            <li>In Cursor, go to <strong>File → Open Folder</strong> (or <strong>File → Open</strong> on macOS)</li>
+                            <li>Navigate to the <code>numbers_eeg_source</code> folder you just cloned</li>
+                            <li>Click <strong>"Select Folder"</strong> (or <strong>"Open"</strong> on macOS)</li>
+                        </ol>
+                    </div>
+
+                    <div class="screenshot-placeholder">
+                        <p class="img-caption">[SCREENSHOT: Cursor with numbers_eeg_source project open, showing folder structure in sidebar]</p>
+                    </div>
+
+                    <div class="note-box">
+                        <strong>Note:</strong> The repository URL above should work, but ask your lab if you need different access.
+                    </div>
+                </div>
+
+                <!-- Step 6: Move Data Folder -->
+                <div class="step-container" id="step-6">
+                    <div class="step-header">
+                        <span class="step-badge">Step 6</span>
+                        <h3>Move the Data Folder</h3>
+                    </div>
+
+                    <p class="step-intro">This is simple! The <code>data</code> folder you downloaded goes directly into the project root.</p>
+
+                    <div class="file-tree-box">
+                        <h4>Target Structure</h4>
+                        <pre class="file-tree"><code>numbers_eeg_source/                    ← Your cloned repo (root)
+│
+├── code/                              ← Python analysis scripts
+├── configs/                           ← YAML configuration files
+├── new_user/                          ← Training materials
+├── assets/                            ← EEG montage files
+│
+└── data/                              ← MOVE THE WHOLE FOLDER HERE!
+    └── data_preprocessed/
+        └── hpf_1.5_lpf_35_baseline-on/
+            ├── sub-02_preprocessed-epo.fif
+            ├── sub-02/
+            ├── sub-03_preprocessed-epo.fif
+            └── ... (more subjects)</code></pre>
+                    </div>
+
+                    <h4>Move the Data Using Cursor's Terminal</h4>
+                    <p><strong>Make sure you're in the project directory first!</strong></p>
+                    <p>In <strong>Cursor's terminal</strong>, run:</p>
+
+                    <div class="platform-tabs">
+                        <div class="tab-buttons">
+                            <button class="tab-btn active" data-tab="move-windows">Windows</button>
+                            <button class="tab-btn" data-tab="move-unix">macOS/Linux</button>
+                        </div>
+
+                        <div class="tab-content active" id="move-windows">
+                            <div class="code-block">
+                                <code># Check you're in the right place
+pwd
+# Should show: C:/Users/YourName/Projects/numbers_eeg_source
+
+# Move the entire data folder from Downloads
+Move-Item "$HOME/Downloads/data" -Destination "." -Force
+
+# Verify it worked
+ls data/data_preprocessed/hpf_1.5_lpf_35_baseline-on/</code>
+                            </div>
+                        </div>
+
+                        <div class="tab-content" id="move-unix">
+                            <div class="code-block">
+                                <code># Check you're in the right place
+pwd
+# Should show: /Users/YourName/Projects/numbers_eeg_source (or similar)
+
+# Move the entire data folder from Downloads
+mv ~/Downloads/data .
+
+# Verify it worked
+ls data/data_preprocessed/hpf_1.5_lpf_35_baseline-on/</code>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="screenshot-placeholder">
+                        <p class="img-caption">[SCREENSHOT: Cursor terminal showing successful data folder move and verification]</p>
+                    </div>
+
+                    <div class="verification-box">
+                        <h4>Verify the Structure</h4>
+                        <p>You should see files like:</p>
+                        <ul>
+                            <li><code>sub-02_preprocessed-epo.fif</code></li>
+                            <li><code>sub-03_preprocessed-epo.fif</code></li>
+                            <li><code>sub-04_preprocessed-epo.fif</code></li>
+                            <li>...</li>
+                        </ul>
+                        <p>And folders like:</p>
+                        <ul>
+                            <li><code>sub-02/</code></li>
+                            <li><code>sub-03/</code></li>
+                            <li><code>sub-04/</code></li>
+                            <li>...</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Step 7: Create Python Environment -->
+                <div class="step-container" id="step-7">
+                    <div class="step-header">
+                        <span class="step-badge">Step 7</span>
+                        <h3>Create Python Environment</h3>
+                    </div>
+
+                    <p class="step-intro">Now we'll create a dedicated Python environment with all required packages <strong>using Cursor's terminal</strong>.</p>
+
+                    <div class="critical-box">
+                        <div class="critical-icon">⚠️</div>
+                        <div class="critical-content">
+                            <h4>CRITICAL: Environment Name</h4>
+                            <p>Your environment <strong>MUST</strong> be named:</p>
+                            <div class="env-name-display">
+                                <code>numbers_eeg_source</code>
+                            </div>
+                            <p class="critical-note">This ensures compatibility with all pipeline scripts!</p>
+                        </div>
+                    </div>
+
+                    <h4>Create the Environment</h4>
+                    <p>In <strong>Cursor's terminal</strong>, make sure you're in the project directory, then run:</p>
+
+                    <div class="method-tabs">
+                        <div class="method-tab active" data-method="method1">
+                            <h5>Method 1: Using environment.yml (Easiest)</h5>
+                            <div class="code-block">
+                                <code># Make sure you're in the project root
+pwd  # Check your location first
+
+# Create environment from file
+conda env create -f environment.yml
+
+# This will take 5-10 minutes to download and install all packages</code>
+                            </div>
+                            <div class="screenshot-placeholder">
+                                <p class="img-caption">[SCREENSHOT: Cursor terminal showing conda env create in progress]</p>
+                            </div>
+                        </div>
+
+                        <div class="method-tab" data-method="method2">
+                            <h5>Method 2: Manual Installation</h5>
+                            <div class="code-block">
+                                <code># Create the environment with Python 3.11
+conda create -n numbers_eeg_source python=3.11 -y
+
+# Activate it
+conda activate numbers_eeg_source
+
+# Install all packages (this will take 5-10 minutes)
+conda install -c conda-forge mne numpy scipy matplotlib pandas tqdm imageio nibabel nilearn pyvista pyvistaqt pyqt vtk pyyaml statsmodels pingouin seaborn -y</code>
+                            </div>
+                        </div>
+                    </div>
+
+                    <h4>Activate the Environment</h4>
+                    <p>In <strong>Cursor's terminal</strong>:</p>
+                    <div class="code-block">
+                        <code>conda activate numbers_eeg_source</code>
+                    </div>
+
+                    <div class="activated-box">
+                        <h4>How to tell if it's activated:</h4>
+                        <ul>
+                            <li>Your prompt will show <code>(numbers_eeg_source)</code> at the beginning</li>
+                            <li>Example: <code>(numbers_eeg_source) C:\Users\YourName></code></li>
+                        </ul>
+                    </div>
+
+                    <div class="screenshot-placeholder">
+                        <img src="images/terminal-with-env-activated.png" alt="Terminal with environment activated" class="setup-img">
+                        <p class="img-caption">[SCREENSHOT: Cursor terminal with (numbers_eeg_source) prefix showing environment is active]</p>
+                    </div>
+
+                    <h4>Verify Installation</h4>
+                    <p>With the environment activated in <strong>Cursor's terminal</strong>, run these tests:</p>
+                    <div class="code-block">
+                        <code># Test MNE
+python -c "import mne; print(f'MNE version: {mne.__version__}')"
+
+# Test PyVista (3D visualization)
+python -c "import pyvista; print('PyVista OK')"
+
+# Test all imports
+python -c "import mne, numpy, scipy, pandas, matplotlib; print('All packages OK!')"</code>
+                    </div>
+
+                    <p>You should see output like:</p>
+                    <div class="output-block">
+                        <code>MNE version: 1.x.x
+PyVista OK
+All packages OK!</code>
+                    </div>
+
+                    <div class="screenshot-placeholder">
+                        <p class="img-caption">[SCREENSHOT: Cursor terminal showing successful package import tests]</p>
+                    </div>
+                </div>
+
+                <!-- Step 8: Not needed, already opened in Step 5 -->
+
+                <!-- Step 9: Select Python Interpreter -->
+                <div class="step-container" id="step-9">
+                    <div class="step-header">
+                        <span class="step-badge">Step 9</span>
+                        <h3>Select Python Interpreter in Cursor</h3>
+                    </div>
+
+                    <div class="critical-box">
+                        <div class="critical-icon">⚠️</div>
+                        <div class="critical-content">
+                            <h4>THIS IS CRITICAL!</h4>
+                            <p>Cursor needs to know which Python interpreter to use.</p>
+                        </div>
+                    </div>
+
+                    <h4>Select the Interpreter</h4>
+                    <ol class="install-steps">
+                        <li><strong>With Cursor open</strong>, press:
+                            <ul>
+                                <li><strong>Windows/Linux:</strong> <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>P</kbd></li>
+                                <li><strong>macOS:</strong> <kbd>Cmd</kbd> + <kbd>Shift</kbd> + <kbd>P</kbd></li>
+                            </ul>
+                        </li>
+                    </ol>
+
+                    <div class="screenshot-placeholder">
+                        <p class="img-caption">[SCREENSHOT: Cursor with Command Palette open showing Ctrl+Shift+P]</p>
+                    </div>
+
+                    <ol class="install-steps" start="2">
+                        <li>In the command palette, type: <strong><code>Python: Select Interpreter</code></strong></li>
+                    </ol>
+
+                    <div class="screenshot-placeholder">
+                        <p class="img-caption">[SCREENSHOT: Command Palette with "Python: Select Interpreter" typed and highlighted]</p>
+                    </div>
+
+                    <ol class="install-steps" start="3">
+                        <li>Select the interpreter that says <code>numbers_eeg_source</code>:
+                            <ul>
+                                <li>Look for entries like:
+                                    <ul>
+                                        <li><code>Python 3.11.x ('numbers_eeg_source': conda)</code></li>
+                                        <li>Path examples:
+                                            <ul>
+                                                <li>Windows: <code>C:\Users\YourName\miniforge3\envs\numbers_eeg_source\python.exe</code></li>
+                                                <li>macOS: <code>/Users/YourName/miniforge3/envs/numbers_eeg_source/bin/python</code></li>
+                                                <li>Linux: <code>/home/YourName/miniforge3/envs/numbers_eeg_source/bin/python</code></li>
+                                            </ul>
+                                        </li>
+                                    </ul>
+                                </li>
+                            </ul>
+                        </li>
+                        <li>Click on it to select it</li>
+                    </ol>
+
+                    <div class="screenshot-placeholder">
+                        <p class="img-caption">[SCREENSHOT: Python interpreter dropdown list showing numbers_eeg_source environment highlighted]</p>
+                    </div>
+
+                    <div class="verify-box">
+                        <h4>Verify in Cursor</h4>
+                        <p>Look at the <strong>bottom-right corner</strong> of Cursor. You should see:</p>
+                        <div class="env-display">
+                            <code>Python 3.11.x ('numbers_eeg_source')</code>
+                        </div>
+                    </div>
+
+                    <div class="screenshot-placeholder">
+                        <p class="img-caption">[SCREENSHOT: Bottom-right corner of Cursor showing Python 3.11.x ('numbers_eeg_source')]</p>
+                    </div>
+
+                    <div class="note-box">
+                        If you don't see this, repeat the <kbd>Ctrl+Shift+P</kbd> / <kbd>Cmd+Shift+P</kbd> steps above.
+                    </div>
+                </div>
+
+                <!-- Step 10: Test the Pipeline -->
+                <div class="step-container" id="step-10">
+                    <div class="step-header">
+                        <span class="step-badge">Step 10</span>
+                        <h3>Test the Pipeline!</h3>
+                    </div>
+
+                    <p class="step-intro">Let's make sure everything works by running the example analysis <strong>in Cursor's terminal</strong>.</p>
+
+                    <h4>Test Run</h4>
+                    <p>In <strong>Cursor's terminal</strong>, run:</p>
+
+                    <div class="platform-tabs">
+                        <div class="tab-buttons">
+                            <button class="tab-btn active" data-tab="test-windows">Windows</button>
+                            <button class="tab-btn" data-tab="test-unix">macOS/Linux</button>
+                        </div>
+
+                        <div class="tab-content active" id="test-windows">
+                            <div class="code-block">
+                                <code># Make sure environment is activated
+conda activate numbers_eeg_source
+
+# Make sure you're in project root
+pwd
+
+# Run the quick-start script
+.\new_user\run_analysis.bat</code>
+                            </div>
+                        </div>
+
+                        <div class="tab-content" id="test-unix">
+                            <div class="code-block">
+                                <code># Make sure environment is activated
+conda activate numbers_eeg_source
+
+# Make sure you're in project root
+pwd
+
+# Run the quick-start script
+./new_user/run_analysis.sh</code>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="screenshot-placeholder">
+                        <p class="img-caption">[SCREENSHOT: Cursor terminal showing pipeline starting to run]</p>
+                    </div>
+
+                    <div class="alt-method-box">
+                        <p><strong>OR run directly:</strong></p>
+                        <div class="code-block">
+                            <code>python -m code.run_full_analysis_pipeline --config new_user/examples/sensor_13_31.yaml --accuracy all</code>
+                        </div>
+                    </div>
+
+                    <div class="expect-box">
+                        <h4>What to Expect</h4>
+                        <p>The pipeline will:</p>
+                        <ol>
+                            <li>Load the example configuration</li>
+                            <li>Run sensor-space analysis (~2-5 minutes)</li>
+                            <li>If significant clusters found, run source-space analyses</li>
+                            <li>Generate reports in <code>derivatives/</code></li>
+                        </ol>
+                    </div>
+
+                    <div class="success-box">
+                        <h3>🎉 If successful, you're ready for the meeting!</h3>
+                    </div>
+                </div>
+
+                <!-- Final Checklist -->
+                <div class="checkpoint-container final-checkpoint">
+                    <h3>✅ Final Checklist: Are You Ready?</h3>
+                    <p>Before the meeting, verify ALL of these:</p>
+                    <ul class="checklist">
+                        <li><input type="checkbox"> <strong>Git installed</strong> (<code>git --version</code> works)</li>
+                        <li><input type="checkbox"> <strong>Cursor IDE installed</strong> (application launches)</li>
+                        <li><input type="checkbox"> <strong>Miniforge installed</strong> (<code>conda --version</code> works)</li>
+                        <li><input type="checkbox"> <strong>Repository cloned</strong> (<code>numbers_eeg_source/</code> folder exists)</li>
+                        <li><input type="checkbox"> <strong>Data in correct location</strong> (<code>data/data_preprocessed/hpf_1.5_lpf_35_baseline-on/</code> exists)</li>
+                        <li><input type="checkbox"> <strong>Python environment created</strong> (<code>conda activate numbers_eeg_source</code> works)</li>
+                        <li><input type="checkbox"> <strong>Packages installed</strong> (<code>python -c "import mne"</code> works without errors)</li>
+                        <li><input type="checkbox"> <strong>Cursor configured</strong> (bottom-right shows <code>Python 3.11.x ('numbers_eeg_source')</code>)</li>
+                        <li><input type="checkbox"> <strong>Test run successful</strong> (example analysis ran without errors)</li>
+                    </ul>
+                </div>
+            </section>
+
+            <!-- Troubleshooting Section -->
+            <section class="troubleshooting-section">
+                <h2 class="section-title">Troubleshooting</h2>
+
+                <div class="trouble-category">
+                    <h3>Git Issues</h3>
+                    <div class="trouble-item">
+                        <h4>"Git clone failed with authentication error"</h4>
+                        <ul>
+                            <li>The repository may be private. Ask your lab for access permissions.</li>
+                            <li>You may need to set up SSH keys or a Personal Access Token (PAT).</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="trouble-category">
+                    <h3>Data Issues</h3>
+                    <div class="trouble-item">
+                        <h4>"Can't find the data_preprocessed folder on Google Drive"</h4>
+                        <ul>
+                            <li>Make sure you're logged into the correct Google account.</li>
+                            <li>Ask your lab manager for access to the shared drive.</li>
+                        </ul>
+                    </div>
+                    <div class="trouble-item">
+                        <h4>"Data folder is huge (several GB)!"</h4>
+                        <ul>
+                            <li>The full dataset with all preprocessing variants is large.</li>
+                            <li><strong>You only need:</strong> <code>hpf_1.5_lpf_35_baseline-on/</code></li>
+                            <li>You can delete other preprocessing folders if needed to save space.</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="trouble-category">
+                    <h3>Cursor Issues</h3>
+                    <div class="trouble-item">
+                        <h4>"Cursor won't open on macOS - 'App is damaged'"</h4>
+                        <ul>
+                            <li>This is a security warning.</li>
+                            <li>Go to <strong>System Preferences → Security & Privacy</strong></li>
+                            <li>Click <strong>"Open Anyway"</strong> next to the Cursor warning</li>
+                        </ul>
+                    </div>
+                    <div class="trouble-item">
+                        <h4>"Cursor doesn't show my conda environment in interpreter list"</h4>
+                        <ul>
+                            <li>Make sure conda is initialized: <code>conda init</code></li>
+                            <li>Restart Cursor after creating the environment</li>
+                            <li>Try entering the full path manually:
+                                <ul>
+                                    <li><kbd>Ctrl+Shift+P</kbd> → "Python: Select Interpreter" → "Enter interpreter path"</li>
+                                </ul>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="trouble-category">
+                    <h3>Conda/Environment Issues</h3>
+                    <div class="trouble-item">
+                        <h4>"conda: command not found" after installing Miniforge</h4>
+                        <ul>
+                            <li>You need to restart your terminal/PowerShell</li>
+                            <li>Or manually initialize: <code>conda init bash</code> (or <code>conda init zsh</code> for macOS)</li>
+                            <li>Then restart terminal</li>
+                        </ul>
+                    </div>
+                    <div class="trouble-item">
+                        <h4>"Package installation failed with conflicts"</h4>
+                        <ul>
+                            <li>Try creating a fresh environment:</li>
+                        </ul>
+                        <div class="code-block">
+                            <code>conda remove -n numbers_eeg_source --all
+conda env create -f environment.yml</code>
+                        </div>
+                        <ul>
+                            <li>If still failing, try Method 2 (manual installation) one package at a time</li>
+                        </ul>
+                    </div>
+                    <div class="trouble-item">
+                        <h4>"Python says 'No module named mne' even after installation"</h4>
+                        <ul>
+                            <li>Make sure you activated the environment: <code>conda activate numbers_eeg_source</code></li>
+                            <li>Check that Cursor is using the correct interpreter (<kbd>Ctrl+Shift+P</kbd> → "Python: Select Interpreter")</li>
+                            <li>Verify which Python you're using:
+                                <ul>
+                                    <li>macOS/Linux: <code>which python</code></li>
+                                    <li>Windows: <code>where python</code></li>
+                                </ul>
+                            </li>
+                        </ul>
+                    </div>
+                    <div class="trouble-item">
+                        <h4>"PyVista/VTK installation fails"</h4>
+                        <ul>
+                            <li>These packages can be tricky on some systems</li>
+                            <li>Try installing separately: <code>conda install -c conda-forge pyvista -y</code></li>
+                            <li>On older Macs, you may need to use pip: <code>pip install pyvista</code></li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="trouble-category">
+                    <h3>Shell Script Issues</h3>
+                    <div class="trouble-item">
+                        <h4>"Permission denied when running shell scripts"</h4>
+                        <ul>
+                            <li>Make the script executable: <code>chmod +x new_user/run_analysis.sh</code></li>
+                        </ul>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Next Steps -->
+            <section class="next-steps-section">
+                <h2 class="section-title">Next Steps</h2>
+                <p>Once you've completed this setup:</p>
+                <ol class="next-steps-list">
+                    <li><strong>Read the Quickstart Guide:</strong> <a href="quickstart.html">new_user/README.md</a></li>
+                    <li><strong>Explore the examples:</strong> Look at <code>new_user/examples/sensor_13_31.yaml</code></li>
+                    <li><strong>Try creating your own analysis</strong> (follow the README guide)</li>
+                    <li><strong>Join the meeting ready to code!</strong></li>
+                </ol>
+            </section>
+
+            <!-- Quick Reference -->
+            <section class="reference-section">
+                <h2 class="section-title">Quick Reference Card</h2>
+                <table class="reference-table">
+                    <thead>
+                        <tr>
+                            <th>Tool</th>
+                            <th>Download Link</th>
+                            <th>Purpose</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>Git</strong></td>
+                            <td><a href="https://git-scm.com" target="_blank">https://git-scm.com</a></td>
+                            <td>Clone the repository</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Cursor IDE</strong></td>
+                            <td><a href="https://cursor.com/download" target="_blank">https://cursor.com/download</a></td>
+                            <td>Edit code and config files</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Miniforge</strong></td>
+                            <td><a href="https://github.com/conda-forge/miniforge" target="_blank">https://github.com/conda-forge/miniforge</a></td>
+                            <td>Python package manager</td>
+                        </tr>
+                        <tr>
+                            <td><strong>EEG Data</strong></td>
+                            <td><a href="https://drive.google.com/drive/folders/1N_UNP1LtLRItqV5NyaFNz6h1iuHqiH5F?usp=drive_link" target="_blank">Google Drive Folder</a></td>
+                            <td>Preprocessed epoch files</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <div class="reference-info">
+                    <p><strong>Project Repository:</strong> <a href="https://github.com/yurigushiken/numbers_eeg_source" target="_blank">https://github.com/yurigushiken/numbers_eeg_source</a></p>
+                    <p><strong>Data Location:</strong> <code>data/data_preprocessed/hpf_1.5_lpf_35_baseline-on/</code></p>
+                </div>
+
+                <div class="env-files-box">
+                    <h4>Environment Files:</h4>
+                    <ul>
+                        <li><code>environment.yml</code> - Create with: <code>conda env create -f environment.yml</code></li>
+                        <li><code>requirements.txt</code> - Or use pip: <code>pip install -r requirements.txt</code></li>
+                    </ul>
+                </div>
+
+                <div class="key-commands-box">
+                    <h4>Key Commands to Remember:</h4>
+                    <div class="code-block">
+                        <code># ALWAYS activate before running analyses!
+conda activate numbers_eeg_source
+
+# Select Python interpreter in Cursor:
+# Ctrl+Shift+P (Win/Linux) or Cmd+Shift+P (Mac)
+# Type: "Python: Select Interpreter"</code>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Questions Section -->
+            <section class="questions-section">
+                <h2 class="section-title">Questions?</h2>
+                <p>If you get stuck on any step, don't worry! We'll help you during the meeting. Just make sure you've attempted all the steps and documented any errors you encountered.</p>
+                <div class="see-you-box">
+                    <h3>See you at the meeting! 🎉</h3>
+                </div>
+            </section>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2025 Language and Cognitive Neuroscience Lab. Open source under MIT License.</p>
+            <p class="footer-links">
+                <a href="https://github.com/yurigushiken/numbers_eeg_source" target="_blank">GitHub</a> |
+                <a href="setup.html">Documentation</a> |
+                <a href="mailto:your-lab@university.edu">Contact</a>
+            </p>
+        </div>
+    </footer>
+
+    <script src="js/main.js"></script>
+    <script src="js/setup.js"></script>
+</body>
+</html>

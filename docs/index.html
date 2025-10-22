@@ -1,0 +1,915 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pre-Meeting Setup Guide - EEG Analysis Pipeline</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+            line-height: 1.6;
+            color: #24292f;
+            background: #ffffff;
+            padding: 20px;
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            font-size: 2em;
+            margin-top: 24px;
+            margin-bottom: 16px;
+            font-weight: 600;
+            line-height: 1.25;
+            padding-bottom: 0.3em;
+            border-bottom: 1px solid #d0d7de;
+        }
+
+        h2 {
+            font-size: 1.5em;
+            margin-top: 24px;
+            margin-bottom: 16px;
+            font-weight: 600;
+            line-height: 1.25;
+            padding-bottom: 0.3em;
+            border-bottom: 1px solid #d0d7de;
+        }
+
+        h3 {
+            font-size: 1.25em;
+            margin-top: 24px;
+            margin-bottom: 16px;
+            font-weight: 600;
+            line-height: 1.25;
+        }
+
+        h4 {
+            font-size: 1em;
+            margin-top: 16px;
+            margin-bottom: 16px;
+            font-weight: 600;
+        }
+
+        p {
+            margin-top: 0;
+            margin-bottom: 16px;
+        }
+
+        ul, ol {
+            margin-top: 0;
+            margin-bottom: 16px;
+            padding-left: 2em;
+        }
+
+        li {
+            margin-bottom: 8px;
+        }
+
+        code {
+            background-color: #f6f8fa;
+            border-radius: 6px;
+            font-size: 85%;
+            margin: 0;
+            padding: 0.2em 0.4em;
+            font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+        }
+
+        pre {
+            background-color: #f6f8fa;
+            border-radius: 6px;
+            font-size: 85%;
+            line-height: 1.45;
+            overflow: auto;
+            padding: 16px;
+            margin-bottom: 16px;
+        }
+
+        pre code {
+            background-color: transparent;
+            border: 0;
+            display: inline;
+            line-height: inherit;
+            margin: 0;
+            overflow: visible;
+            padding: 0;
+            word-wrap: normal;
+        }
+
+        a {
+            color: #0969da;
+            text-decoration: none;
+        }
+
+        a:hover {
+            text-decoration: underline;
+        }
+
+        strong {
+            font-weight: 600;
+        }
+
+        hr {
+            height: 0.25em;
+            padding: 0;
+            margin: 24px 0;
+            background-color: #d0d7de;
+            border: 0;
+        }
+
+        blockquote {
+            padding: 0 1em;
+            color: #57606a;
+            border-left: 0.25em solid #d0d7de;
+            margin-bottom: 16px;
+        }
+
+        table {
+            border-spacing: 0;
+            border-collapse: collapse;
+            margin-bottom: 16px;
+            width: 100%;
+        }
+
+        table th {
+            font-weight: 600;
+            padding: 6px 13px;
+            border: 1px solid #d0d7de;
+        }
+
+        table td {
+            padding: 6px 13px;
+            border: 1px solid #d0d7de;
+        }
+
+        table tr {
+            background-color: #ffffff;
+            border-top: 1px solid #d8dee4;
+        }
+
+        table tr:nth-child(2n) {
+            background-color: #f6f8fa;
+        }
+
+        img {
+            max-width: 66%;
+            height: auto;
+            display: block;
+            margin: 16px 0;
+            border: 1px solid #d0d7de;
+            border-radius: 6px;
+        }
+
+        .screenshot-placeholder {
+            background-color: #f6f8fa;
+            border: 2px dashed #d0d7de;
+            border-radius: 6px;
+            padding: 16px;
+            margin: 16px 0;
+            text-align: center;
+            color: #57606a;
+            font-style: italic;
+        }
+    </style>
+</head>
+<body>
+
+<h1>Pre-Meeting Setup Guide</h1>
+<h2>EEG Analysis Pipeline - New User Onboarding</h2>
+
+<p><strong>Complete these steps BEFORE our first meeting.</strong> This will take approximately 45-60 minutes.</p>
+
+<hr>
+
+<h2>Overview</h2>
+
+<p>This guide is organized into two phases:</p>
+<ol>
+<li><strong>PHASE 1: Download &amp; Install Software</strong> (20-30 min) - Get all the tools you need</li>
+<li><strong>PHASE 2: Setup Project &amp; Data</strong> (20-30 min) - Clone the code, add data, and configure everything</li>
+</ol>
+
+<p><strong>What you'll need:</strong></p>
+<ul>
+<li><strong>Cursor IDE</strong> (code editor)</li>
+<li>Git (version control)</li>
+<li>Miniforge (Python package manager)</li>
+<li>EEG data (~1.7 GB download - we'll get this in Phase 2)</li>
+</ul>
+
+<p><strong>Important:</strong> We'll be doing almost everything inside <strong>Cursor IDE's built-in terminal</strong>. You can also use your operating system's terminal if you prefer.</p>
+
+<hr>
+
+<h1>PHASE 1: Download &amp; Install Software</h1>
+
+<p>Install these three tools before moving to Phase 2.</p>
+
+<hr>
+
+<h2>Step 1: Install Cursor IDE</h2>
+
+<p>Cursor is an AI-powered code editor with a built-in terminal. We'll use Cursor for everything!</p>
+
+<p><strong>Official Website:</strong> <a href="https://cursor.com">https://cursor.com</a></p>
+
+<h3>Why Cursor?</h3>
+<ul>
+<li>AI-powered code completion and suggestions</li>
+<li>Built-in terminal (we'll use this for all commands!)</li>
+<li>Works with all VS Code extensions</li>
+<li>Available on Windows, macOS, and Linux</li>
+</ul>
+
+<h3>Windows</h3>
+<ol>
+<li>Go to <a href="https://cursor.com/download">https://cursor.com/download</a></li>
+<li>Click <strong>"Download for Windows"</strong></li>
+<li>Run the downloaded <code>.exe</code> file</li>
+<li>Follow the installation wizard (default settings are fine)</li>
+<li><strong>Launch Cursor</strong></li>
+</ol>
+
+<h3>macOS</h3>
+<ol>
+<li>Go to <a href="https://cursor.com/download">https://cursor.com/download</a></li>
+<li>Click <strong>"Download for macOS"</strong></li>
+<li>Open the downloaded <code>.dmg</code> file</li>
+<li>Drag <strong>Cursor</strong> to your <strong>Applications</strong> folder</li>
+<li><strong>Launch Cursor</strong> from Applications</li>
+</ol>
+
+<h3>Linux</h3>
+<ol>
+<li>Go to <a href="https://cursor.com/download">https://cursor.com/download</a></li>
+<li>Download the <strong>AppImage</strong> for your architecture (x86_64 for most systems)</li>
+<li>Make it executable:</li>
+</ol>
+<pre><code>chmod +x Cursor-*.AppImage
+</code></pre>
+<ol start="4">
+<li>Run it:</li>
+</ol>
+<pre><code>./Cursor-*.AppImage
+</code></pre>
+
+<p><strong>System Requirements:</strong></p>
+<ul>
+<li>At least 4 GB RAM</li>
+<li>2 GB available disk space</li>
+</ul>
+
+<h3>Open Cursor's Terminal</h3>
+
+<p>Once Cursor is open, <strong>open the built-in terminal</strong>:</p>
+
+<p><strong>Windows/Linux:</strong> Press <strong>Ctrl + `</strong> (backtick)<br>
+<strong>macOS:</strong> Press <strong>Cmd + `</strong> (backtick)</p>
+
+<p>OR: Go to <strong>Terminal → New Terminal</strong> in the menu</p>
+
+<img src="images/cursor.png" alt="Cursor IDE">
+
+<p><strong>You'll use this terminal for all the commands below!</strong> (Or use your OS terminal if you prefer.)</p>
+
+<hr>
+
+<h2>Step 2: Install Git</h2>
+
+<p>Git is version control software that lets you download and manage code.</p>
+
+<h3>Why Git?</h3>
+<ul>
+<li>Downloads the analysis code from GitHub</li>
+<li>Keeps your code up-to-date with the latest fixes and features</li>
+<li>Industry-standard tool for managing code</li>
+<li>Required to clone (download) the repository</li>
+</ul>
+
+<h3>Windows</h3>
+<ol>
+<li>Download Git from: <a href="https://git-scm.com/download/win">https://git-scm.com/download/win</a></li>
+<li>Run the installer (accept default options)</li>
+<li><strong>Verify in Cursor's terminal:</strong>
+<ul>
+<li>In Cursor, open terminal (Ctrl + `)</li>
+<li>Type: <code>git --version</code></li>
+<li>You should see something like <code>git version 2.x.x</code></li>
+</ul>
+</li>
+</ol>
+
+<h3>macOS</h3>
+<ol>
+<li>In <strong>Cursor's terminal</strong> (or Terminal app), type: <code>git --version</code></li>
+<li>If not installed, macOS will prompt you to install Xcode Command Line Tools
+<ul>
+<li>Click "Install" and follow prompts</li>
+<li>OR install via Homebrew: <code>brew install git</code></li>
+</ul>
+</li>
+<li>Verify: <code>git --version</code></li>
+</ol>
+
+<h3>Linux (Ubuntu/Debian)</h3>
+<p>In <strong>Cursor's terminal</strong>, run:</p>
+<pre><code>sudo apt-get update
+sudo apt-get install git
+git --version
+</code></pre>
+
+<hr>
+
+<h2>Step 3: Install Miniforge (Python)</h2>
+
+<p><strong>Miniforge</strong> is a lightweight conda installer that will manage Python and all scientific packages.</p>
+
+<h3>Why Miniforge?</h3>
+<ul>
+<li>Installs Python and manages all scientific packages needed for EEG analysis</li>
+<li>Creates isolated environments so packages don't conflict with each other</li>
+<li>Automatically handles complex dependencies (MNE, NumPy, SciPy, etc.)</li>
+<li>Makes it easy to reproduce the exact same setup on different computers</li>
+</ul>
+
+<h3>Windows</h3>
+<ol>
+<li><strong>Download Miniforge:</strong> <a href="https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-Windows-x86_64.exe">https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-Windows-x86_64.exe</a></li>
+<li>Run the installer</li>
+<li><strong>IMPORTANT:</strong> Check the box "Add Miniforge to my PATH environment variable"</li>
+<li>Complete installation</li>
+<li><strong>Close and reopen Cursor</strong> (so it picks up the new PATH)</li>
+<li><strong>Verify in Cursor's terminal:</strong></li>
+</ol>
+<pre><code>conda --version
+</code></pre>
+<p>You should see <code>conda 24.x.x</code> or similar</p>
+
+<h3>macOS</h3>
+<p>In <strong>Cursor's terminal</strong>, run:</p>
+<pre><code>curl -L -O "https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-MacOSX-$(uname -m).sh"
+bash Miniforge3-MacOSX-$(uname -m).sh
+</code></pre>
+<ul>
+<li>Press Enter to continue</li>
+<li>Type "yes" when asked</li>
+<li><strong>Close and reopen Cursor's terminal</strong></li>
+<li>Verify: <code>conda --version</code></li>
+</ul>
+
+<h3>Linux</h3>
+<p>In <strong>Cursor's terminal</strong>, run:</p>
+<pre><code>curl -L -O "https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-Linux-x86_64.sh"
+bash Miniforge3-Linux-x86_64.sh
+# Follow prompts
+# Close and reopen terminal
+conda --version
+</code></pre>
+
+<p><strong>Note:</strong> If you already have Conda or Anaconda installed, you can skip Miniforge.</p>
+
+<hr>
+
+<h2>✅ Phase 1 Checkpoint</h2>
+
+<p>Before moving to Phase 2, verify you have:</p>
+
+<ul>
+<li>Git installed (<code>git --version</code> works)</li>
+<li>Cursor IDE installed (application launches)</li>
+<li>Miniforge installed (<code>conda --version</code> works)</li>
+</ul>
+
+<p><strong>If any of these failed, check the Troubleshooting section at the bottom before continuing.</strong></p>
+
+<hr>
+
+<h1>PHASE 2: Setup Project &amp; Data</h1>
+
+<p>Now we'll clone the project, add the data, and configure everything.</p>
+
+<hr>
+
+<h2>Step 5: Clone the GitHub Repository</h2>
+
+<p>Now we'll download the analysis code from GitHub <strong>using Cursor's terminal</strong>.</p>
+
+<p><strong>Note:</strong> While the repository is cloning, you can start downloading the EEG data in the background (Step 6). The data download takes 5-10 minutes.</p>
+
+<h3>Choose a Location</h3>
+<p>Pick a location for the project. Recommended:</p>
+<ul>
+<li><strong>Windows:</strong> <code>C:/Users/YourName/Projects/</code> or <code>D:/Projects/</code></li>
+<li><strong>macOS:</strong> <code>~/Projects/</code> or <code>~/Documents/</code></li>
+<li><strong>Linux:</strong> <code>~/Projects/</code> or <code>~/workspace/</code></li>
+</ul>
+
+<h3>Clone in Cursor's Terminal</h3>
+
+<p><strong>Open Cursor's terminal</strong> (Ctrl + ` or Cmd + `) and run:</p>
+
+<p><strong>Windows:</strong></p>
+<pre><code># Create Projects folder if it doesn't exist
+mkdir C:/Users/YourName/Projects/ -ErrorAction SilentlyContinue
+
+# Navigate there
+cd C:/Users/YourName/Projects/
+
+# Clone the repository
+git clone https://github.com/yurigushiken/numbers_eeg_source.git
+
+# Enter the project directory
+cd numbers_eeg_source
+</code></pre>
+
+<p><strong>macOS/Linux:</strong></p>
+<pre><code># Create Projects folder if it doesn't exist
+mkdir -p ~/Projects/
+
+# Navigate there
+cd ~/Projects/
+
+# Clone the repository
+git clone https://github.com/yurigushiken/numbers_eeg_source.git
+
+# Enter the project directory
+cd numbers_eeg_source
+</code></pre>
+
+<h3>Open the Project in Cursor</h3>
+
+<p>Once cloned, <strong>open the project folder in Cursor</strong>:</p>
+<ol>
+<li>In Cursor, go to <strong>File → Open Folder</strong> (or <strong>File → Open</strong> on macOS)</li>
+<li>Navigate to the <code>numbers_eeg_source</code> folder you just cloned</li>
+<li>Click <strong>"Select Folder"</strong> (or <strong>"Open"</strong> on macOS)</li>
+</ol>
+
+<img src="images/cursor-open.png" alt="Cursor with Project Open">
+
+<hr>
+
+<h2>Step 6: Download and Move the EEG Data</h2>
+
+<p>Now that you have the project cloned, let's add the EEG data (approximately 1.7 GB).</p>
+
+<h3>Goal: Your Final Project Structure</h3>
+
+<p>Here's what we're aiming for - your <code>data</code> folder should end up in the project root:</p>
+
+<pre><code>numbers_eeg_source/                    ← Your project root
+│
+├── code/                              ← Python analysis scripts
+├── configs/                           ← YAML configuration files
+├── new_user/                          ← Training materials
+├── assets/                            ← EEG montage files
+├── data/                              ← Your data folder!
+│   └── data_preprocessed/
+│       └── hpf_1.5_lpf_35_baseline-on/
+│           ├── sub-02_preprocessed-epo.fif
+│           ├── sub-02/
+│           ├── sub-03_preprocessed-epo.fif
+│           └── ... (more subjects)
+├── environment.yml
+└── README.md
+</code></pre>
+
+<h3>Download the Data</h3>
+
+<p>🔗 <strong>Google Drive:</strong> <a href="https://drive.google.com/drive/folders/1N_UNP1LtLRItqV5NyaFNz6h1iuHqiH5F?usp=drive_link">https://drive.google.com/drive/folders/1N_UNP1LtLRItqV5NyaFNz6h1iuHqiH5F?usp=drive_link</a></p>
+
+<ol>
+<li>Click the link above (you may need to sign in to Google)</li>
+<li>You'll see a folder called <strong><code>data</code></strong></li>
+<li><strong>Download the entire <code>data</code> folder:</strong>
+<ul>
+<li>Right-click on the <strong><code>data</code></strong> folder</li>
+<li>Select <strong>"Download"</strong></li>
+<li>Google Drive will create a <code>.zip</code> file (this may take 5-10 minutes)</li>
+</ul>
+</li>
+<li><strong>Save the zip file</strong> to your Downloads folder</li>
+<li><strong>Extract the zip file</strong>
+<ul>
+<li>The extracted folder should be called <strong><code>data</code></strong></li>
+</ul>
+</li>
+</ol>
+
+<h3>Move Data to Project</h3>
+
+<ol>
+<li>Open your file explorer (Windows Explorer, Finder on Mac, or your file manager on Linux)</li>
+<li>Navigate to your <strong>Downloads</strong> folder</li>
+<li>Find the <strong><code>data</code></strong> folder you extracted</li>
+<li>Cut (or copy) the <code>data</code> folder:
+<ul>
+<li><strong>Windows:</strong> Right-click → Cut (or Ctrl+X)</li>
+<li><strong>macOS:</strong> Right-click → Copy (or Cmd+C)</li>
+<li><strong>Linux:</strong> Right-click → Cut (or Ctrl+X)</li>
+</ul>
+</li>
+<li>Navigate to your <code>numbers_eeg_source</code> project folder</li>
+<li>Paste the <code>data</code> folder into the root of the project:
+<ul>
+<li><strong>Windows:</strong> Right-click → Paste (or Ctrl+V)</li>
+<li><strong>macOS:</strong> Right-click → Paste (or Cmd+V)</li>
+<li><strong>Linux:</strong> Right-click → Paste (or Ctrl+V)</li>
+</ul>
+</li>
+</ol>
+
+<p>That's it! Your <code>data</code> folder should now be in the project root, matching the structure shown above.</p>
+
+<hr>
+
+<h2>Step 7: Create Python Environment</h2>
+
+<p>Now we'll create a dedicated Python environment with all required packages <strong>using Cursor's terminal</strong>.</p>
+
+<h3>Create the Environment</h3>
+
+<p>In <strong>Cursor's terminal</strong>, make sure you're in the project directory, then run:</p>
+
+<p><strong>Method 1: Using environment.yml (Easiest)</strong></p>
+
+<pre><code># Make sure you're in the project root
+pwd  # Check your location first
+
+# Create environment from file
+conda env create -f environment.yml
+
+# This will take 5-10 minutes to download and install all packages
+</code></pre>
+
+<p><strong>[SCREENSHOT: conda env create command running in Cursor terminal]</strong></p>
+
+<p><strong>Method 2: Manual Installation</strong></p>
+
+<pre><code># Create the environment with Python 3.11
+conda create -n numbers_eeg_source python=3.11 -y
+
+# Activate it
+conda activate numbers_eeg_source
+
+# Install all packages (this will take 5-10 minutes)
+conda install -c conda-forge mne numpy scipy matplotlib pandas tqdm imageio nibabel nilearn pyvista pyvistaqt pyqt vtk pyyaml statsmodels pingouin seaborn -y
+</code></pre>
+
+<h3>Activate the Environment</h3>
+
+<p>In <strong>Cursor's terminal</strong>:</p>
+
+<pre><code>conda activate numbers_eeg_source
+</code></pre>
+
+<p><strong>How to tell if it's activated:</strong></p>
+<ul>
+<li>Your prompt will show <code>(numbers_eeg_source)</code> at the beginning</li>
+<li>Example: <code>(numbers_eeg_source) C:\Users\YourName&gt;</code></li>
+</ul>
+
+<img src="images/terminal-with-env-activated.png" alt="Terminal with environment activated">
+
+<h3>Verify Installation</h3>
+
+<p>With the environment activated in <strong>Cursor's terminal</strong>, run these tests:</p>
+
+<pre><code># Test MNE
+python -c "import mne; print(f'MNE version: {mne.__version__}')"
+
+# Test PyVista (3D visualization)
+python -c "import pyvista; print('PyVista OK')"
+
+# Test all imports
+python -c "import mne, numpy, scipy, pandas, matplotlib; print('All packages OK!')"
+</code></pre>
+
+<p>You should see output like:</p>
+<pre><code>MNE version: 1.x.x
+PyVista OK
+All packages OK!
+</code></pre>
+
+<hr>
+
+<h2>Step 8: Open Project in Cursor &amp; Configure</h2>
+
+<h3>Open the Project</h3>
+
+<ol>
+<li><strong>Launch Cursor</strong></li>
+<li>Go to <strong>File → Open Folder</strong> (or <strong>File → Open</strong> on macOS)</li>
+<li>Navigate to your <code>numbers_eeg_source</code> directory</li>
+<li>Click <strong>"Select Folder"</strong> (or <strong>"Open"</strong> on macOS)</li>
+</ol>
+
+<h3>Explore the Project Structure</h3>
+
+<p>You should see these folders in Cursor's sidebar:</p>
+<ul>
+<li><code>code/</code> - Python analysis scripts</li>
+<li><code>configs/</code> - YAML configuration files</li>
+<li><code>new_user/</code> ← <strong>Start here!</strong></li>
+<li><code>data/</code> ← Your EEG data</li>
+<li><code>assets/</code> - Montage files</li>
+<li><code>environment.yml</code> - Environment spec</li>
+<li><code>requirements.txt</code> - Package list</li>
+</ul>
+
+<hr>
+
+<h2>Step 9: Select Python Interpreter in Cursor</h2>
+
+<p><strong>THIS IS CRITICAL!</strong> Cursor needs to know which Python interpreter to use.</p>
+
+<p><strong>Why do this?</strong> This tells Cursor to always use the <code>numbers_eeg_source</code> environment when running Python code. Without this, Cursor might use a different Python installation that doesn't have the required packages (MNE, NumPy, etc.), and your code won't work.</p>
+
+<h3>Select the Interpreter</h3>
+
+<ol>
+<li><strong>With Cursor open</strong>, press:
+<ul>
+<li><strong>Windows/Linux:</strong> <code>Ctrl + Shift + P</code></li>
+<li><strong>macOS:</strong> <code>Cmd + Shift + P</code></li>
+</ul>
+</li>
+<li>In the command palette, type: <strong><code>Python: Select Interpreter</code></strong></li>
+<li>Select the interpreter that says <code>numbers_eeg_source</code>:
+<ul>
+<li>Look for entries like:
+<ul>
+<li><code>Python 3.11.x ('numbers_eeg_source': conda)</code></li>
+<li>Path examples:
+<ul>
+<li>Windows: <code>C:\Users\YourName\miniforge3\envs\numbers_eeg_source\python.exe</code></li>
+<li>macOS: <code>/Users/YourName/miniforge3\envs/numbers_eeg_source/bin/python</code></li>
+<li>Linux: <code>/home/YourName/miniforge3/envs/numbers_eeg_source/bin/python</code></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>Click on it to select it</li>
+</ol>
+
+<img src="images/python-select-interpreter.png" alt="Command Palette - Select Interpreter">
+
+<img src="images/python-select-interpreter-hover.png" alt="Interpreter dropdown with numbers_eeg_source">
+
+<h3>Verify the Interpreter is Selected</h3>
+
+<p>You should now see the environment displayed at the top of Cursor, confirming it's selected:</p>
+
+<img src="images/python-select-interpreter-selected.png" alt="numbers_eeg_source environment selected">
+
+<p>This ensures Cursor always uses the correct Python environment with all your installed packages.</p>
+
+<hr>
+
+<h2>Step 10: Test the Pipeline!</h2>
+
+<p>Let's make sure everything works by running the example analysis <strong>in Cursor's terminal</strong>.</p>
+
+<h3>Test Run</h3>
+
+<p>In <strong>Cursor's terminal</strong>, run:</p>
+
+<p><strong>Windows:</strong></p>
+<pre><code># Make sure environment is activated
+conda activate numbers_eeg_source
+
+# Make sure you're in project root
+pwd
+
+# Run the quick-start script
+.\new_user\run_analysis.bat
+</code></pre>
+
+<p><strong>macOS/Linux:</strong></p>
+<pre><code># Make sure environment is activated
+conda activate numbers_eeg_source
+
+# Make sure you're in project root
+pwd
+
+# Run the quick-start script
+./new_user/run_analysis.sh
+</code></pre>
+
+<p><strong>OR run directly:</strong></p>
+<pre><code>conda activate numbers_eeg_source
+python -m code.run_full_analysis_pipeline --config new_user/examples/sensor_13_31.yaml --accuracy all
+</code></pre>
+
+<p><strong>[SCREENSHOT: Pipeline starting to run in Cursor terminal with progress messages]</strong></p>
+
+<h3>What to Expect</h3>
+
+<p>The pipeline will:</p>
+<ol>
+<li>Load the example configuration</li>
+<li>Run sensor-space analysis (~2-5 minutes)</li>
+<li>If significant clusters found, run source-space analyses</li>
+<li>Generate reports in <code>derivatives/</code></li>
+</ol>
+
+<p><strong>[SCREENSHOT: Pipeline completing successfully with final output messages]</strong></p>
+
+<p><strong>If successful, you're ready for the meeting!</strong> 🎉</p>
+
+<hr>
+
+<h2>✅ Final Checklist: Are You Ready?</h2>
+
+<p>Before the meeting, verify ALL of these:</p>
+
+<ul>
+<li>✅ <strong>Git installed</strong> (<code>git --version</code> works)</li>
+<li>✅ <strong>Cursor IDE installed</strong> (application launches)</li>
+<li>✅ <strong>Miniforge installed</strong> (<code>conda --version</code> works)</li>
+<li>✅ <strong>Data downloaded and moved</strong> (<code>data/</code> folder is in project root)</li>
+<li>✅ <strong>Repository cloned</strong> (<code>numbers_eeg_source/</code> folder exists)</li>
+<li>✅ <strong>Python environment created</strong> (<code>conda activate numbers_eeg_source</code> works)</li>
+<li>✅ <strong>Packages installed</strong> (<code>python -c "import mne"</code> works without errors)</li>
+<li>✅ <strong>Cursor configured</strong> (bottom-right shows <code>Python 3.11.x ('numbers_eeg_source')</code>)</li>
+<li>✅ <strong>Test run successful</strong> (example analysis ran without errors)</li>
+</ul>
+
+<hr>
+
+<h2>Troubleshooting</h2>
+
+<h3>Git Issues</h3>
+
+<p><strong>"Git clone failed with authentication error"</strong></p>
+<ul>
+<li>The repository may be private. Ask your lab for access permissions.</li>
+<li>You may need to set up SSH keys or a Personal Access Token (PAT).</li>
+</ul>
+
+<h3>Data Issues</h3>
+
+<p><strong>"Can't find the data_preprocessed folder on Google Drive"</strong></p>
+<ul>
+<li>Make sure you're logged into the correct Google account.</li>
+<li>Ask your lab manager for access to the shared drive.</li>
+</ul>
+
+<p><strong>"Data folder is huge (several GB)!"</strong></p>
+<ul>
+<li>The full dataset with all preprocessing variants is large.</li>
+<li><strong>You only need:</strong> <code>hpf_1.5_lpf_35_baseline-on/</code></li>
+<li>You can delete other preprocessing folders if needed to save space.</li>
+</ul>
+
+<h3>Cursor Issues</h3>
+
+<p><strong>"Cursor won't open on macOS - 'App is damaged'"</strong></p>
+<ul>
+<li>This is a security warning.</li>
+<li>Go to <strong>System Preferences → Security &amp; Privacy</strong></li>
+<li>Click <strong>"Open Anyway"</strong> next to the Cursor warning</li>
+</ul>
+
+<p><strong>"Cursor doesn't show my conda environment in interpreter list"</strong></p>
+<ul>
+<li>Make sure conda is initialized: <code>conda init</code></li>
+<li>Restart Cursor after creating the environment</li>
+<li>Try entering the full path manually:
+<ul>
+<li><code>Ctrl+Shift+P</code> → "Python: Select Interpreter" → "Enter interpreter path"</li>
+</ul>
+</li>
+</ul>
+
+<h3>Conda/Environment Issues</h3>
+
+<p><strong>"conda: command not found" after installing Miniforge</strong></p>
+<ul>
+<li>You need to restart your terminal/PowerShell</li>
+<li>Or manually initialize: <code>conda init bash</code> (or <code>conda init zsh</code> for macOS)</li>
+<li>Then restart terminal</li>
+</ul>
+
+<p><strong>"Package installation failed with conflicts"</strong></p>
+<ul>
+<li>Try creating a fresh environment:</li>
+</ul>
+<pre><code>conda remove -n numbers_eeg_source --all
+conda env create -f environment.yml
+</code></pre>
+<ul>
+<li>If still failing, try Method 2 (manual installation) one package at a time</li>
+</ul>
+
+<p><strong>"Python says 'No module named mne' even after installation"</strong></p>
+<ul>
+<li>Make sure you activated the environment: <code>conda activate numbers_eeg_source</code></li>
+<li>Check that Cursor is using the correct interpreter (<code>Ctrl+Shift+P</code> → "Python: Select Interpreter")</li>
+<li>Verify which Python you're using:
+<ul>
+<li>macOS/Linux: <code>which python</code></li>
+<li>Windows: <code>where python</code></li>
+</ul>
+</li>
+</ul>
+
+<p><strong>"PyVista/VTK installation fails"</strong></p>
+<ul>
+<li>These packages can be tricky on some systems</li>
+<li>Try installing separately: <code>conda install -c conda-forge pyvista -y</code></li>
+<li>On older Macs, you may need to use pip: <code>pip install pyvista</code></li>
+</ul>
+
+<h3>Shell Script Issues</h3>
+
+<p><strong>"Permission denied when running shell scripts"</strong></p>
+<ul>
+<li>Make the script executable: <code>chmod +x new_user/run_analysis.sh</code></li>
+</ul>
+
+<hr>
+
+<h2>Next Steps</h2>
+
+<p>Once you've completed this setup:</p>
+
+<ol>
+<li><strong>Read the Quickstart Guide:</strong> <a href="new_user/README.md">new_user/README.md</a></li>
+<li><strong>Explore the examples:</strong> Look at <code>new_user/examples/sensor_13_31.yaml</code></li>
+<li><strong>Try creating your own analysis</strong> (follow the README guide)</li>
+<li><strong>Join the meeting ready to code!</strong></li>
+</ol>
+
+<hr>
+
+<h2>Quick Reference Card</h2>
+
+<table>
+<thead>
+<tr>
+<th>Tool</th>
+<th>Download Link</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Git</strong></td>
+<td><a href="https://git-scm.com">https://git-scm.com</a></td>
+<td>Clone the repository</td>
+</tr>
+<tr>
+<td><strong>Cursor IDE</strong></td>
+<td><a href="https://cursor.com/download">https://cursor.com/download</a></td>
+<td>Edit code and config files</td>
+</tr>
+<tr>
+<td><strong>Miniforge</strong></td>
+<td><a href="https://github.com/conda-forge/miniforge">https://github.com/conda-forge/miniforge</a></td>
+<td>Python package manager</td>
+</tr>
+<tr>
+<td><strong>EEG Data</strong></td>
+<td><a href="https://drive.google.com/drive/folders/1N_UNP1LtLRItqV5NyaFNz6h1iuHqiH5F?usp=drive_link">Google Drive</a></td>
+<td>Preprocessed epoch files</td>
+</tr>
+</tbody>
+</table>
+
+<p><strong>Project Repository:</strong> <a href="https://github.com/yurigushiken/numbers_eeg_source">https://github.com/yurigushiken/numbers_eeg_source</a></p>
+
+<p><strong>Data Location:</strong> <code>data/data_preprocessed/hpf_1.5_lpf_35_baseline-on/</code></p>
+
+<p><strong>Environment Files:</strong></p>
+<ul>
+<li><code>environment.yml</code> - Create with: <code>conda env create -f environment.yml</code></li>
+<li><code>requirements.txt</code> - Or use pip: <code>pip install -r requirements.txt</code></li>
+</ul>
+
+<p><strong>Key Commands to Remember:</strong></p>
+<pre><code># ALWAYS activate before running analyses!
+conda activate numbers_eeg_source
+
+# Select Python interpreter in Cursor:
+# Ctrl+Shift+P (Win/Linux) or Cmd+Shift+P (Mac)
+# Type: "Python: Select Interpreter"
+</code></pre>
+
+<hr>
+
+<h2>Questions?</h2>
+
+<p>If you get stuck on any step, don't worry! We'll help you during the meeting. Just make sure you've attempted all the steps and documented any errors you encountered.</p>
+
+<p>See you at the meeting! 🎉</p>
+
+</body>
+</html>
