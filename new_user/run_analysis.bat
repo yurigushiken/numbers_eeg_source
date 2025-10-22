@@ -1,13 +1,32 @@
 @echo off
 REM ============================================================================
 REM Quick-run script for new users
-REM Double-click this file or run from PowerShell to execute the example analysis
+REM
+REM Usage:
+REM   run_analysis.bat <path-to-sensor-config.yaml>
+REM
+REM Example:
+REM   run_analysis.bat new_user/configs/13_31/sensor_13_31.yaml
 REM ============================================================================
+
+if "%~1"=="" (
+    echo Error: No config file specified!
+    echo.
+    echo Usage: run_analysis.bat ^<path-to-sensor-config.yaml^>
+    echo.
+    echo Example:
+    echo   run_analysis.bat new_user/configs/13_31/sensor_13_31.yaml
+    echo.
+    pause
+    exit /b 1
+)
 
 echo.
 echo ========================================
-echo  Running Example Analysis (13_31)
+echo  Running Analysis Pipeline
 echo ========================================
+echo.
+echo Config: %~1
 echo.
 echo This will run the full pipeline:
 echo   1. Sensor-space analysis
@@ -17,9 +36,12 @@ echo.
 REM Activate the conda environment
 call conda activate numbers_eeg_source
 
-REM Run the full analysis pipeline with the example sensor config
+REM Set the output directory to new_user/derivatives/ (keeps training outputs separate)
+set DERIVATIVES_ROOT=new_user/derivatives
+
+REM Run the full analysis pipeline with the specified sensor config
 python -m code.run_full_analysis_pipeline ^
-  --config configs/new_user/examples/sensor_13_31.yaml ^
+  --config %~1 ^
   --accuracy all
 
 echo.
@@ -28,8 +50,8 @@ echo  Analysis Complete!
 echo ========================================
 echo.
 echo Results saved to:
-echo   - Sensor: derivatives/sensor/sensor_13_31/
-echo   - Source: derivatives/source/source_*_13_31/
-echo   - Reports: derivatives/reports/
+echo   - Sensor: new_user/derivatives/sensor/sensor_13_31/
+echo   - Source: new_user/derivatives/source/source_*_13_31/
+echo   - Reports: new_user/derivatives/reports/
 echo.
 pause

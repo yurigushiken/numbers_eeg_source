@@ -3,6 +3,7 @@ Source-Space Analysis Pipeline
 """
 import argparse
 import logging
+import os
 from pathlib import Path
 import mne
 import numpy as np
@@ -38,7 +39,9 @@ def main(config_path=None, accuracy=None):
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     timestamped_analysis_name = f"{timestamp}-{analysis_name}"
 
-    output_dir = Path("derivatives/source") / timestamped_analysis_name
+    # Allow custom derivatives root via environment variable (default: "derivatives")
+    derivatives_root = os.environ.get("DERIVATIVES_ROOT", "derivatives")
+    output_dir = Path(derivatives_root) / "source" / timestamped_analysis_name
     output_dir.mkdir(parents=True, exist_ok=True)
     log.info(f"Output directory created at: {output_dir}")
 

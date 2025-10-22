@@ -6,6 +6,7 @@ cluster-based permutation testing analysis on sensor-space EEG data.
 """
 import argparse
 import logging
+import os
 from pathlib import Path
 import mne
 from tqdm import tqdm
@@ -46,8 +47,10 @@ def main(config_path=None, accuracy=None):
     # Generate a timestamped name for the analysis folder and report
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     timestamped_analysis_name = f"{timestamp}-{analysis_name}"
-    
-    output_dir = Path("derivatives/sensor") / timestamped_analysis_name
+
+    # Allow custom derivatives root via environment variable (default: "derivatives")
+    derivatives_root = os.environ.get("DERIVATIVES_ROOT", "derivatives")
+    output_dir = Path(derivatives_root) / "sensor" / timestamped_analysis_name
     output_dir.mkdir(parents=True, exist_ok=True)
     log.info(f"Output directory created at: {output_dir}")
 

@@ -1,5 +1,6 @@
 import argparse
 import logging
+import os
 import re
 from pathlib import Path
 import sys
@@ -146,7 +147,9 @@ def main():
     log.info("Generating final analysis report...")
 
     # Create the dedicated reports directory
-    reports_dir = Path("derivatives/reports")
+    # Allow custom derivatives root via environment variable (default: "derivatives")
+    derivatives_root = os.environ.get("DERIVATIVES_ROOT", "derivatives")
+    reports_dir = Path(derivatives_root) / "reports"
     reports_dir.mkdir(parents=True, exist_ok=True)
     
     # Define the final report path using the neutral base name and timestamp

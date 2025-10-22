@@ -1,13 +1,31 @@
 #!/bin/bash
 # ============================================================================
 # Quick-run script for new users (macOS/Linux)
-# Run this file from Terminal to execute the example analysis
+#
+# Usage:
+#   ./run_analysis.sh <path-to-sensor-config.yaml>
+#
+# Example:
+#   ./run_analysis.sh new_user/configs/13_31/sensor_13_31.yaml
 # ============================================================================
+
+if [ -z "$1" ]; then
+    echo "Error: No config file specified!"
+    echo ""
+    echo "Usage: ./run_analysis.sh <path-to-sensor-config.yaml>"
+    echo ""
+    echo "Example:"
+    echo "  ./run_analysis.sh new_user/configs/13_31/sensor_13_31.yaml"
+    echo ""
+    exit 1
+fi
 
 echo ""
 echo "========================================"
-echo " Running Example Analysis (13_31)"
+echo " Running Analysis Pipeline"
 echo "========================================"
+echo ""
+echo "Config: $1"
 echo ""
 echo "This will run the full pipeline:"
 echo "  1. Sensor-space analysis"
@@ -19,9 +37,12 @@ echo ""
 source ~/miniconda3/etc/profile.d/conda.sh 2>/dev/null || source ~/anaconda3/etc/profile.d/conda.sh 2>/dev/null
 conda activate numbers_eeg_source
 
-# Run the full analysis pipeline with the example sensor config
+# Set the output directory to new_user/derivatives/ (keeps training outputs separate)
+export DERIVATIVES_ROOT=new_user/derivatives
+
+# Run the full analysis pipeline with the specified sensor config
 python -m code.run_full_analysis_pipeline \
-  --config new_user/examples/sensor_13_31.yaml \
+  --config "$1" \
   --accuracy all
 
 echo ""
@@ -30,7 +51,7 @@ echo " Analysis Complete!"
 echo "========================================"
 echo ""
 echo "Results saved to:"
-echo "  - Sensor: derivatives/sensor/sensor_13_31/"
-echo "  - Source: derivatives/source/source_*_13_31/"
-echo "  - Reports: derivatives/reports/"
+echo "  - Sensor: new_user/derivatives/sensor/sensor_13_31/"
+echo "  - Source: new_user/derivatives/source/source_*_13_31/"
+echo "  - Reports: new_user/derivatives/reports/"
 echo ""
