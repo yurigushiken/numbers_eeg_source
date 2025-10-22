@@ -218,6 +218,9 @@
 
 <p><strong>Official Website:</strong> <a href="https://cursor.com">https://cursor.com</a></p>
 
+<p><strong>Quick Introduction Video (4 minutes):</strong> <a href="https://www.youtube.com/watch?v=LR04bU_yV5k">Introduction to Cursor</a><br>
+<em>Note: This video is about 10 months old, so Cursor looks a little different now, but it gives you a good idea of what you're downloading.</em></p>
+
 <h3>Why Cursor?</h3>
 <ul>
 <li>AI-powered code completion and suggestions</li>
@@ -700,7 +703,7 @@ conda activate numbers_eeg_source
 python -m code.run_full_analysis_pipeline --config new_user/configs/13_31/sensor_13_31.yaml --accuracy all
 </code></pre>
 
-<p><strong>Note:</strong> You must specify which config file to use. This teaches you the proper workflow for running analyses!</p>
+<p><strong>Note:</strong> You must specify the <strong>sensor-space</strong> config file. If the sensor analysis finds significant results, it will automatically run the source-space analyses. This is the proper workflow for running the pipeline!</p>
 
 <h3>What to Expect</h3>
 
