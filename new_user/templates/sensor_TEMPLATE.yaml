@@ -1,0 +1,60 @@
+# configs/new_user/templates/sensor_TEMPLATE.yaml
+#
+# SENSOR-SPACE ANALYSIS TEMPLATE
+# This file defines a scalp EEG analysis comparing two conditions.
+#
+# QUICK START:
+# 1. Copy this file and rename it (e.g., sensor_my_analysis.yaml)
+# 2. Change analysis_name (line 8)
+# 3. Set your two conditions (lines 22 and 26)
+# 4. Run: python -m code.run_full_analysis_pipeline --config <your_file> --accuracy all
+
+# 1. General Analysis Information
+analysis_name: "sensor_TEMPLATE"  # ← CHANGE THIS to match your filename (no .yaml extension)
+domain: "sensor"  # Always "sensor" for scalp analyses
+
+# 2. Epoch Time Window and Baseline Correction
+epoch_window:
+  tmin: -0.2        # Start of epoch (200 ms before stimulus)
+  tmax: 0.496       # End of epoch (496 ms after stimulus)
+  baseline: [-0.2, 0.0]  # Baseline correction window (pre-stimulus period)
+
+# 3. Contrast Definition
+# Define what you're comparing: Condition A minus Condition B
+contrast:
+  name: "Condition A vs. Condition B"  # Human-readable label
+  condition_A:
+    name: "Condition A"  # Short label for plots
+    condition_set_name: "CARDINALITY_1"  # ← CHANGE THIS (see code/condition_sets.yaml for options)
+  condition_B:
+    name: "Condition B"
+    condition_set_name: "CARDINALITY_2"  # ← CHANGE THIS
+  combination_weights: [1, -1]  # Keep as-is (A minus B)
+
+# 4. Statistical Analysis Parameters
+stats:
+  analysis_window: [0.00, 0.496]  # Time range to test (sensor: use full epoch)
+  p_threshold: 0.01       # Cluster-forming threshold (0.01 = moderate, 0.05 = liberal, 0.001 = strict)
+  cluster_alpha: 0.05     # Final significance level (keep at 0.05)
+  n_permutations: 5000    # Number of permutations (5000 = fast, 10000 = more stable)
+  tail: 0                 # 0 = two-sided, -1 = A < B, 1 = A > B
+  seed: 42                # Random seed for reproducibility (keep at 42)
+  connectivity:
+    method: "distance"    # How to define neighboring sensors
+    threshold: 0.04       # 4 cm threshold for 128-channel cap
+
+  # --- OPTIONAL: Restrict analysis to specific sensor regions (uncomment to use) ---
+  # roi:
+  #   channel_groups:
+  #     - posterior_visual_parietal  # All visual/parietal sensors (25 channels)
+  #   # Or specify individual regions:
+  #   # - N1_bilateral      # 14 occipital-temporal channels
+  #   # - P1_Oz             # 8 parieto-occipital channels
+  #   # - P3b_midline       # 9 centro-parietal channels
+
+# 5. Visualization Parameters
+visualizations:
+  erp:
+    channels: []  # Auto-populated by pipeline
+  topomap:
+    times: []     # Auto-populated by pipeline

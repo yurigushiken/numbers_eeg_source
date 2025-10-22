@@ -1,10 +1,35 @@
-matplotlib
-mne
-nilearn
+# EEG Analysis Pipeline - Python Dependencies
+# Install with: pip install -r requirements.txt
+# Or use environment.yml for conda installation (recommended)
+
+# Core scientific computing
 numpy
-pandas
-pingouin
-PyYAML
 scipy
-seaborn
+pandas
+
+# Neuroimaging and EEG analysis
+mne
+nibabel
+nilearn
+
+# Statistical analysis
 statsmodels
+pingouin
+
+# Visualization
+matplotlib
+seaborn
+pyvista
+pyvistaqt
+pyqt5
+vtk
+
+# 3D visualization backend
+imageio
+
+# Configuration and data handling
+PyYAML
+tqdm
+
+# Optional: PDF report generation (requires system libraries)
+# weasyprint

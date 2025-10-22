@@ -1,0 +1,42 @@
+name: numbers_eeg_source
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.11
+
+  # Core scientific computing
+  - numpy
+  - scipy
+  - pandas
+
+  # Neuroimaging and EEG analysis
+  - mne
+  - nibabel
+  - nilearn
+
+  # Statistical analysis
+  - statsmodels
+  - pingouin
+
+  # Visualization
+  - matplotlib
+  - seaborn
+  - pyvista
+  - pyvistaqt
+  - pyqt
+  - vtk
+
+  # 3D visualization backend
+  - imageio
+
+  # Configuration and data handling
+  - pyyaml
+  - tqdm
+
+  # Optional: PDF report generation
+  # Uncomment if you need PDF exports
+  # - weasyprint
+  # - cairo
+  # - pango
+  # - gdk-pixbuf

@@ -129,7 +129,13 @@ The pipeline now includes a **centralized sensor ROI system** for clean, maintai
     -   Easy to maintain and update
 -   **Documentation**: See [SENSOR_ROI_SYSTEM_README.md](SENSOR_ROI_SYSTEM_README.md) for complete documentation, including scientific rationale, testing, and maintenance guidelines.
 
-## Quickstart (PowerShell examples)
+## Quickstart
+
+**New to this pipeline?** See [configs/new_user/README.md](configs/new_user/README.md) for a step-by-step guide with working examples and templates.
+
+---
+
+### Advanced: PowerShell Examples
 
 ```powershell
 # Create and activate a fresh environment (conda)

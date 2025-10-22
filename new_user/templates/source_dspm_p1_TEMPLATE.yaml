@@ -1,0 +1,63 @@
+# configs/new_user/templates/source_dspm_p1_TEMPLATE.yaml
+#
+# SOURCE-SPACE ANALYSIS TEMPLATE (dSPM method, P1 component)
+# This file localizes brain sources for P1 effects (~60-140 ms).
+#
+# WHEN TO USE: After finding significant P1 effects in sensor analysis
+# NAMING: Must end with same suffix as sensor file (e.g., sensor_X.yaml → source_dspm_p1_X.yaml)
+
+# 1. Metadata
+analysis_name: "source_dspm_p1_TEMPLATE"  # ← CHANGE THIS to match filename
+domain: "source"
+
+# 2. Epoch Time Window and Baseline Correction
+epoch_window:
+  tmin: -0.2
+  tmax: 0.496
+  baseline: [-0.2, 0.0]
+
+# 3. Contrast Definition (MUST MATCH your sensor file)
+contrast:
+  name: "Condition A vs. Condition B"
+  condition_A:
+    name: "Condition A"
+    condition_set_name: "CARDINALITY_1"  # ← CHANGE THIS (same as sensor)
+  condition_B:
+    name: "Condition B"
+    condition_set_name: "CARDINALITY_2"  # ← CHANGE THIS (same as sensor)
+  combination_weights: [1, -1]
+
+# 4. Source Reconstruction Parameters
+source:
+  method: "dSPM"
+  snr: 2.0
+
+inverse:
+  loose: 0.2
+  depth: 3.0
+
+# 5. Statistical Analysis Parameters
+stats:
+  analysis_window: [0.060, 0.140]  # ← NARROW THIS based on sensor P1 peak
+  p_threshold: 0.15
+  cluster_alpha: 0.05
+  n_permutations: 10000
+  tail: 0
+  seed: 42
+  method: threshold
+  tfce:
+    start: 0.0
+    step: 0.2
+  n_jobs: -1
+  buffer_size: 1000
+
+  # ROI Restriction (brain regions for P1)
+  roi:
+    parc: aparc
+    labels:
+      # Early visual P1 generators
+      - pericalcarine
+      - cuneus
+      - lingual
+      - lateraloccipital
+      - fusiform

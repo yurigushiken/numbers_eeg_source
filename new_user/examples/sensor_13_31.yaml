@@ -1,7 +1,7 @@
-# configs/12_21/sensor_12_21.yaml
+# configs/13_31/sensor_13_31.yaml
 
 # 1. General Analysis Information
-analysis_name: "sensor_12_21"
+analysis_name: "sensor_13_31"
 domain: "sensor"
 
 # 2. Epoch Time Window and Baseline Correction
@@ -11,16 +11,16 @@ epoch_window:
   baseline: [-0.2, 0.0]
 
 # 3. Contrast Definition
-# Tests: Minimal pair direction effect between 1↔2 (smallest numerical distance)
-# Increasing (12) vs. Decreasing (21)
+# Tests: Minimal pair direction effect between 1↔3 (distance = 2, within subitizing)
+# Increasing (13) vs. Decreasing (31)
 contrast:
-  name: "1 to 2 Transition: Increasing vs. Decreasing"
+  name: "1↔3 Transition: Increasing vs. Decreasing"
   condition_A:
-    name: "1 to 2 (Increasing)"
-    condition_set_name: "TRANSITION_12"
+    name: "1 to 3 (Increasing)"
+    condition_set_name: "TRANSITION_13"
   condition_B:
-    name: "2 to 1 (Decreasing)"
-    condition_set_name: "TRANSITION_21"
+    name: "3 to 1 (Decreasing)"
+    condition_set_name: "TRANSITION_31"
   combination_weights: [1, -1]
 
 # 4. Statistical Analysis Parameters
