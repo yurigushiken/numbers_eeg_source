@@ -716,6 +716,37 @@ python -m code.run_full_analysis_pipeline --config new_user/examples/sensor_13_3
 
 <hr>
 
+<h2>Step 11: Run the Setup Checker</h2>
+
+<p>We've created an automated checker script that verifies everything is set up correctly.</p>
+
+<h3>Run the Checker</h3>
+
+<p>In <strong>Cursor's terminal</strong>, run:</p>
+
+<pre><code>python new_user/check_setup.py
+</code></pre>
+
+<p>The script will check:</p>
+<ul>
+<li>Git installation</li>
+<li>Conda/Miniforge installation</li>
+<li>Project structure</li>
+<li>Data directory and files</li>
+<li>All required Python packages</li>
+</ul>
+
+<h3>What to Expect</h3>
+
+<p>If everything is set up correctly, you'll see:</p>
+<pre><code>SUCCESS! Your setup is complete!
+You are ready for the first training meeting.
+</code></pre>
+
+<p>If there are any issues, the script will show you exactly what needs to be fixed.</p>
+
+<hr>
+
 <h2>✅ Final Checklist: Are You Ready?</h2>
 
 <p>Before the meeting, verify ALL of these:</p>
@@ -897,9 +928,9 @@ conda activate numbers_eeg_source
 
 <h2>Questions?</h2>
 
-<p>If you get stuck on any step, don't worry! We'll help you during the meeting. Just make sure you've attempted all the steps and documented any errors you encountered.</p>
+<p>If you have questions or run into issues, please email: <a href="mailto:mkg2145@tc.columbia.edu">mkg2145@tc.columbia.edu</a></p>
 
-<p>See you at the meeting! 🎉</p>
+<p>We will try to get it set up and running before the first meeting.</p>
 
 </body>
 </html>
