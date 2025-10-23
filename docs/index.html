@@ -705,12 +705,7 @@ conda activate numbers_eeg_source
 <pre><code># Make sure environment is activated
 conda activate numbers_eeg_source
 
-# Run the script with the example config
-./new_user/run_analysis.sh new_user/configs/13_31/sensor_13_31.yaml
-</code></pre>
-
-<p><strong>OR run directly with Python:</strong></p>
-<pre><code>conda activate numbers_eeg_source
+# Run the analysis
 python -m code.run_full_analysis_pipeline --config new_user/configs/13_31/sensor_13_31.yaml --accuracy all
 </code></pre>
 
