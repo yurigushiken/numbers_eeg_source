@@ -180,7 +180,7 @@
 <body>
 
 <h1>Pre-Training Setup Guide</h1>
-<h2>EEG Analysis Pipeline - New User Onboarding</h2>
+<h2>Numbers EEG Source Analysis Pipeline - New User Onboarding</h2>
 
 <p><strong>Complete these steps BEFORE our first meeting.</strong> This will take approximately 45-60 minutes.</p>
 
@@ -235,7 +235,6 @@
 <li>Click <strong>"Download for Windows"</strong></li>
 <li>Run the downloaded <code>.exe</code> file</li>
 <li>Follow the installation wizard (default settings are fine)</li>
-<li><strong>Launch Cursor</strong></li>
 </ol>
 
 <h3>macOS</h3>
@@ -244,35 +243,16 @@
 <li>Click <strong>"Download for macOS"</strong></li>
 <li>Open the downloaded <code>.dmg</code> file</li>
 <li>Drag <strong>Cursor</strong> to your <strong>Applications</strong> folder</li>
-<li><strong>Launch Cursor</strong> from Applications</li>
 </ol>
 
 <h3>Linux</h3>
 <ol>
 <li>Go to <a href="https://cursor.com/download">https://cursor.com/download</a></li>
 <li>Download the <strong>AppImage</strong> for your architecture (x86_64 for most systems)</li>
-<li>Make it executable:</li>
+<li>Make it executable: <code>chmod +x Cursor-*.AppImage</code></li>
 </ol>
-<pre><code>chmod +x Cursor-*.AppImage
-</code></pre>
-<ol start="4">
-<li>Run it:</li>
-</ol>
-<pre><code>./Cursor-*.AppImage
-</code></pre>
 
-<h3>Open Cursor's Terminal</h3>
-
-<p>Once Cursor is open, <strong>open the built-in terminal</strong>:</p>
-
-<p><strong>Windows/Linux:</strong> Press <strong>Ctrl + `</strong> (backtick)<br>
-<strong>macOS:</strong> Press <strong>Cmd + `</strong> (backtick)</p>
-
-<p>OR: Go to <strong>Terminal → New Terminal</strong> in the menu</p>
-
-<img src="images/cursor.png" alt="Cursor IDE">
-
-<p><strong>You'll use this terminal for all the commands below!</strong> (Or use your OS terminal if you prefer.)</p>
+<p><strong>Don't open Cursor yet!</strong> We'll open it to the project folder after we clone the repository.</p>
 
 <hr>
 
@@ -290,9 +270,9 @@
 <ol>
 <li>Download Git from: <a href="https://git-scm.com/download/win">https://git-scm.com/download/win</a></li>
 <li>Run the installer (accept default options)</li>
-<li><strong>Verify in Cursor's terminal:</strong>
+<li><strong>Verify in your OS terminal</strong> (PowerShell or Command Prompt):
 <ul>
-<li>In Cursor, open terminal (Ctrl + `)</li>
+<li>Open PowerShell (search "PowerShell" in Start menu)</li>
 <li>Type: <code>git --version</code></li>
 <li>You should see something like <code>git version 2.x.x</code></li>
 </ul>
@@ -301,7 +281,8 @@
 
 <h3>macOS</h3>
 <ol>
-<li>In <strong>Cursor's terminal</strong> (or Terminal app), type: <code>git --version</code></li>
+<li>Open <strong>Terminal</strong> (Applications → Utilities → Terminal)</li>
+<li>Type: <code>git --version</code></li>
 <li>If not installed, macOS will prompt you to install Xcode Command Line Tools
 <ul>
 <li>Click "Install" and follow prompts</li>
@@ -312,7 +293,7 @@
 </ol>
 
 <h3>Linux (Ubuntu/Debian)</h3>
-<p>In <strong>Cursor's terminal</strong>, run:</p>
+<p>Open your terminal and run:</p>
 <pre><code>sudo apt-get update
 sudo apt-get install git
 git --version
@@ -340,27 +321,59 @@ git --version
 <li>Run the installer</li>
 <li><strong>IMPORTANT:</strong> Check the box "Add Miniforge to my PATH environment variable"</li>
 <li>Complete installation</li>
-<li><strong>Close and reopen Cursor</strong> (so it picks up the new PATH)</li>
-<li><strong>Verify in Cursor's terminal:</strong></li>
+<li><strong>Verify in your OS terminal</strong> (PowerShell):</li>
 </ol>
 <pre><code>conda --version
 </code></pre>
 <p>You should see <code>conda 24.x.x</code> or similar</p>
 
 <h3>macOS</h3>
-<p>In <strong>Cursor's terminal</strong>, run:</p>
+<p>In your <strong>OS Terminal</strong> (Applications → Utilities → Terminal), run:</p>
+<p><em>Note: You can run this from any directory - it will install Miniforge to your home folder by default.</em></p>
 <pre><code>curl -L -O "https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-MacOSX-$(uname -m).sh"
 bash Miniforge3-MacOSX-$(uname -m).sh
 </code></pre>
-<ul>
-<li>Press Enter to continue</li>
-<li>Type "yes" when asked</li>
-<li><strong>Close and reopen Cursor's terminal</strong></li>
-<li>Verify: <code>conda --version</code></li>
-</ul>
+
+<img src="images/macos-07-miniforge-download-installer.jpg" alt="Downloading Miniforge installer">
+
+<p><strong>Follow the installation prompts:</strong></p>
+
+<ol>
+<li><strong>Press Enter</strong> to continue through the welcome screen</li>
+</ol>
+
+<img src="images/macos-08-miniforge-press-enter.jpg" alt="Miniforge welcome - press enter">
+
+<ol start="2">
+<li><strong>Read the license</strong> (keep pressing Enter to scroll), then type <strong>"yes"</strong> to accept</li>
+</ol>
+
+<img src="images/macos-09-miniforge-license-yes.jpg" alt="Accept license - type yes">
+
+<ol start="3">
+<li><strong>Press Enter</strong> to confirm the installation location (<code>/Users/yourname/miniforge3</code>)</li>
+</ol>
+
+<img src="images/macos-10-miniforge-location-enter.jpg" alt="Confirm installation location">
+
+<ol start="4">
+<li>When asked about conda init, type <strong>"no"</strong> (we'll activate manually when needed)</li>
+</ol>
+
+<img src="images/macos-11-miniforge-conda-init-no.jpg" alt="Conda init - say no">
+
+<ol start="5">
+<li>Installation complete!</li>
+</ol>
+
+<img src="images/macos-12-miniforge-complete.jpg" alt="Installation complete">
+
+<ol start="6">
+<li><strong>Close and reopen Terminal</strong>, then verify: <code>conda --version</code></li>
+</ol>
 
 <h3>Linux</h3>
-<p>In <strong>Cursor's terminal</strong>, run:</p>
+<p>In your terminal, run:</p>
 <pre><code>curl -L -O "https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-Linux-x86_64.sh"
 bash Miniforge3-Linux-x86_64.sh
 # Follow prompts
@@ -392,7 +405,7 @@ conda --version
 
 <h2>Step 5: Clone the GitHub Repository</h2>
 
-<p>Now we'll download the analysis code from GitHub <strong>using Cursor's terminal</strong>.</p>
+<p>Now we'll download the analysis code from GitHub <strong>using your OS terminal</strong> (PowerShell/Terminal/Command Prompt).</p>
 
 <h3>Choose a Location</h3>
 <p>Pick a location for the project. Recommended:</p>
@@ -402,9 +415,9 @@ conda --version
 <li><strong>Linux:</strong> <code>~/Projects/</code> or <code>~/workspace/</code></li>
 </ul>
 
-<h3>Clone in Cursor's Terminal</h3>
+<h3>Clone Using Your OS Terminal</h3>
 
-<p><strong>Open Cursor's terminal</strong> (Ctrl + ` or Cmd + `) and run:</p>
+<p>Open your OS terminal (the same one you used to verify Git installation) and run:</p>
 
 <p><strong>Windows:</strong></p>
 <pre><code># Create Projects folder if it doesn't exist
@@ -436,14 +449,18 @@ cd numbers_eeg_source
 
 <h3>Open the Project in Cursor</h3>
 
-<p>Once cloned, <strong>open the project folder in Cursor</strong>:</p>
+<p>Now that the repository is cloned, <strong>launch Cursor and open the project folder</strong>:</p>
 <ol>
-<li>In Cursor, go to <strong>File → Open Folder</strong> (or <strong>File → Open</strong> on macOS)</li>
+<li><strong>Launch Cursor</strong> (if not already open)</li>
+<li>Go to <strong>File → Open Folder</strong> (or <strong>File → Open</strong> on macOS)</li>
 <li>Navigate to the <code>numbers_eeg_source</code> folder you just cloned</li>
 <li>Click <strong>"Select Folder"</strong> (or <strong>"Open"</strong> on macOS)</li>
 </ol>
 
 <img src="images/cursor-open.png" alt="Cursor with Project Open">
+
+<p><strong>From now on, we'll use Cursor's built-in terminal for all commands!</strong></p>
+<p>To open Cursor's terminal: Press <strong>Ctrl + `</strong> (Windows/Linux) or <strong>Cmd + `</strong> (macOS)</p>
 
 <hr>
 
@@ -525,11 +542,11 @@ cd numbers_eeg_source
 
 <p>Now we'll create a dedicated Python environment with all required packages <strong>using Cursor's terminal</strong>.</p>
 
+<p>The project includes an <code>environment.yml</code> file that specifies all the packages you need. This ensures everyone has the exact same setup!</p>
+
 <h3>Create the Environment</h3>
 
 <p>In <strong>Cursor's terminal</strong>, make sure you're in the project directory, then run:</p>
-
-<p><strong>Method 1: Using environment.yml (Easiest)</strong></p>
 
 <pre><code># Make sure you're in the project root
 pwd  # Check your location first
@@ -540,26 +557,27 @@ conda env create -f environment.yml
 # This will take 5-10 minutes to download and install all packages
 </code></pre>
 
-<p><strong>[SCREENSHOT: conda env create command running in Cursor terminal]</strong></p>
+<p><strong>macOS users:</strong> You'll see this in your terminal:</p>
 
-<p><strong>Method 2: Manual Installation</strong></p>
+<img src="images/macos-13-create-environment.jpg" alt="Creating environment from environment.yml">
 
-<pre><code># Create the environment with Python 3.11
-conda create -n numbers_eeg_source python=3.11 -y
-
-# Activate it
-conda activate numbers_eeg_source
-
-# Install all packages (this will take 5-10 minutes)
-conda install -c conda-forge mne numpy scipy matplotlib pandas tqdm imageio nibabel nilearn pyvista pyvistaqt pyqt vtk pyyaml statsmodels pingouin seaborn -y
-</code></pre>
+<p>This single command will:</p>
+<ul>
+<li>Create an environment named <code>numbers_eeg_source</code></li>
+<li>Install Python 3.11</li>
+<li>Install all required packages (MNE, NumPy, SciPy, PyVista, and more)</li>
+</ul>
 
 <h3>Activate the Environment</h3>
 
-<p>In <strong>Cursor's terminal</strong>:</p>
+<p>Once the environment is created, activate it in <strong>Cursor's terminal</strong>:</p>
 
 <pre><code>conda activate numbers_eeg_source
 </code></pre>
+
+<p><strong>macOS users:</strong> After activating, you'll see the environment name in your prompt:</p>
+
+<img src="images/macos-14-activate-environment.jpg" alt="Environment activated with (numbers_eeg_source) prompt">
 
 <p><strong>How to tell if it's activated:</strong></p>
 <ul>
@@ -591,18 +609,11 @@ All packages OK!
 
 <hr>
 
-<h2>Step 8: Open Project in Cursor &amp; Configure</h2>
+<h2>Step 8: Explore the Project Structure</h2>
 
-<h3>Open the Project</h3>
+<p>Now that Cursor is open with your project, let's see what's inside.</p>
 
-<ol>
-<li><strong>Launch Cursor</strong></li>
-<li>Go to <strong>File → Open Folder</strong> (or <strong>File → Open</strong> on macOS)</li>
-<li>Navigate to your <code>numbers_eeg_source</code> directory</li>
-<li>Click <strong>"Select Folder"</strong> (or <strong>"Open"</strong> on macOS)</li>
-</ol>
-
-<h3>Explore the Project Structure</h3>
+<h3>Project Structure</h3>
 
 <p>You should see these folders in Cursor's sidebar:</p>
 <ul>
