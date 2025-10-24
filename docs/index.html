@@ -357,10 +357,10 @@ bash Miniforge3-MacOSX-$(uname -m).sh
 <img src="images/macos-10-miniforge-location-enter.jpg" alt="Confirm installation location">
 
 <ol start="4">
-<li>When asked about conda init, type <strong>"no"</strong> (we'll activate manually when needed)</li>
+<li>When asked about conda init, type <strong>"yes"</strong> (this allows conda to work in any terminal)</li>
 </ol>
 
-<img src="images/macos-11-miniforge-conda-init-no.jpg" alt="Conda init - say no">
+<p><em>The installer will ask: "Do you wish to update your shell profile to automatically initialize conda?" - Type <strong>yes</strong></em></p>
 
 <ol start="5">
 <li>Installation complete!</li>
@@ -371,6 +371,8 @@ bash Miniforge3-MacOSX-$(uname -m).sh
 <ol start="6">
 <li><strong>Close and reopen Terminal</strong>, then verify: <code>conda --version</code></li>
 </ol>
+
+<p>You should see <code>conda 24.x.x</code> or similar. Your terminal prompt may now show <code>(base)</code> - this is normal and means conda is active.</p>
 
 <h3>Linux</h3>
 <p>In your terminal, run:</p>
@@ -871,6 +873,33 @@ conda env create -f environment.yml
 <ul>
 <li>You must provide the config file path as an argument</li>
 <li>Example: <code>.\new_user\run_analysis.bat new_user/configs/13_31/sensor_13_31.yaml</code></li>
+</ul>
+
+<p><strong>"conda: command not found" (macOS)</strong></p>
+<ul>
+<li>This means conda was not initialized during Miniforge installation</li>
+<li>Solution: Initialize conda manually:
+<pre><code>~/miniforge3/bin/conda init zsh
+</code></pre>
+</li>
+<li>Then <strong>close and reopen Terminal</strong></li>
+<li>Verify: <code>conda --version</code></li>
+<li>If you followed the updated instructions and said "yes" to conda init during installation, this shouldn't happen</li>
+</ul>
+
+<p><strong>"conda activate does nothing" (Windows)</strong></p>
+<ul>
+<li>The command runs but the environment doesn't activate (no <code>(numbers_eeg_source)</code> appears)</li>
+<li>This means Miniforge was not added to PATH during installation</li>
+<li>Quick solution: Use <strong>Miniforge Prompt</strong> instead of regular terminal:
+<ol>
+<li>Open "Miniforge Prompt" from Windows Start Menu</li>
+<li>Navigate to project: <code>cd path\to\numbers_eeg_source</code></li>
+<li>Run: <code>conda env create -f environment.yml</code></li>
+<li>Run: <code>conda activate numbers_eeg_source</code></li>
+</ol>
+</li>
+<li>Proper fix: Reinstall Miniforge and check the "Add Miniforge to my PATH environment variable" box</li>
 </ul>
 
 <p><strong>"TypeError: data type '&gt;a' not understood" (macOS Apple Silicon)</strong></p>
