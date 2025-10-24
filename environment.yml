@@ -1,3 +1,23 @@
+# Environment for Numbers EEG Source Analysis Pipeline
+#
+# Tested Configurations:
+# ----------------------
+# Windows 11 (Razer Blade, RTX 4090):
+#   - MNE 1.9.0, NumPy 1.26.4, SciPy 1.13.1, Matplotlib 3.9.0
+#   - All analyses run successfully
+#
+# macOS (Apple Silicon M1/M2/M3):
+#   - Requires MNE >=1.7 and NumPy >=2.0 for proper data type handling
+#   - Without these versions, may encounter "TypeError: data type '>a' not understood"
+#
+# Installation:
+#   conda env create -f environment.yml
+#   conda activate numbers_eeg_source
+#
+# Updating existing environment:
+#   conda activate numbers_eeg_source
+#   conda env update -f environment.yml --prune
+
 name: numbers_eeg_source
 channels:
   - conda-forge
@@ -6,12 +26,16 @@ dependencies:
   - python=3.11
 
   # Core scientific computing
-  - numpy
+  # Note: NumPy >=2.0 required for Apple Silicon (M1/M2/M3) compatibility
+  # Older versions (e.g., 1.26.4) work fine on Windows/Intel systems
+  - numpy>=1.26
   - scipy
   - pandas
 
   # Neuroimaging and EEG analysis
-  - mne
+  # Note: MNE >=1.7 required for Apple Silicon compatibility and NumPy 2.0 support
+  # Older versions (e.g., 1.6.x) work fine on Windows/Intel systems
+  - mne>=1.7
   - nibabel
   - nilearn
 

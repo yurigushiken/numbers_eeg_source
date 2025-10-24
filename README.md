@@ -129,9 +129,53 @@ The pipeline now includes a **centralized sensor ROI system** for clean, maintai
     -   Easy to maintain and update
 -   **Documentation**: See [SENSOR_ROI_SYSTEM_README.md](SENSOR_ROI_SYSTEM_README.md) for complete documentation, including scientific rationale, testing, and maintenance guidelines.
 
-## Quickstart
+## New User Onboarding
 
-**New to this pipeline?** See [configs/new_user/README.md](configs/new_user/README.md) for a step-by-step guide with working examples and templates.
+**First time using this pipeline?** We've created comprehensive onboarding materials to get you started:
+
+### Setup & Training Materials
+
+- **Pre-Training Setup Guide**: [https://yurigushiken.github.io/numbers_eeg_source/](https://yurigushiken.github.io/numbers_eeg_source/)
+  - Complete installation instructions for Cursor IDE, Git, and Miniforge
+  - Step-by-step setup with screenshots for Windows, macOS, and Linux
+  - Environment creation using `environment.yml`
+  - Automated setup verification with `new_user/check_setup.py`
+  - Example analysis walkthrough
+
+- **Training Resources** (`new_user/` directory):
+  - **Quick-start scripts**:
+    - `run_analysis.bat` (Windows) - Run example analysis with one command
+    - `run_analysis.sh` (macOS/Linux) - Direct Python execution method
+  - **Example configurations** (`new_user/configs/13_31/`):
+    - Complete working example: 1↔3 transition analysis (increasing vs. decreasing)
+    - Sensor and source space configs ready to use
+  - **Templates** (`new_user/configs/templates/`):
+    - Copy these to create your own analyses
+    - Fully documented YAML examples for sensor and source space
+  - **Setup checker** (`new_user/check_setup.py`):
+    - Automated verification of Git, conda, environment, data, and packages
+    - Cross-platform (Windows/macOS/Linux)
+
+### Quick Start for New Users
+
+1. Complete the [Pre-Training Setup Guide](https://yurigushiken.github.io/numbers_eeg_source/)
+2. Run the setup checker: `python new_user/check_setup.py`
+3. Try the example analysis:
+   ```bash
+   # Windows
+   .\new_user\run_analysis.bat new_user/configs/13_31/sensor_13_31.yaml
+
+   # macOS/Linux
+   python -m code.run_full_analysis_pipeline --config new_user/configs/13_31/sensor_13_31.yaml --accuracy all
+   ```
+4. Check your results in `new_user/derivatives/`
+
+### What's Different for New Users
+
+- **Isolated output directory**: When using the `new_user/run_analysis` scripts, outputs go to `new_user/derivatives/` instead of the main `derivatives/` folder
+- **Pre-configured examples**: The 13_31 analysis is ready to run - no configuration needed
+- **Environment file**: Use `conda env create -f environment.yml` for reliable, reproducible setup
+- **Automated verification**: The setup checker ensures everything is correctly installed before your first analysis
 
 ---
 
@@ -243,7 +287,7 @@ conda activate numbers_eeg_source
 
 - `configs/common.yaml` provides minimal, centralized defaults to improve reproducibility.
 - Current defaults:
-  - `data.preprocessing: hpf_1.0_lpf_35_baseline-on`
+  - `data.preprocessing: hpf_1.5_lpf_35_baseline-on`
   - `epoch_defaults.baseline: [-0.2, 0.0]`
 - Behavior:
   - When loading an analysis config, the loader fills in a missing `epoch_window.baseline` from `epoch_defaults.baseline` (does not overwrite if present).
@@ -253,7 +297,7 @@ Example `configs/common.yaml`:
 
 ```
 data:
-  preprocessing: "hpf_1.0_lpf_35_baseline-on"
+  preprocessing: "hpf_1.5_lpf_35_baseline-on"
 
 epoch_defaults:
   baseline: [-0.2, 0.0]

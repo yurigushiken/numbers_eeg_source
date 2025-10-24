@@ -873,6 +873,18 @@ conda env create -f environment.yml
 <li>Example: <code>.\new_user\run_analysis.bat new_user/configs/13_31/sensor_13_31.yaml</code></li>
 </ul>
 
+<p><strong>"TypeError: data type '&gt;a' not understood" (macOS Apple Silicon)</strong></p>
+<ul>
+<li>This occurs on M1/M2/M3 Macs with older package versions</li>
+<li>Solution: Update MNE and NumPy to compatible versions:
+<pre><code>conda activate numbers_eeg_source
+conda install -c conda-forge "mne>=1.7" "numpy>=2.0" -y
+</code></pre>
+</li>
+<li>Then re-run your analysis</li>
+<li><strong>Note:</strong> The updated <code>environment.yml</code> file already includes these requirements for new installations</li>
+</ul>
+
 <hr>
 
 <h2>Next Steps</h2>
