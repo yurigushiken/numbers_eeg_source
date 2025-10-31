@@ -21,8 +21,11 @@ def _compute_peak_descriptives(mean_value, peak_t, n_subjects):
         return None
 
     se = mean_value / peak_t  # standard error in same units as mean_value
+    # If standard error is (near) zero, CIs collapse to the mean; do not drop the estimate.
+    # Proceed with CI at the mean and carry forward d from t.
+    # This avoids spurious 'insufficient data' when mean is tiny or t is large.
     if np.isclose(se, 0.0):
-        return None
+        se = 0.0
 
     dof = n_subjects - 1
     t_crit = t_dist.ppf(0.975, dof)

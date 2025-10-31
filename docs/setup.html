@@ -571,7 +571,10 @@ pwd
 Move-Item "$HOME/Downloads/data" -Destination "." -Force
 
 # Verify it worked
-ls data/data_preprocessed/hpf_1.5_lpf_35_baseline-on/</code>
+ls data/data_preprocessed/hpf_1.5_lpf_35_baseline-on/
+
+# And verify fsaverage anatomy
+ls data/fs_subjects_dir/</code>
                             </div>
                         </div>
 
@@ -585,7 +588,10 @@ pwd
 mv ~/Downloads/data .
 
 # Verify it worked
-ls data/data_preprocessed/hpf_1.5_lpf_35_baseline-on/</code>
+ls data/data_preprocessed/hpf_1.5_lpf_35_baseline-on/
+
+# And verify fsaverage anatomy
+ls data/fs_subjects_dir/</code>
                             </div>
                         </div>
                     </div>
@@ -875,6 +881,7 @@ pwd
                         <li><input type="checkbox"> <strong>Miniforge installed</strong> (<code>conda --version</code> works)</li>
                         <li><input type="checkbox"> <strong>Repository cloned</strong> (<code>numbers_eeg_source/</code> folder exists)</li>
                         <li><input type="checkbox"> <strong>Data in correct location</strong> (<code>data/data_preprocessed/hpf_1.5_lpf_35_baseline-on/</code> exists)</li>
+                          <li><input type="checkbox"> <strong>FS subjects in correct location</strong> (<code>data/fs_subjects_dir/fsaverage/</code> exists)</li>
                         <li><input type="checkbox"> <strong>Python environment created</strong> (<code>conda activate numbers_eeg_source</code> works)</li>
                         <li><input type="checkbox"> <strong>Packages installed</strong> (<code>python -c "import mne"</code> works without errors)</li>
                         <li><input type="checkbox"> <strong>Cursor configured</strong> (bottom-right shows <code>Python 3.11.x ('numbers_eeg_source')</code>)</li>
@@ -1048,6 +1055,7 @@ conda env create -f environment.yml</code>
                 <div class="reference-info">
                     <p><strong>Project Repository:</strong> <a href="https://github.com/yurigushiken/numbers_eeg_source" target="_blank">https://github.com/yurigushiken/numbers_eeg_source</a></p>
                     <p><strong>Data Location:</strong> <code>data/data_preprocessed/hpf_1.5_lpf_35_baseline-on/</code></p>
+                    <p><strong>FS Subjects Location:</strong> <code>data/fs_subjects_dir/</code></p>
                 </div>
 
                 <div class="env-files-box">

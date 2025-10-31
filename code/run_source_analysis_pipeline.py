@@ -50,6 +50,7 @@ def main(config_path=None, accuracy=None):
     fsaverage_src = data_loader.get_fsaverage_src(config)
 
     all_source_contrasts = []
+    label_source_contrasts = []
     provenance = []  # Track inverse operator provenance per subject
     project_root = Path(__file__).resolve().parents[1]
     log.info("Processing subjects for source analysis...")
@@ -104,10 +105,11 @@ def main(config_path=None, accuracy=None):
         except Exception:
             pass
 
-        stc = data_loader.compute_subject_source_contrast(
+        stc_vertex, stc_label = data_loader.compute_subject_source_contrast(
             contrast_evoked, inv_operator, config
         )
-        all_source_contrasts.append(stc)
+        all_source_contrasts.append(stc_vertex)
+        label_source_contrasts.append(stc_label)
 
     if not all_source_contrasts:
         log.error("No valid source data found for any subject. Cannot proceed.")

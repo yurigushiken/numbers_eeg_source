@@ -546,22 +546,19 @@ def get_fsaverage_src(config=None, project_root="."):
     if not fsaverage_src_path.exists():
 
         if spacing != spacing_default:
-
-            log.warning(
-
-                f"Source space file {fsaverage_src_path} missing; falling back to {spacing_default}."
-
-            )
-
-            spacing = spacing_default
-
-            fsaverage_src_path = subjects_dir / 'fsaverage' / 'bem' / 'fsaverage-ico-5-src.fif'
-
+            log.warning(f"Source space file {fsaverage_src_path} missing; attempting to generate it.")
+            try:
+                spacing_kw = spacing.replace('ico-', 'ico')
+                src_obj = mne.setup_source_space('fsaverage', spacing=spacing_kw, subjects_dir=subjects_dir, add_dist=False, verbose=False)
+                fsaverage_src_path.parent.mkdir(parents=True, exist_ok=True)
+                mne.write_source_spaces(fsaverage_src_path, src_obj, overwrite=True)
+                log.info(f"Generated fsaverage source space at {fsaverage_src_path}")
+            except Exception as e:
+                log.warning(f"Failed to generate {spacing} source space on fsaverage: {e}. Falling back to {spacing_default}.")
+                spacing = spacing_default
+                fsaverage_src_path = subjects_dir / 'fsaverage' / 'bem' / 'fsaverage-ico-5-src.fif'
         else:
-
             raise FileNotFoundError(f"Could not locate fsaverage source space at {fsaverage_src_path}")
-
-
 
     src = mne.read_source_spaces(fsaverage_src_path, verbose=False)
 
@@ -606,11 +603,17 @@ def generate_template_inverse_operator_from_epochs(epochs, subject_dir, config):
     src = fs_dir / 'bem' / f'fsaverage-{spacing}-src.fif'
     if not src.exists():
         if spacing != spacing_default:
-            log.warning(
-                f"Source space file {src} missing; falling back to {spacing_default}."
-            )
-            spacing = spacing_default
-            src = src.with_name('fsaverage-ico-5-src.fif')
+            log.warning(f"Source space file {src} missing; attempting to generate it.")
+            try:
+                spacing_kw = spacing.replace('ico-', 'ico')
+                src_obj = mne.setup_source_space('fsaverage', spacing=spacing_kw, subjects_dir=subjects_dir, add_dist=False, verbose=False)
+                src.parent.mkdir(parents=True, exist_ok=True)
+                mne.write_source_spaces(src, src_obj, overwrite=True)
+                log.info(f"Generated fsaverage source space at {src}")
+            except Exception as e:
+                log.warning(f"Failed to generate {spacing} source space on fsaverage: {e}. Falling back to {spacing_default}.")
+                spacing = spacing_default
+                src = src.with_name('fsaverage-ico-5-src.fif')
         else:
             raise FileNotFoundError(f"Could not locate fsaverage source space at {src}")
 
@@ -645,49 +648,66 @@ def generate_template_inverse_operator_from_epochs(epochs, subject_dir, config):
 
 
 def compute_subject_source_contrast(evoked, inv_operator, config):
-    """
-    Computes the source estimate for a contrast of evoked responses.
-    """
+    """Compute orientation-specific and magnitude source estimates for one subject."""
     method = config['source']['method']
     lambda2 = 1.0 / (config['source']['snr'] ** 2)
-    
-    source_cfg = config.get('source') or {}
-    pick_ori = str(source_cfg.get('pick_ori', 'normal') or 'normal').lower()
-    if pick_ori not in {'normal', 'vector'}:
-        log.warning(f"Unsupported pick_ori='{pick_ori}' requested; falling back to 'normal'.")
-        pick_ori = 'normal'
 
-    stc = mne.minimum_norm.apply_inverse(
+    source_cfg = config.get('source') or {}
+    pick_ori_cfg = str(source_cfg.get('pick_ori', 'normal') or 'normal').lower()
+    if pick_ori_cfg not in {'normal', 'vector'}:
+        log.warning(f"Unsupported pick_ori='{pick_ori_cfg}' requested; falling back to 'normal'.")
+        pick_ori_cfg = 'normal'
+
+    # Always compute a signed normal-orientation estimate for label time-series.
+    stc_normal = mne.minimum_norm.apply_inverse(
         evoked,
         inv_operator,
         lambda2,
         method=method,
-        pick_ori=pick_ori,
+        pick_ori='normal',
         verbose=False,
     )
 
-    subject_from = stc.subject
-    if pick_ori == 'vector':
-        log.info('Converting vector-oriented source estimates to magnitude for orientation-invariant stats.')
-        stc = stc.magnitude()
-        if getattr(stc, 'subject', None) is None:
-            stc.subject = subject_from
-    if subject_from is None:
-        subject_from = inv_operator['src'][0]['subject_his_id']
+    subject_from = stc_normal.subject or inv_operator['src'][0]['subject_his_id']
 
-    # Use configured SUBJECTS_DIR; fetch fsaverage if missing
     subjects_dir = mne.get_config('SUBJECTS_DIR')
     if subjects_dir is None:
         fetch_fsaverage(verbose=False)
         subjects_dir = mne.get_config('SUBJECTS_DIR')
     subjects_dir = Path(subjects_dir)
+
+    # Extract spacing configuration and convert to integer
+    spacing_cfg = (config.get('inverse') or {}).get('source_spacing', 'ico-5')
+    spacing_int = None
+    if isinstance(spacing_cfg, str) and spacing_cfg.startswith('ico-'):
+        # Convert 'ico-4' to integer 4 (not string 'ico4'!)
+        spacing_int = int(spacing_cfg.replace('ico-', ''))
+
+    # Compute morph with correct integer spacing parameter
     morph = mne.compute_source_morph(
-        stc,
+        stc_normal,
         subject_from=subject_from,
         subject_to='fsaverage',
         subjects_dir=subjects_dir,
+        spacing=spacing_int,  # Pass integer 4 or 5, not string 'ico4'
         verbose=False,
     )
-    stc_fsaverage = morph.apply(stc, verbose=False)
-    
-    return stc_fsaverage
+    stc_label = morph.apply(stc_normal, verbose=False)
+
+    if pick_ori_cfg == 'vector':
+        stc_vector = mne.minimum_norm.apply_inverse(
+            evoked,
+            inv_operator,
+            lambda2,
+            method=method,
+            pick_ori='vector',
+            verbose=False,
+        )
+        log.info('Converting vector-oriented source estimate to magnitude for vertex-level statistics.')
+        stc_vertex = morph.apply(stc_vector.magnitude(), verbose=False)
+    else:
+        stc_vertex = stc_label.copy()
+
+    return stc_vertex, stc_label
+
+
