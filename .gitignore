@@ -28,6 +28,7 @@ venv/
 # Project data (do not track)
 data/
 
+
 # Supplemental data / local artifacts (do not track)
 data_behavior/
 zMysteryData/
@@ -52,6 +53,11 @@ records/preprocessing_variants/
 readme_addendum.md
 
 
+
+
+
+
+nul
 
 
 

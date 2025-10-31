@@ -47,7 +47,7 @@ def main(config_path=None, accuracy=None):
 
     # --- 2. Load Data and Compute Source Contrasts ---
     subject_dirs = data_loader.get_subject_dirs(accuracy)
-    fsaverage_src = data_loader.get_fsaverage_src()
+    fsaverage_src = data_loader.get_fsaverage_src(config)
 
     all_source_contrasts = []
     provenance = []  # Track inverse operator provenance per subject
@@ -143,57 +143,124 @@ def main(config_path=None, accuracy=None):
         log.info("No analysis_window provided for reporting STC; using full range.")
 
     # --- 5. Run Group-Level Cluster Statistics (on full-resolution data) ---
-    stats_results = cluster_stats.run_source_cluster_test(all_source_contrasts_for_stats, fsaverage_src, config)
+    stats_cfg = config.get('stats') or {}
+    vertex_cfg = (stats_cfg.get('vertex') or {})
+    vertex_enabled = bool(vertex_cfg.get('enabled', True))
 
-    # If no significant clusters, optionally run label time-course clustering for sensitivity
-    try:
-        t_obs, clusters, cluster_p_values, _ = stats_results
-        if not (cluster_p_values < config['stats']['cluster_alpha']).any():
-            if 'label_timeseries' in config['stats']:
-                log.info("Primary source clustering null; running label time-course 1D clustering...")
-                lt_results = cluster_stats.run_label_timecourse_cluster_test(
-                    all_source_contrasts_for_stats, fsaverage_src, config
-                )
-                # Store auxiliary results for potential report use
-                aux_dir = output_dir / "aux"
-                aux_dir.mkdir(exist_ok=True)
-                np.save(aux_dir / "label_times.npy", lt_results[1])
-                np.save(aux_dir / "label_mean_ts.npy", lt_results[2])
-                (aux_dir / "labels.txt").write_text("\n".join(lt_results[3]))
+    lt_cfg = stats_cfg.get('label_timeseries')
+    lt_enabled = False
+    lt_mode = 'disabled'
+    if lt_cfg is not None:
+        lt_enabled = bool(lt_cfg.get('enabled', True))
+        lt_mode = str(lt_cfg.get('mode', 'fallback')).lower()
+        if lt_mode not in ('fallback', 'always', 'only'):
+            lt_mode = 'fallback'
+    if lt_enabled and lt_mode == 'only':
+        if vertex_enabled:
+            log.info("Label time-series mode set to 'only'; skipping vertex-level clustering.")
+        vertex_enabled = False
 
-                # Also write a concise textual summary of significant label time clusters
-                try:
-                    lt_t_obs, lt_clusters, lt_cluster_p, _ = lt_results[0]
-                    lt_times = lt_results[1]
-                    alpha = float(config['stats']['cluster_alpha'])
-                    lines = [
-                        f"n_subjects={len(all_source_contrasts_for_stats)}; window={lt_times[0]:.3f}-{lt_times[-1]:.3f}s; "
-                        f"tail={int(config['stats']['tail'])}; threshold computed from p_threshold={config['stats']['p_threshold']}"
-                    ]
-                    sig_any = False
-                    for idx, pval in enumerate(lt_cluster_p):
-                        if pval < alpha:
+    stats_results = None
+    clusters = []
+    cluster_p_values = np.empty((0,))
+    vertex_has_significant_cluster = False
+
+    if vertex_enabled:
+        stats_results = cluster_stats.run_source_cluster_test(all_source_contrasts_for_stats, fsaverage_src, config)
+        try:
+            _, clusters, cluster_p_values, _ = stats_results
+            vertex_has_significant_cluster = bool((cluster_p_values < stats_cfg['cluster_alpha']).any())
+        except Exception as exc:
+            log.warning(f"Failed to evaluate vertex-level significance: {exc}")
+    else:
+        log.info("Vertex-level clustering is disabled for this analysis.")
+        stats_results = (np.empty((0, 0)), [], np.empty((0,)), None)
+
+    # Decide whether to run label time-series clustering
+    lt_results = None
+    aux_dir = output_dir / "aux"
+    summary_path = aux_dir / "label_cluster_summary.txt"
+    aux_artifacts = [
+        aux_dir / "label_times.npy",
+        aux_dir / "label_mean_ts.npy",
+        aux_dir / "labels.txt",
+        summary_path,
+    ]
+
+    if lt_cfg is not None and lt_enabled:
+        run_label_ts = False
+        if lt_mode in ('always', 'only'):
+            run_label_ts = True
+        elif lt_mode == 'fallback':
+            run_label_ts = (not vertex_enabled) or (not vertex_has_significant_cluster)
+        if run_label_ts:
+            log.info(f"Running label time-series clustering (mode={lt_mode})...")
+            label_results, lt_times, label_mean_ts, label_names = cluster_stats.run_label_timecourse_cluster_test(
+                all_source_contrasts_for_stats, fsaverage_src, config
+            )
+            aux_dir = output_dir / "aux"
+            aux_dir.mkdir(exist_ok=True)
+            np.save(aux_dir / "label_times.npy", lt_times)
+            np.save(aux_dir / "label_mean_ts.npy", label_mean_ts)
+            (aux_dir / "labels.txt").write_text("\n".join(label_names))
+
+            resolved = (stats_cfg.get('label_timeseries') or {}).get('_resolved_params', {})
+            lt_alpha = float(resolved.get('cluster_alpha', stats_cfg.get('cluster_alpha')))
+            lt_p_threshold = float(resolved.get('p_threshold', stats_cfg.get('p_threshold')))
+            lt_tail = int(resolved.get('tail', stats_cfg.get('tail', 0)))
+            lt_n_perm = int(resolved.get('n_permutations', stats_cfg.get('n_permutations')))
+
+            try:
+                lines = [
+                    f"mode={lt_mode}; n_subjects={len(all_source_contrasts_for_stats)}; n_labels={len(label_names)}; "
+                    f"window={lt_times[0]:.3f}-{lt_times[-1]:.3f}s; tail={lt_tail}; "
+                    f"threshold from p_threshold={lt_p_threshold}; n_permutations={lt_n_perm}"
+                ]
+                sig_any = False
+                for label_name, stats in zip(label_names, label_results):
+                    t_obs, clusters, cluster_p_values, _ = stats
+                    if len(cluster_p_values) == 0:
+                        lines.append(f"{label_name}: no clusters formed (check threshold).")
+                        continue
+                    label_sig = False
+                    for idx, pval in enumerate(cluster_p_values):
+                        if pval < lt_alpha:
+                            label_sig = True
                             sig_any = True
-                            mask = lt_clusters[idx]
+                            mask = clusters[idx]
                             t_inds = np.where(mask)[0]
                             if t_inds.size == 0:
                                 continue
                             tmin_ms = float(lt_times[t_inds.min()] * 1000.0)
                             tmax_ms = float(lt_times[t_inds.max()] * 1000.0)
-                            vals = lt_t_obs[t_inds]
+                            vals = t_obs[t_inds]
                             peak_i = int(np.abs(vals).argmax())
                             peak_ms = float(lt_times[t_inds[peak_i]] * 1000.0)
                             lines.append(
-                                f"ROI combined: SIGNIFICANT time cluster p={pval:.4f} at {tmin_ms:.1f}-{tmax_ms:.1f} ms, "
-                                f"peak at {peak_ms:.1f} ms"
+                                f"{label_name}: SIGNIFICANT cluster p={pval:.4f} at {tmin_ms:.1f}-{tmax_ms:.1f} ms (peak {peak_ms:.1f} ms)"
                             )
-                    if not sig_any:
-                        lines.append("No significant label time-series clusters at cluster_alpha=%.3f" % alpha)
-                    (aux_dir / "label_cluster_summary.txt").write_text("\n".join(lines))
-                except Exception as e:
-                    log.warning(f"Failed to write label time-series summary: {e}")
-    except Exception as e:
-        log.warning(f"Label time-course fallback failed: {e}")
+                    if not label_sig:
+                        lines.append(f"{label_name}: no significant clusters at cluster_alpha={lt_alpha:.3f}")
+                if not sig_any:
+                    lines.append("No label time-series clusters reached significance.")
+                (aux_dir / "label_cluster_summary.txt").write_text("\n".join(lines))
+            except Exception as e:
+                log.warning(f"Failed to write label time-series summary: {e}")
+        else:
+            log.info(f"Skipping label time-series analysis (mode={lt_mode}) because vertex clustering already produced significant results.")
+            for artifact in aux_artifacts:
+                if artifact.exists():
+                    try:
+                        artifact.unlink()
+                    except Exception:
+                        pass
+    else:
+        for artifact in aux_artifacts:
+            if artifact.exists():
+                try:
+                    artifact.unlink()
+                except Exception:
+                    pass
 
     # Persist provenance JSON next to outputs
     try:
@@ -205,13 +272,21 @@ def main(config_path=None, accuracy=None):
     # --- 6. Generate Report and Visualizations ---
     log.info("Generating source report and plots...")
     reporter.generate_source_report(stats_results, stc_ga_for_reporting, config, output_dir, len(all_source_contrasts_for_stats))
-    plotting.plot_source_clusters(stats_results, stc_ga_for_reporting, config, output_dir)
+    if vertex_enabled:
+        plotting.plot_source_clusters(stats_results, stc_ga_for_reporting, config, output_dir)
+    else:
+        log.info("Skipping vertex-level plotting because vertex clustering was disabled.")
 
     # --- 7. Generate and Save Anatomical Report ---
     # This report provides detailed anatomical labels for any significant clusters.
     log.info("Generating detailed anatomical report for significant clusters...")
     try:
-        subjects_dir = Path(__file__).resolve().parents[1] / 'data' / 'all' / 'fs_subjects_dir'
+        project_root = Path(__file__).resolve().parents[1]
+        candidates = [
+            project_root / 'data' / 'fs_subjects_dir',
+            project_root / 'data' / 'all' / 'fs_subjects_dir',
+        ]
+        subjects_dir = next((cand for cand in candidates if cand.exists()), candidates[0])
         if subjects_dir:
             anatomical_df = generate_anatomical_report(
                 stats_results, fsaverage_src, "fsaverage", str(subjects_dir), config

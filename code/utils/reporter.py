@@ -201,9 +201,16 @@ def generate_source_report(stats_results, stc_grand_average, config, output_dir,
     """
     Generates a text report summarizing the source-space cluster results.
     """
-    t_obs, clusters, cluster_p_values, _ = stats_results
+    if stats_results is None:
+        t_obs = np.empty((0, 0))
+        clusters = []
+        cluster_p_values = np.empty((0,))
+    else:
+        t_obs, clusters, cluster_p_values, _ = stats_results
     alpha = config['stats']['cluster_alpha']
     times = stc_grand_average.times
+    vertex_cfg = (config.get('stats', {}).get('vertex') or {})
+    vertex_enabled = bool(vertex_cfg.get('enabled', True))
 
     report_path = output_dir / f"{config['analysis_name']}_report.txt"
     log.info(f"Generating source statistical report at: {report_path}")
@@ -266,8 +273,11 @@ def generate_source_report(stats_results, stc_grand_average, config, output_dir,
         f.write("=" * 80 + "\n\n")
 
         sig_cluster_indices = np.where(cluster_p_values < alpha)[0]
+        if not vertex_enabled:
+            f.write("Vertex-space clustering was disabled in this analysis.\n")
         if not sig_cluster_indices.size:
-            f.write("No significant clusters found.\n")
+            if vertex_enabled:
+                f.write("No significant clusters found.\n")
         else:
             f.write(f"Found {len(sig_cluster_indices)} significant cluster(s).\n\n")
             

@@ -12,6 +12,15 @@ from scipy.spatial.distance import pdist, squareform
 
 log = logging.getLogger()
 
+def _resolve_fs_subjects_dir(project_root: Path) -> Path:
+    candidates = [
+        project_root / 'data' / 'fs_subjects_dir',
+        project_root / 'data' / 'all' / 'fs_subjects_dir',
+    ]
+    for cand in candidates:
+        if cand.exists():
+            return cand
+    return candidates[0]
 
 def _load_sensor_roi_definitions():
     """
@@ -278,7 +287,7 @@ def run_source_cluster_test(stcs, fsaverage_src, config):
         try:
             from pathlib import Path
             project_root = Path(__file__).resolve().parents[2]
-            subjects_dir = project_root / 'data' / 'all' / 'fs_subjects_dir'
+            subjects_dir = _resolve_fs_subjects_dir(project_root)
             parc = roi_cfg.get('parc', 'aparc')
             wanted = set([s.lower() for s in roi_cfg.get('labels', [])])
             if wanted:
@@ -373,85 +382,110 @@ def run_source_cluster_test(stcs, fsaverage_src, config):
 
 
 def run_label_timecourse_cluster_test(stcs, fsaverage_src, config):
-    """
-    Run a 1D time-cluster permutation test on label-averaged time courses.
-
-    - Extract label time courses on fsaverage with mode='mean_flip'.
-    - Average across specified labels to one ROI time course per subject.
-    - Crop to YAML tmin/tmax and cluster across time.
-    """
+    """Run a 1D time-cluster permutation test on label time courses per label."""
     import mne
+
     log.info("Preparing label-averaged time courses for clustering...")
 
-    lt_cfg = config['stats'].get('label_timeseries', {})
+    stats_cfg = config.get('stats') or {}
+    lt_cfg = stats_cfg.get('label_timeseries') or {}
+    if lt_cfg.get('enabled', True) is False:
+        raise ValueError("Label time-series analysis was disabled in the config.")
+
     parc = lt_cfg.get('parc', 'aparc')
-    labels_wanted = lt_cfg.get('labels') or config['stats'].get('roi', {}).get('labels', [])
+    labels_wanted = lt_cfg.get('labels') or stats_cfg.get('roi', {}).get('labels', [])
     if not labels_wanted:
         raise ValueError("No labels provided for label time-series test (stats.label_timeseries.labels).")
     labels_wanted = [s.lower() for s in labels_wanted]
 
-    from pathlib import Path
     project_root = Path(__file__).resolve().parents[2]
-    subjects_dir = project_root / 'data' / 'all' / 'fs_subjects_dir'
+    subjects_dir = _resolve_fs_subjects_dir(project_root)
     all_labels = mne.read_labels_from_annot('fsaverage', parc=parc, subjects_dir=subjects_dir, verbose=False)
-    def base_name(name: str) -> str:
+
+    def _base_label(name: str) -> str:
         name = name.lower()
-        if name.endswith('-lh') or name.endswith('-rh'):
-            return name[:-3]
-        return name
-    selected_labels = [lab for lab in all_labels if base_name(lab.name) in labels_wanted]
+        return name[:-3] if name.endswith('-lh') or name.endswith('-rh') else name
+
+    selected_labels = [lab for lab in all_labels if _base_label(lab.name) in labels_wanted]
     if not selected_labels:
         raise ValueError("Selected labels not found on fsaverage. Check parc and label names.")
 
-    # Build (n_subjects, n_times) matrix
-    X = []
+    label_names = [lab.name for lab in selected_labels]
+    label_timecourses = []
     for stc in stcs:
         ltc = mne.extract_label_time_course(
-            stc, selected_labels, src=fsaverage_src, mode='mean_flip', allow_empty=True, verbose=False
-        )  # shape (n_labels, n_times)
-        ts = ltc.mean(axis=0)
-        X.append(ts)
-    X = np.vstack(X)  # (n_subjects, n_times)
+            stc,
+            selected_labels,
+            src=fsaverage_src,
+            mode='mean_flip',
+            allow_empty=True,
+            verbose=False,
+        )
+        if ltc.ndim != 2:
+            raise ValueError("Label time-course extraction must return a 2D array (n_labels, n_times).")
+        label_timecourses.append(ltc)
+    X = np.stack(label_timecourses, axis=0)  # (n_subjects, n_labels, n_times)
 
-    # Build time crop
     times = stcs[0].times
-    aw = (config.get('stats') or {}).get('analysis_window')
+    aw = stats_cfg.get('analysis_window')
     if aw and len(aw) == 2:
-        tmin = float(aw[0])
-        tmax = float(aw[1])
+        tmin, tmax = float(aw[0]), float(aw[1])
         log.info(f"Label time-series: analysis_window {tmin:.3f}-{tmax:.3f}s")
     else:
-        tmin = float(times[0])
-        tmax = float(times[-1])
+        tmin, tmax = float(times[0]), float(times[-1])
     time_mask = (times >= tmin) & (times <= tmax)
     if time_mask.sum() == 0:
         log.warning("Time mask is empty for label TS; using full window.")
-        time_mask = slice(None)
         times_c = times
         X_c = X
     else:
         times_c = times[time_mask]
-        X_c = X[:, time_mask]
+        X_c = X[:, :, time_mask]
 
-    # Compute signed threshold
+    lt_p_threshold = float(lt_cfg.get('p_threshold', stats_cfg.get('p_threshold')))
+    lt_tail = int(lt_cfg.get('tail', stats_cfg.get('tail', 0)))
+    lt_n_permutations = int(lt_cfg.get('n_permutations', stats_cfg.get('n_permutations')))
+    lt_cluster_alpha = float(lt_cfg.get('cluster_alpha', stats_cfg.get('cluster_alpha')))
+
+    try:
+        lt_cfg['_resolved_params'] = {
+            'p_threshold': lt_p_threshold,
+            'tail': lt_tail,
+            'n_permutations': lt_n_permutations,
+            'cluster_alpha': lt_cluster_alpha,
+            'labels': labels_wanted,
+            'resolved_label_names': label_names,
+        }
+    except Exception:
+        pass
+
     n_subjects = X_c.shape[0]
     dof = n_subjects - 1
-    p_threshold = config['stats']['p_threshold']
-    tail = int(config['stats']['tail'])
-    if tail == 0:
-        thr = t_dist.ppf(1.0 - p_threshold / 2., df=dof)
+    if lt_tail == 0:
+        thr = t_dist.ppf(1.0 - lt_p_threshold / 2.0, df=dof)
     else:
-        thr = t_dist.ppf(1.0 - p_threshold, df=dof)
-        thr = -abs(thr) if tail < 0 else abs(thr)
+        thr = t_dist.ppf(1.0 - lt_p_threshold, df=dof)
+        thr = -abs(thr) if lt_tail < 0 else abs(thr)
+
     log.info(
         f"Running 1D time clustering over labels {labels_wanted} with threshold {thr:.3f}, "
-        f"n_permutations={config['stats']['n_permutations']}, tail={tail}"
+        f"n_permutations={lt_n_permutations}, tail={lt_tail}"
     )
 
-    # 1D cluster test over time
-    stat_results = mne.stats.permutation_cluster_1samp_test(
-        X_c, threshold=thr, tail=tail, n_permutations=config['stats']['n_permutations'],
-        out_type='mask', verbose=True
-    )
+    per_label_results = []
+    for label_idx, label_name in enumerate(label_names):
+        X_label = X_c[:, label_idx, :]
+        stats = mne.stats.permutation_cluster_1samp_test(
+            X_label,
+            threshold=thr,
+            tail=lt_tail,
+            n_permutations=lt_n_permutations,
+            out_type='mask',
+            verbose=True,
+        )
+        per_label_results.append(stats)
 
-    return stat_results, times_c, X_c.mean(axis=0), [lab.name for lab in selected_labels]
+    label_mean_ts = X_c.mean(axis=0)
+
+    return per_label_results, times_c, label_mean_ts, label_names
+

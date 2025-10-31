@@ -24,12 +24,15 @@ except Exception:
 
 
 def _check_fsaverage_path():
-    """Resolve fsaverage strictly from data (no fallbacks)."""
+    """Resolve fsaverage directory, preferring data/fs_subjects_dir when available."""
     project_root = Path(__file__).resolve().parents[2]
-    subjects_dir = project_root / "data" / "all" / "fs_subjects_dir"
+    candidates = [
+        project_root / "data" / "fs_subjects_dir",
+        project_root / "data" / "all" / "fs_subjects_dir",
+    ]
+    subjects_dir = next((cand for cand in candidates if cand.exists()), candidates[0])
     fsaverage_path = subjects_dir / "fsaverage"
     return str(subjects_dir), fsaverage_path
-
 
 def _split_vertices_for_fsaverage(vertices_like):
     """Return [lh, rh] vertex lists. Accepts a flat array or a [lh, rh] list."""
@@ -157,12 +160,20 @@ def plot_source_clusters(stats_results, stc_grand_average, config, output_dir):
         if subjects_dir is None:
             raise RuntimeError("subjects_dir could not be resolved for fsaverage")
 
+        if stats_results is None:
+            log.info("No vertex-level statistics provided; skipping source cluster plotting.")
+            return
+
         t_obs, clusters, cluster_p_values, _ = stats_results
-        if not clusters or cluster_p_values is None:
-            raise RuntimeError("No clusters returned from statistical analysis.")
+        alpha = float(config['stats']['cluster_alpha'])
+        if clusters is None or cluster_p_values is None or len(clusters) == 0 or cluster_p_values.size == 0:
+            msg = f"No significant source clusters at alpha={alpha}."
+            path = output_dir / f"{analysis_name}_source_cluster.png"
+            _create_blank_image(path, msg)
+            log.info(msg)
+            return
 
         # --- 1. Find ALL Significant Clusters ---
-        alpha = float(config['stats']['cluster_alpha'])
         sig_idx = np.where(cluster_p_values < alpha)[0]
         if sig_idx.size == 0:
             # If no significant clusters, create a single placeholder image and return

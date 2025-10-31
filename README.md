@@ -64,6 +64,21 @@ conda activate numbers_eeg_source; python -m code.run_source_analysis_pipeline -
 
 ### Full pipeline behavior and config pairing
 
+### Run log files
+### Source Clustering Options
+
+- `stats.vertex.enabled` (default `true`) controls whether vertex-wise spatio-temporal clustering runs. Set to `false` for label-only inference.
+- `stats.label_timeseries` accepts:
+  - `enabled` (default `true`)
+  - `mode`: `fallback` (run only if vertex stats are null), `always` (run alongside vertex), or `only` (skip vertex stats entirely).
+  - Optional overrides for `p_threshold`, `n_permutations`, `cluster_alpha`, `tail`, plus the existing `parc`/`labels` keys.
+  - Each requested label is now clustered independently; the summary in `aux/label_cluster_summary.txt` lists significant time windows per label.
+- `inverse.source_spacing` selects the fsaverage surface density (`ico-5` default, `ico-4` for coarser, faster clustering).
+- `source.pick_ori` chooses orientation handling for the inverse (`normal` default preserves signed normals; `vector` computes 3D vectors and converts them to magnitudes to avoid across-subject cancellation).
+- Running the full pipeline (`code.run_full_analysis_pipeline`) writes a rotating log under `derivatives/logs/<timestamp>-<analysis>.log` (10 MB max, 3 backups). Standalone sensor/source scripts continue to log to the console only.
+
+
+
 -   Always pass a sensor-space YAML to the full pipeline.
 -   The full pipeline runs sensor analysis first and parses the sensor stats report.
 -   If at least one significant sensor cluster is found, the pipeline searches the sensor config directory for every YAML that (a) ends with the same contrast slug (for example `_cardinality1_vs_cardinality2.yaml`) and (b) declares `domain: "source"`.
@@ -316,4 +331,7 @@ python -m code.run_full_analysis_pipeline --config configs/23_32_22_33/sensor_23
 
 
 intraparietal sulcus 
+
+
+
 

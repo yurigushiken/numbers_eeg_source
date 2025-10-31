@@ -1,7 +1,7 @@
-# configs/13_31/source_loreta_p3b_13_31.yaml
+# configs/13_31/source_loreta_100-300_13_31.yaml
 
 # 1. Metadata
-analysis_name: "source_loreta_p3b_13_31"
+analysis_name: "source_loreta_100-300_13_31"
 domain: "source"
 
 # 2. Epoch Time Window and Baseline Correction
@@ -11,7 +11,7 @@ epoch_window:
   baseline: [-0.2, 0.0]
 
 # 3. Contrast Definition
-# Tests: P3b modulation for 1<->3 direction effect (distance = 2)
+# Tests: Combined frontal/posterior response for 1<->3 transition (100-300 ms)
 contrast:
   name: "1<->3 Transition: Increasing vs. Decreasing"
   condition_A:
@@ -36,7 +36,7 @@ inverse:
 
 # 5. Statistical Analysis Parameters
 stats:
-  analysis_window: [0.300, 0.496]
+  analysis_window: [0.100, 0.300]
   p_threshold: 0.15
   cluster_alpha: 0.05
   n_permutations: 10000
@@ -48,34 +48,29 @@ stats:
     step: 0.2
   n_jobs: -1
   buffer_size: 1000
-  vertex:
-    enabled: true
+  # Vertex-wise clustering (disabled for label-only analysis)
+  # vertex:
+  #   enabled: false
 
-  # Label Time-Series Analysis
+  # Label Time-Series Analysis (PRIMARY - frontal/ACC hypothesis testing)
   label_timeseries:
     enabled: true
-    mode: "fallback"
+    mode: "only"
     parc: aparc
     p_threshold: 0.15
     n_permutations: 10000
     cluster_alpha: 0.05
     tail: 0
     labels:
-      - inferiorparietal
-      - superiorparietal
-      - precuneus
-      - supramarginal
-      - posteriorcingulate
-      - isthmuscingulate
-      - superiortemporal
+      - rostralanteriorcingulate
+      - caudalanteriorcingulate
+      - superiorfrontal
+      - rostralmiddlefrontal
 
   roi:
     parc: aparc
     labels:
-      - inferiorparietal
-      - superiorparietal
-      - precuneus
-      - supramarginal
-      - posteriorcingulate
-      - isthmuscingulate
-      - superiortemporal
+      - rostralanteriorcingulate
+      - caudalanteriorcingulate
+      - superiorfrontal
+      - rostralmiddlefrontal

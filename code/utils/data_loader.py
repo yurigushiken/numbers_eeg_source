@@ -491,17 +491,87 @@ def get_inverse_operator(subject_dir):
     return mne.minimum_norm.read_inverse_operator(inv_fname, verbose=False)
 
 
-def get_fsaverage_src(project_root="."):
+_FSAVERAGE_SRC_CACHE = {}
+
+
+
+def get_fsaverage_src(config=None, project_root="."):
+
     """
-    Gets the fsaverage source space strictly from data.
+
+    Load fsaverage source space with configurable ico spacing.
+
     """
-    # Prefer MNE's configured SUBJECTS_DIR or fetch fsaverage if needed
+
+    spacing_default = 'ico-5'
+
+    spacing = spacing_default
+
+    if isinstance(config, dict):
+
+        spacing = (config.get('inverse') or {}).get('source_spacing', spacing_default)
+
+    spacing = str(spacing or spacing_default).lower()
+
+    if not spacing.startswith('ico-'):
+
+        log.warning(f"Unknown source spacing '{spacing}' requested; falling back to {spacing_default}.")
+
+        spacing = spacing_default
+
+
+
+    cache_key = (spacing,)
+
+    if cache_key in _FSAVERAGE_SRC_CACHE:
+
+        return _FSAVERAGE_SRC_CACHE[cache_key]
+
+
+
     subjects_dir = mne.get_config('SUBJECTS_DIR')
+
     if subjects_dir is None:
+
         fetch_fsaverage(verbose=False)
+
         subjects_dir = mne.get_config('SUBJECTS_DIR')
-    fsaverage_src_path = Path(subjects_dir) / "fsaverage" / "bem" / "fsaverage-ico-5-src.fif"
-    return mne.read_source_spaces(fsaverage_src_path, verbose=False)
+
+    subjects_dir = Path(subjects_dir)
+
+
+
+    fsaverage_src_path = subjects_dir / 'fsaverage' / 'bem' / f'fsaverage-{spacing}-src.fif'
+
+    if not fsaverage_src_path.exists():
+
+        if spacing != spacing_default:
+
+            log.warning(
+
+                f"Source space file {fsaverage_src_path} missing; falling back to {spacing_default}."
+
+            )
+
+            spacing = spacing_default
+
+            fsaverage_src_path = subjects_dir / 'fsaverage' / 'bem' / 'fsaverage-ico-5-src.fif'
+
+        else:
+
+            raise FileNotFoundError(f"Could not locate fsaverage source space at {fsaverage_src_path}")
+
+
+
+    src = mne.read_source_spaces(fsaverage_src_path, verbose=False)
+
+    _FSAVERAGE_SRC_CACHE[cache_key] = src
+
+    return src
+
+
+
+
 
 
 def generate_template_inverse_operator_from_epochs(epochs, subject_dir, config):
@@ -525,11 +595,29 @@ def generate_template_inverse_operator_from_epochs(epochs, subject_dir, config):
 
     fs_dir = Path(subjects_dir) / "fsaverage"
     trans = "fsaverage"
-    src = fs_dir / "bem" / "fsaverage-ico-5-src.fif"
-    bem = fs_dir / "bem" / "fsaverage-5120-5120-5120-bem-sol.fif"
+
+    spacing_default = 'ico-5'
+    inverse_params = config.get('inverse', {})
+    spacing = str(inverse_params.get('source_spacing', spacing_default)).lower()
+    if not spacing.startswith('ico-'):
+        log.warning(f"Unknown source spacing '{spacing}' requested; falling back to {spacing_default}.")
+        spacing = spacing_default
+
+    src = fs_dir / 'bem' / f'fsaverage-{spacing}-src.fif'
+    if not src.exists():
+        if spacing != spacing_default:
+            log.warning(
+                f"Source space file {src} missing; falling back to {spacing_default}."
+            )
+            spacing = spacing_default
+            src = src.with_name('fsaverage-ico-5-src.fif')
+        else:
+            raise FileNotFoundError(f"Could not locate fsaverage source space at {src}")
+
+    bem = fs_dir / 'bem' / 'fsaverage-5120-5120-5120-bem-sol.fif'
 
     # 3. Make forward solution
-    log.info("Computing forward solution...")
+    log.info(f"Computing forward solution using {spacing} source spacing...")
     fwd = mne.make_forward_solution(
         epochs.info, trans=trans, src=src, bem=bem, eeg=True, mindist=5.0, verbose=False
     )
@@ -563,21 +651,28 @@ def compute_subject_source_contrast(evoked, inv_operator, config):
     method = config['source']['method']
     lambda2 = 1.0 / (config['source']['snr'] ** 2)
     
-    # Compute source estimate using signed orientations to preserve polarity
+    source_cfg = config.get('source') or {}
+    pick_ori = str(source_cfg.get('pick_ori', 'normal') or 'normal').lower()
+    if pick_ori not in {'normal', 'vector'}:
+        log.warning(f"Unsupported pick_ori='{pick_ori}' requested; falling back to 'normal'.")
+        pick_ori = 'normal'
+
     stc = mne.minimum_norm.apply_inverse(
         evoked,
         inv_operator,
         lambda2,
         method=method,
-        pick_ori='normal',
+        pick_ori=pick_ori,
         verbose=False,
     )
-    
-    # Morph to fsaverage
-    # The subject_from is extracted from the inverse operator's source space info
+
     subject_from = stc.subject
+    if pick_ori == 'vector':
+        log.info('Converting vector-oriented source estimates to magnitude for orientation-invariant stats.')
+        stc = stc.magnitude()
+        if getattr(stc, 'subject', None) is None:
+            stc.subject = subject_from
     if subject_from is None:
-        # Fallback for older MNE versions if subject info is not in STC
         subject_from = inv_operator['src'][0]['subject_his_id']
 
     # Use configured SUBJECTS_DIR; fetch fsaverage if missing

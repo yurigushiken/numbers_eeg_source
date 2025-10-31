@@ -543,11 +543,14 @@ def _build_source_section_html(
                 </div>
                 """
 
+    label_ts_summary = label_ts_summary_path.read_text() if label_ts_summary_path.exists() else ""
+    label_ts_section = LABEL_TS_SECTION_TEMPLATE.format(label_ts_summary=label_ts_summary) if label_ts_summary else ""
+
     # If no clusters found at all, show null result
     if not cluster_blocks_html:
-        label_ts_summary = label_ts_summary_path.read_text() if label_ts_summary_path.exists() else ""
-        label_ts_section = LABEL_TS_SECTION_TEMPLATE.format(label_ts_summary=label_ts_summary) if label_ts_summary else ""
         cluster_blocks_html = NULL_SOURCE_SECTION_TEMPLATE.format(label_ts_section=label_ts_section)
+    elif label_ts_section:
+        cluster_blocks_html += label_ts_section
 
     # Build section title with config path if available
     title_with_config = section_title
