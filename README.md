@@ -1,336 +1,173 @@
-# EEG Analysis Pipeline
+- Label summaries live in `derivatives/source/<timestamp>-*/aux/label_cluster_summary.txt`; PI-facing answer comes from that file.
 
-A reproducible workflow for **sensor-space** and **source-space** EEG analyses using MNE-Python, with non-parametric cluster-based permutation statistics and transparent preprocessing defaults. This project follows the methods described in:
+## Source / ROI Naming (13_31)
 
-**Jas, M., Larson, E., Engemann, D. A., Leppäkangas, J., Taulu, S., Hämäläinen, M., & Gramfort, A. (2018).** *A reproducible MEG/EEG group study with the MNE software: Recommendations, quality assessments, and good practices.* https://pmc.ncbi.nlm.nih.gov/articles/PMC6088222/
+- Whole-brain discovery: `source_eloreta_wholebrain_magnitude_90_300.yaml`.
+- Data-driven ROI (2-label annotation): `source_eloreta_corelabel_c13_31_120_280.yaml`, ROI files `c13_31_core-{lh,rh}.label`, annotation `c13_31`.
+- Atlas follow-up: `source_eloreta_aparc_c13_31_180_300.yaml`.
+- Alternative solver (same contrast): `source_dspm_wholebrain_signed_90_300.yaml`.
+- Future contrasts (e.g., `c11_22`) should mirror this: create a `c11_22` annotation with `c11_22_core-{lh,rh}.label` and a corresponding `source_eloreta_corelabel_c11_22_<tmin>_<tmax>.yaml`.
+# Numbers EEG Source Pipeline (2025 status)
 
+This repository hosts a reproducible MNE-Python workflow for EEG source analysis using cluster-based permutation statistics. The notes below document exactly what the current code and configs do so that the PI, future RAs, and collaborators can answer “what did we run?” without digging into scripts.
 
-## How it Works
+## Subjects & Preprocessed Data
 
-You can control the analysis with a single YAML (`.yaml`) configuration file and execute with a single Python script. The pipeline performs the following steps automatically:
+- **N = 24 subjects** in the current cohort.
+- Preprocessed epochs (already baseline-corrected −0.2 s to 0.0 s; average reference projector applied) live at:
+  ```
+  data/data_preprocessed/hpf_1.5_lpf_35_baseline-on/sub-XX/sub-XX_preprocessed-epo.fif
+  ```
+- `code/utils/data_loader.py` reads those combined epoch files, filters conditions via metadata, applies baseline if needed, and returns per-condition evokeds before forming contrasts.
 
-1.  **Load Config:** Parses the specified `.yaml` file.
-2.  **Load Data:** Gathers all required subject epoch files.
-3.  **Compute Contrasts:** For each subject, calculates the difference wave between the two conditions of interest (e.g., "Change" vs. "No Change").
-4.  **(Source Analysis Only) Inverse Operators:** The source step expects a precomputed inverse operator file (`<sub-XX>-inv.fif`) in each subject's derivatives folder. Subjects missing this file are skipped in the source step. Use the helper `code.build_inverse_solutions` to create them (fsaverage‑based) before running source statistics.
-5.  **Run Group Statistics:** Performs a spatio-temporal cluster permutation test on the contrasts from all subjects.
-6.  **Generate Outputs:** Creates a dedicated output directory containing:
-    *   A detailed statistical report (`..._report.txt`).
-    *   Visualizations of the results (ERP plots and topomaps for sensor space; brain surface plots for source space).
-    *   The grand average contrast file (`...-ave.fif` or `...-stc.h5`).
+## Anatomy / fsaverage / Inverse Operators
 
-## Project Structure
+- **SUBJECTS_DIR:** `D:/numbers_eeg_source/data/fs_subjects_dir` (fsaverage only; no individual MRIs).
+- All subject STCs are morphed to this fsaverage space (see `compute_subject_source_contrast`).
+- YAML’s `inverse.source_spacing: ico-4` → pipeline loads/generates `fsaverage-ico-4-src.fif` and builds adjacency from it.
+- All current inverses were computed with MNE’s make_inverse_operator using eLORETA, depth=0.8, loose=0.2, pick_ori=normal on fsaverage (ico-4). Any on-the-fly inverse uses the same parameters.
+- Subject inverse operators are precomputed and reused every run:
+  ```
+  data/data_preprocessed/hpf_1.5_lpf_35_baseline-on/sub-XX/sub-XX-inv.fif
+  ```
+  (generated earlier via `python -m code.build_inverse_solutions`).
 
--   `code/`: Contains all Python analysis scripts.
-    -   `run_sensor_analysis_pipeline.py`: Main entrypoint for sensor-space analyses.
-    -   `run_source_analysis_pipeline.py`: Main entrypoint for source-space analyses.
-    -   `run_full_analysis_pipeline.py`: Runs sensor analysis, then auto-discovers and runs matching source analyses.
-    -   `utils/`: Helper modules for data loading, statistics, plotting, and reporting.
--   `configs/`: Contains all analysis configuration files.
-    -   `sensor_roi_definitions.yaml`: Central repository for sensor-space ROI definitions (channel groups).
-    -   Individual analysis folders with sensor and source YAML configs.
--   `derivatives/`: The output directory for all generated figures and reports, organized by analysis name and domain (sensor/source).
+## Inverse / Source Parameters (contrasts)
 
-## How to Run an Analysis
+Current whole-brain discovery YAML (`configs/13_31/source_eloreta_wholebrain_magnitude_90_300.yaml`):
+- `method: eLORETA`
+- `snr: 2.0`
+- `pick_ori: normal` (polarity-preserving)
+- `inverse.loose: 0.2`, `inverse.depth: 0.8`, `inverse.source_spacing: ico-4`
+- We apply the inverse to the **contrast evoked** (A – B), not to each condition separately. Morph happens **once per subject after forming the contrast**.
 
-PLease execute all scripts as Python modules from the **root directory of the project** (e.g., `D:/numbers_eeg/`). Ensure the `numbers_eeg_source` conda environment is active.
+Contrast definition:
+- Name: “1↔3 Transition: Increasing vs. Decreasing”
+- Condition A: `TRANSITION_13`
+- Condition B: `TRANSITION_31`
+- Weights: `[1, -1]`
+- Contrasts are built **after** baseline/reference → we never mix pre-/post-baseline data in stats.
 
-**Command Structure:**
+## Polarity & Post-process Policy
 
-```bash
-# General format for sensor space
-conda activate numbers_eeg_source; python -m code.run_sensor_analysis_pipeline --config <path_to_config> --accuracy <dataset>
+- `postprocess.align_sign: false` → no whole-brain sign flip (avoids flattening dipoles).
+- `postprocess.make_magnitude: false` in the current “dipole” run, but the code supports `true` for orientation-invariant vertex stats (report logs “Orientation-invariant … ” when enabled and sign becomes uninterpretable).
+- Label time-series always operate on signed STCs with `mode="mean_flip"`, preventing intra-label cancellation while preserving direction.
 
-# General format for source space
-conda activate numbers_eeg_source; python -m code.run_source_analysis_pipeline --config <path_to_config> --accuracy <dataset>
+## Vertex vs. Label Branches (how they split)
+
+Vertex and label branches are independent. From `code/run_source_analysis_pipeline.py`:
+```python
+if vertex_enabled:
+    stats_results = cluster_stats.run_source_cluster_test(
+        all_source_contrasts_for_stats,
+        fsaverage_src,
+        config,
+        make_magnitude=make_magnitude,
+    )
+else:
+    log.info("Vertex-level clustering is disabled for this analysis.")
+    stats_results = (np.empty((0, 0)), [], np.empty((0,)), None)
+
+if lt_cfg is not None and lt_enabled:
+    label_results, lt_times, label_mean_ts, label_names = (
+        cluster_stats.run_label_timecourse_cluster_test(
+            label_source_contrasts, fsaverage_src, config
+        )
+    )
+    aux_dir.mkdir(parents=True, exist_ok=True)
+    np.save(aux_dir / "label_times.npy", lt_times)
+    np.save(aux_dir / "label_mean_ts.npy", label_mean_ts)
+    (aux_dir / "labels.txt").write_text("\n".join(label_names))
+    (aux_dir / "label_cluster_summary.txt").write_text("\n".join(lines))
 ```
+- Vertex enabled → stack `(n_subjects, n_times, n_vertices)`, crop to `stats.analysis_window`, optionally `np.abs(...)`, build adjacency from the fsaverage ico-4 source, run `mne.stats.spatio_temporal_cluster_1samp_test` with YAML thresholds and `tail`.
+- Vertex disabled → we **skip adjacency entirely**.
+- Label enabled → extract signed label time courses (mean-flip), crop to the **same window**, run a 1D permutation per label, and write results to `aux/`.
 
-**Example Analyses:**
+## Label Restrict Behaviour
 
-```bash
-# Example 1: Run the 'change vs. no-change' sensor-space analysis
-conda activate numbers_eeg_source; python -m code.run_sensor_analysis_pipeline --config configs/sensor_change_vs_no-change.yaml --accuracy all
-
-# Example 2: Run the 'prime 1 vs prime 3' source-space analysis
-conda activate numbers_eeg_source; python -m code.run_source_analysis_pipeline --config configs/source_prime1-land3_vs_prime3-land1.yaml --accuracy all
+Label extraction logs available aparc names and matches `restrict_to` case/hemisphere-insensitively. From `code/utils/cluster_stats.py`:
+```python
+available_names = sorted({lab.name for lab in all_labels})
+log.debug(f"Loaded {len(available_names)} labels from {parc} (fsaverage): {available_names}")
+...
+selected_labels = [lab for lab in all_labels if _base_label(lab.name) in wanted_set]
+missing = sorted(wanted_set - { _base_label(l.name) for l in selected_labels })
+if missing:
+    log.warning("Restrict-to labels not found in %s annot: %s", parc, ", ".join(missing))
+if not selected_labels:
+    raise ValueError("Selected labels not found on fsaverage. Check parc and label names.")
 ```
+- Requested labels missing from fsaverage → warning.
+- All requested labels missing → hard error (run stops).
+- When some match, the label permutation still runs for the ones found.
+- Cropping: `X_c = X[:, :, time_mask]` uses the **same** `analysis_window` as vertex.
+- Label p-values are **uncorrected** across labels; summary reminds you (“Label-wise … uncorrected”).
 
-**Arguments:**
+## Outputs (per run)
 
--   `--config`: The path to the `.yaml` file defining the entire analysis from contrast to statistics.
--   `--accuracy` (optional): Override trial filtering for both conditions at once. Use `acc1` for correct trials, `acc0` for incorrect trials, or `all` for all trials. If omitted, the pipeline honors per‑condition `accuracy` fields in the YAML (falling back to `all` per side). The loader filters using the metadata column `Target.ACC` (≥0.5 treated as accurate); if that column is missing or filtering removes everything, it falls back to all trials for the affected condition and logs a warning.
+Example directory:
+```
+derivatives/
+  source/
+    20251101_000946-source_eloreta_wholebrain_magnitude_90_300/
+      source_eloreta_wholebrain_magnitude_90_300_report.txt
+      inverse_provenance.json
+      source_eloreta_wholebrain_magnitude_90_300_grand_average-stc.h5-lh.stc
+      source_eloreta_wholebrain_magnitude_90_300_grand_average-stc.h5-rh.stc
+      aux/
+        label_cluster_summary.txt
+        label_times.npy
+        label_mean_ts.npy
+        labels.txt
+```
+- `aux/` is always created when label stats run, independent of STC/window-average toggles.
+- Grand-average STCs are **always** written for QC/visualization even when vertex is disabled.
 
-> Note: On Windows/PowerShell use semicolons to chain commands (e.g., `conda activate ...; python ...`).
+## Visualization
 
-### Full pipeline behavior and config pairing
+- To export synchronized source/sensor movies, set `visualization.movie.enabled: true` in the source YAML. The pipeline will write `movie_source.mp4`, `movie_topo.mp4`, and (when ffmpeg is available) `movie_source_topo.mp4` into the source output directory using the requested window, codec, and frame count.
+- Movies are generated with standard MNE workflows: `SourceEstimate.plot(...).save_movie(...)` as in “Visualize source time courses (stcs)” and `evoked.animate_topomap(...)` from “Plotting topographic maps of evoked data”.
 
-### Run log files
-### Source Clustering Options
+## Current PI Run (Nov 2025)
 
-- `stats.vertex.enabled` (default `true`) controls whether vertex-wise spatio-temporal clustering runs. Set to `false` for label-only inference.
-- `stats.label_timeseries` accepts:
-  - `enabled` (default `true`)
-  - `mode`: `fallback` (run only if vertex stats are null), `always` (run alongside vertex), or `only` (skip vertex stats entirely).
-  - Optional overrides for `p_threshold`, `n_permutations`, `cluster_alpha`, `tail`, plus the existing `parc`/`labels` keys.
-  - Each requested label is now clustered independently; the summary in `aux/label_cluster_summary.txt` lists significant time windows per label.
-- `inverse.source_spacing` selects the fsaverage surface density (`ico-5` default, `ico-4` for coarser, faster clustering).
-- `source.pick_ori` chooses orientation handling for the inverse (`normal` default preserves signed normals; `vector` computes 3D vectors and converts them to magnitudes to avoid across-subject cancellation).
-- Running the full pipeline (`code.run_full_analysis_pipeline`) writes a rotating log under `derivatives/logs/<timestamp>-<analysis>.log` (10 MB max, 3 backups). Standalone sensor/source scripts continue to log to the console only.
+- Whole-brain discovery (orientation-invariant): `configs/13_31/source_eloreta_wholebrain_magnitude_90_300.yaml`.
+- Data-driven core ROI (c13_31 annotation): `configs/13_31/source_eloreta_corelabel_c13_31_120_280.yaml` → tests `c13_31_core-{lh,rh}` between 120–280 ms (vertex disabled).
+- Atlas follow-up (expanded medial/parietal set): `configs/13_31/source_eloreta_aparc_c13_31_180_300.yaml`.
+- Solver cross-check: `configs/13_31/source_dspm_wholebrain_signed_90_300.yaml`.
+- All runs use the signed contrast, no global sign alignment, and 5000 permutations (tail=0).
+- Label summaries live in `derivatives/source/<timestamp>-*/aux/label_cluster_summary.txt`; PI-facing answer comes from that file.
 
+## How to Run This Analysis
 
-
--   Always pass a sensor-space YAML to the full pipeline.
--   The full pipeline runs sensor analysis first and parses the sensor stats report.
--   If at least one significant sensor cluster is found, the pipeline searches the sensor config directory for every YAML that (a) ends with the same contrast slug (for example `_cardinality1_vs_cardinality2.yaml`) and (b) declares `domain: "source"`.
-    -   Keep the sensor file named `sensor_<slug>.yaml`. Name each source method `source_<method>_<slug>.yaml` (e.g., `source_dspm_cardinality1_vs_cardinality2.yaml`, `source_loreta_cardinality1_vs_cardinality2.yaml`).
-    -   All discovered source configs are executed in alphabetical order, so you can run multiple inverse methods without touching the CLI command.
--   If no companion source configs are found (or none produce significant clusters), the combined report still includes the full sensor results and notes that the corresponding source analysis was skipped.
-
-### Output locations
-
--   Sensor outputs: `derivatives/sensor/<analysis_name>/`
--   Source outputs: `derivatives/source/<analysis_name_with_sensor→source>/`
--   Combined report (neutral name): `derivatives/reports/<base_name>_report.html` and `.pdf`
-    -   `<base_name>` strips any leading `sensor_`/`source_` (e.g., `any_landing1_vs_any_landing3`).
--   If sensor is non‑significant or matching source YAML is missing, the Source section in the HTML shows a brief “null” message (sensor results are still fully reported).
-
-### Figures in the combined report
-
--   Condition ERPs (Figure 0):
-    -   Optional ROI ERPs for P1 (Oz), N1 (bilateral), and P3b (midline), shown when both condition grand averages are available.
--   ERP Cluster (left):
-    -   Grand‑average contrast over the channels in the most significant sensor cluster (p‑ranked).
-    -   Shaded band = that cluster's time window; legend shows `Cluster #k (p=...)`.
--   T‑Value Topomap (right):
-    -   T‑values averaged across the same cluster window.
-    -   Only cluster channels are highlighted with hollow markers; peak sensor is annotated. Scalp isocontours may be hidden for clarity.
-    -   ROI-restricted analyses automatically adapt the topomap to show only tested channels; title includes "(ROI-restricted)" notation.
--   Source Surface (six views):
-    -   Summarizes significant source clusters at an informative time around the global peak using signed dSPM with `pick_ori='normal'`.
-    -   ROI‑restricted runs plot on the ROI vertex set; a single unified colorbar sits below the grid.
--   Statistical Reports:
-    -   Text reports (`..._report.txt`) document all analysis parameters, including ROI restrictions when used.
-    -   ROI-restricted analyses include dedicated "ROI Restriction" section listing channel groups, specific channels tested, and total vs. tested channel counts.
-
-## Key pipeline updates and defaults
-
--   Signed source estimates: inverse application uses `pick_ori='normal'` so source time courses keep polarity, avoiding magnitude inflation.
--   Preprocessing: baseline correction applied from YAML; average EEG reference is enforced as a projector for robustness; the previous 1 Hz FIR high‑pass on short epochs is not used.
--   Inverse solution parameters: `loose` and `depth` values are now configurable in each source YAML file. The on-the-fly fallback uses EEG-appropriate defaults (`depth=3.0`), and you can specify these values via CLI arguments (`--loose`, `--depth`) when pre-computing operators.
--   Time‑window discipline: source analyses (and label time‑series fallback) crop data to YAML `tmin`/`tmax`; sensor analyses evaluate the full epoch and report/plot the significant window found by clustering.
--   Tail handling and thresholds: both domains honor `tail` (−1/0/+1) in the test; cluster‑forming threshold is tail‑aware in source, while sensor currently uses a two‑sided threshold.
--   **ROI‑restricted clustering**: Both sensor and source space support optional ROI restriction to increase statistical power:
-    -   **Sensor space**: Uses centralized channel group definitions from [configs/sensor_roi_definitions.yaml](configs/sensor_roi_definitions.yaml) (e.g., `N1_bilateral`, `P1_Oz`, `P3b_midline`, `posterior_visual_parietal`).
-    -   **Source space**: Uses anatomical labels from FreeSurfer parcellation (e.g., `aparc` labels like `cuneus`, `lingual`, `lateraloccipital`).
-    -   Plotting and reporting automatically adapt to ROI-restricted analyses, showing only tested channels/vertices and documenting the restriction.
--   Label time‑series fallback: include 1D ROI cluster results when full spatio‑temporal stats are null (config via YAML).
--   Combined report naming is neutral: `<base_name>_report.{html,pdf}`; source figure uses six views and a unified colorbar.
-
-## Centralized Sensor ROI System
-
-The pipeline now includes a **centralized sensor ROI system** for clean, maintainable channel group definitions:
-
--   **Central definitions**: All sensor ROIs defined in [configs/sensor_roi_definitions.yaml](configs/sensor_roi_definitions.yaml)
--   **Available ROIs**:
-    -   `N1_bilateral` (14 channels): Bilateral occipital-temporal regions
-    -   `P1_Oz` (8 channels): Occipital midline (parieto-occipital)
-    -   `P3b_midline` (9 channels): Centro-parietal midline
-    -   `posterior_visual_parietal` (25 unique channels): Combined N1 + P1 + P3b regions
--   **Usage**: Reference ROIs by name in sensor YAML configs (see Configuration tips section below)
--   **Benefits**:
-    -   Reduces config file size by ~80% (from ~50 lines to ~10 lines per config)
-    -   Single source of truth for channel groups
-    -   Same channels used for both statistics and ERP plotting
-    -   Easy to maintain and update
--   **Documentation**: See [SENSOR_ROI_SYSTEM_README.md](SENSOR_ROI_SYSTEM_README.md) for complete documentation, including scientific rationale, testing, and maintenance guidelines.
-
-## New User Onboarding
-
-**First time using this pipeline?** We've created comprehensive onboarding materials to get you started:
-
-### Setup & Training Materials
-
-- **Pre-Training Setup Guide**: [https://yurigushiken.github.io/numbers_eeg_source/](https://yurigushiken.github.io/numbers_eeg_source/)
-  - Complete installation instructions for Cursor IDE, Git, and Miniforge
-  - Step-by-step setup with screenshots for Windows, macOS, and Linux
-  - Environment creation using `environment.yml`
-  - Automated setup verification with `new_user/check_setup.py`
-  - Example analysis walkthrough
-
-- **Training Resources** (`new_user/` directory):
-  - **Quick-start scripts**:
-    - `run_analysis.bat` (Windows) - Run example analysis with one command
-    - `run_analysis.sh` (macOS/Linux) - Direct Python execution method
-  - **Example configurations** (`new_user/configs/13_31/`):
-    - Complete working example: 1↔3 transition analysis (increasing vs. decreasing)
-    - Sensor and source space configs ready to use
-  - **Templates** (`new_user/configs/templates/`):
-    - Copy these to create your own analyses
-    - Fully documented YAML examples for sensor and source space
-  - **Setup checker** (`new_user/check_setup.py`):
-    - Automated verification of Git, conda, environment, data, and packages
-    - Cross-platform (Windows/macOS/Linux)
-
-### Quick Start for New Users
-
-1. Complete the [Pre-Training Setup Guide](https://yurigushiken.github.io/numbers_eeg_source/)
-2. Run the setup checker: `python new_user/check_setup.py`
-3. Try the example analysis:
-   ```bash
-   # Windows
-   .\new_user\run_analysis.bat new_user/configs/13_31/sensor_13_31.yaml
-
-   # macOS/Linux
-   python -m code.run_full_analysis_pipeline --config new_user/configs/13_31/sensor_13_31.yaml --accuracy all
-   ```
-4. Check your results in `new_user/derivatives/`
-
-### What's Different for New Users
-
-- **Isolated output directory**: When using the `new_user/run_analysis` scripts, outputs go to `new_user/derivatives/` instead of the main `derivatives/` folder
-- **Pre-configured examples**: The 13_31 analysis is ready to run - no configuration needed
-- **Environment file**: Use `conda env create -f environment.yml` for reliable, reproducible setup
-- **Automated verification**: The setup checker ensures everything is correctly installed before your first analysis
-
----
-
-### Advanced: PowerShell Examples
-
+On Windows PowerShell / Cmd (with conda on PATH):
 ```powershell
-# Create and activate a fresh environment (conda)
-conda create -n sfn2 python=3.11 -y; conda activate sfn2
-conda install -c conda-forge mne numpy scipy matplotlib pandas tqdm imageio nibabel nilearn pyvista pyvistaqt pyqt vtk pyyaml -y
-# Optional (PDF export): conda install -c conda-forge weasyprint cairo pango gdk-pixbuf -y
-
-# Activate env and run SENSOR pipeline
-python -m code.run_sensor_analysis_pipeline --config configs/cardinality1_vs_cardinality2/sensor_cardinality1_vs_cardinality2.yaml --accuracy all
-
-# Activate env and run SOURCE pipeline (single method)
-python -m code.run_source_analysis_pipeline --config configs/cardinality1_vs_cardinality2/source_dspm_cardinality1_vs_cardinality2.yaml --accuracy all
-
-# Precompute inverse operators (recommended before source analyses)
-# Note: Use --depth 3.0 for an EEG-appropriate depth weighting.
-python -m code.build_inverse_solutions --depth 3.0
-
-# Run FULL pipeline (sensor + all matching source configs)
-python -m code.run_full_analysis_pipeline --config configs/cardinality1_vs_cardinality2/sensor_cardinality1_vs_cardinality2.yaml
-
-# Optional global override examples
-python -m code.run_full_analysis_pipeline --config configs/change_vs_no-change/sensor_change_vs_no-change.yaml --accuracy acc1
-python -m code.run_full_analysis_pipeline --config configs/change_vs_no-change/sensor_change_vs_no-change.yaml --accuracy acc0
-```
-
-## Configuration tips (YAML)
-
--   Stats sensitivity
-    -   **p_threshold**: cluster‑forming threshold (e.g., 0.001–0.05). Larger is more sensitive to forming clusters, but raises FWER bar.
-    -   **cluster_alpha**: cluster‑level alpha (typically 0.05).
-    -   **tail**: use `1` or `-1` for one‑tailed tests if direction is known; `0` for two‑tailed.
-    -   **n_permutations**: increase for stable p‑values (e.g., 5000–10000).
--   Time window: set `tmin`/`tmax` to bracket the expected effect (often informed by sensors).
--   **ROI restriction (sensor-space, optional):**
-    ```yaml
-    stats:
-      roi:
-        channel_groups:
-          - N1_bilateral         # 14 channels over bilateral occipital regions
-          - P1_Oz                # 8 channels around Oz
-          - P3b_midline          # 9 channels over centro-parietal midline
-        # Or use the combined posterior ROI:
-        # channel_groups:
-        #   - posterior_visual_parietal  # All N1 + P1 + P3b regions (25 unique channels)
-    ```
-    **Note:** Sensor ROI definitions are centrally managed in [configs/sensor_roi_definitions.yaml](configs/sensor_roi_definitions.yaml). See [SENSOR_ROI_SYSTEM_README.md](SENSOR_ROI_SYSTEM_README.md) for complete documentation.
--   **ROI restriction (source-space, optional):**
-    ```yaml
-    stats:
-      roi:
-        parc: aparc
-        labels: ["cuneus", "lingual", "lateraloccipital"]
-    ```
--   Label time‑series fallback (optional):
-    ```yaml
-    stats:
-      label_timeseries:
-        parc: aparc
-        labels: ["cuneus", "lingual", "lateraloccipital"]
-        mode: "mean_flip"
-    ```
--   Inverse Solution Parameters (source-space only):
-    ```yaml
-    inverse:
-      loose: 0.2
-      depth: 3.0
-    ```
-
-## Troubleshooting
-
--   UnicodeEncodeError (Windows cp1252) while writing HTML
-    -   Avoid special hyphens; prefer standard `-`. If needed, set `PYTHONIOENCODING=utf-8` for the session and rerun.
--   No significant source clusters
-    -   Narrow the time window (±10–20 ms), use one‑tailed test when justified, restrict ROI, increase permutations, or enable label time‑series fallback.
--   Source plot missing in combined HTML
-    -   Run the full pipeline (not just source) to regenerate; hard‑refresh viewer; confirm the PNG at `derivatives/source/<analysis>/<analysis>_source_cluster.png`.
--   PDF not produced
-    -   Install a converter (see below) and rerun the full pipeline; HTML will always be created even if PDF fails.
-
-## Optional: PDF export dependencies
-
-The report generator can export a PDF alongside HTML if one of the following is installed and on PATH:
-
--   wkhtmltopdf CLI (recommended on Windows), or
--   WeasyPrint (pure Python; requires Cairo/Pango/GDK‑PixBuf).
-
-Example (conda‑forge):
-
-```powershell
-conda activate numbers_eeg_source; conda install -c conda-forge weasyprint cairo pango gdk-pixbuf
-```
-
-If no converter is available, the pipeline logs a warning and continues with HTML only.
-
-
-Notes:
-- On first HTTPS push, Windows Git Credential Manager opens a browser sign‑in. Log in as the repo owner and approve access. Future pushes will succeed without prompts.
-- If you previously signed in as the wrong user or have stale tokens, open Windows “Credential Manager” → Windows Credentials → remove entries for `git:https://github.com`, then push again to re‑authenticate.
-- We intentionally ignore `data/` and `derivatives/` via `.gitignore` so the repository only contains code, configs, and docs.
-
-
 conda activate numbers_eeg_source
-
-## Project-wide Defaults (common.yaml)
-
-- `configs/common.yaml` provides minimal, centralized defaults to improve reproducibility.
-- Current defaults:
-  - `data.preprocessing: hpf_1.5_lpf_35_baseline-on`
-  - `epoch_defaults.baseline: [-0.2, 0.0]`
-- Behavior:
-  - When loading an analysis config, the loader fills in a missing `epoch_window.baseline` from `epoch_defaults.baseline` (does not overwrite if present).
-  - Subject discovery uses the preprocessing variant from `common.yaml` to locate combined data under `data/data_preprocessed/<preprocessing>`.
-
-Example `configs/common.yaml`:
-
+python -m code.run_source_analysis_pipeline `
+    --config configs\13_31\source_eloreta_wholebrain_magnitude_90_300.yaml
 ```
-data:
-  preprocessing: "hpf_1.5_lpf_35_baseline-on"
+- The pipeline logs the 24 inverses it loads, the labels being tested, and whether any clusters survive.
+- Watch the log for messages such as “Restrict-to labels not found …” or errors inside the label branch—those are the only reasons aux files would be missing.
 
-epoch_defaults:
-  baseline: [-0.2, 0.0]
+## Key Implementation Notes
 
-montage: "GSN-HydroCel-129"
-reference: "average"
-```
+- Subject loop (
+`compute_subject_source_contrast`
+) morphs once per subject, returns two independent STCs; label flipping never modifies vertex data.
+- Vertex stats call `run_source_cluster_test(stcs, fsaverage_src, config, make_magnitude=False)`; label stats call `run_label_timecourse_cluster_test` which now enforces `restrict_to` gracefully.
+- `postprocess.save_subject_stc` / `dump_window_average` default to false; they are true QC toggles only (they no longer affect label outputs).
+- Reports include a “Polarity Handling” section plus dipole context:
+  > “Vertex-wise analyses run without a global sign flip; label time-series handle polarity locally via mode="mean_flip". … Label-level tests were restricted to caudalanteriorcingulate/rostralanteriorcingulate/superiorparietal/precuneus … to probe the anterior–posterior dipole suggested by sensor-space clusters.”
+- When magnitude mode is enabled for a different experiment, the report explicitly states the vertex branch is orientation-invariant and that sign is not interpretable.
 
-Testing notes (TDD): lightweight unit tests validate that defaults merge correctly and path resolution behaves as expected.
+## Keeping This Doc Accurate
 
+- If you change the YAML defaults (e.g., add other parcels, enable vertex stats, turn on `make_magnitude`, switch depth), update both the README and the YAML comments.
+- Whenever aux files or report sections change, verify that the README still matches the folder layout.
+- For new cohorts, update subject count and data paths here first.
 
-python -m code.run_full_analysis_pipeline --config configs/23_32_22_33/sensor_23_32_22_33.yaml --accuracy acc1
->>
-
-
-
-
-intraparietal sulcus 
+With this README, anyone reviewing the project can reconstruct the pipeline: where data sit, how contrasts are formed, how vertex vs. label stats diverge, and what files to inspect for signed ROI answers. Keep it synced with the configs and log outputs as the project evolves. 
 
 
 

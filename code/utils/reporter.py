@@ -2,12 +2,50 @@
 SFN2 Reporting Utilities
 """
 import logging
-import numpy as np
 from pathlib import Path
-import json as _json
+
+import mne
+import numpy as np
 from scipy.stats import t as t_dist
+import json as _json
 
 log = logging.getLogger()
+_APARC_LABEL_CACHE = {}
+
+
+def _get_aparc_lookup(parc: str, subjects_dir: Path) -> dict:
+    key = (parc, Path(subjects_dir).resolve())
+    if key not in _APARC_LABEL_CACHE:
+        lookup = {'lh': [], 'rh': []}
+        for hemi in ('lh', 'rh'):
+            labels = mne.read_labels_from_annot(
+                subject='fsaverage',
+                parc=parc,
+                hemi=hemi,
+                subjects_dir=str(subjects_dir),
+                verbose=False,
+            )
+            lookup[hemi] = [(lab.name, np.asarray(lab.vertices, dtype=int)) for lab in labels]
+        _APARC_LABEL_CACHE[key] = lookup
+    return _APARC_LABEL_CACHE[key]
+
+
+def _describe_cluster_with_aparc(vertex_ids_by_hemi: dict, subjects_dir: Path, parc: str = 'aparc', top_n: int = 3) -> dict:
+    lookup = _get_aparc_lookup(parc, subjects_dir)
+    out: dict[str, list[tuple[str, int]]] = {}
+    for hemi in ('lh', 'rh'):
+        verts = np.asarray(vertex_ids_by_hemi.get(hemi, []), dtype=int)
+        if verts.size == 0:
+            continue
+        hits = []
+        for name, lab_vertices in lookup[hemi]:
+            count = int(np.intersect1d(verts, lab_vertices, assume_unique=False).size)
+            if count:
+                hits.append((name, count))
+        if hits:
+            hits.sort(key=lambda x: x[1], reverse=True)
+            out[hemi] = hits[:top_n]
+    return out
 
 
 def _compute_peak_descriptives(mean_value, peak_t, n_subjects):
@@ -103,6 +141,28 @@ def generate_report(stats_results, times, ch_names, config, output_dir, grand_av
         f.write(f"Cluster significance alpha: {alpha}\n")
         f.write(f"Number of permutations: {config['stats']['n_permutations']}\n")
         f.write(f"Test tail: {'two-sided' if config['stats']['tail'] == 0 else ('positive' if config['stats']['tail'] == 1 else 'negative')}\n")
+
+        f.write("\nPolarity Handling:\n")
+        f.write("-" * 20 + "\n")
+        align_requested = bool((config.get('postprocess') or {}).get('align_sign', False))
+        make_magnitude = bool((config.get('postprocess') or {}).get('make_magnitude', False))
+        magnitude_note = " Vertex-level stats were run on |current|; sign is not interpretable." if make_magnitude else ""
+        if align_requested:
+            f.write(
+                "Config requested postprocess.align_sign=true. Vertex-wise analyses run without a global flip; "
+                "label time-series handle polarity locally via mode=\"mean_flip\"." + magnitude_note + "\n\n"
+            )
+        else:
+            f.write(
+                "Vertex-wise analyses run without a global sign flip; label time-series handle polarity locally via "
+                "mode=\"mean_flip\"." + magnitude_note + "\n\n"
+            )
+        restrict_labels = (config.get('stats', {}).get('label_timeseries') or {}).get('restrict_to') or []
+        if restrict_labels:
+            f.write(
+                "This run used signed data (no orientation-invariant transform). Label tests were restricted to "
+                f"{', '.join(restrict_labels)} to probe the anterior–posterior dipole suggested by sensor-space clusters.\n\n"
+            )
 
         # Report ROI restriction if used
         roi_cfg = config.get('stats', {}).get('roi')
@@ -200,7 +260,15 @@ def generate_report(stats_results, times, ch_names, config, output_dir, grand_av
     log.info("Report generation complete.")
 
 
-def generate_source_report(stats_results, stc_grand_average, config, output_dir, n_subjects):
+def generate_source_report(
+    stats_results,
+    stc_grand_average,
+    config,
+    output_dir,
+    n_subjects,
+    *,
+    movie_artifacts: dict | None = None,
+):
     """
     Generates a text report summarizing the source-space cluster results.
     """
@@ -215,8 +283,13 @@ def generate_source_report(stats_results, stc_grand_average, config, output_dir,
     vertex_cfg = (config.get('stats', {}).get('vertex') or {})
     vertex_enabled = bool(vertex_cfg.get('enabled', True))
 
+    movie_artifacts = movie_artifacts or {}
+
     report_path = output_dir / f"{config['analysis_name']}_report.txt"
     log.info(f"Generating source statistical report at: {report_path}")
+
+    project_root = Path(__file__).resolve().parents[2]
+    subjects_dir = project_root / 'data' / 'fs_subjects_dir'
 
     with open(report_path, 'w', encoding='utf-8') as f:
         f.write("=" * 80 + "\n")
@@ -238,11 +311,23 @@ def generate_source_report(stats_results, stc_grand_average, config, output_dir,
         if analysis_window:
             f.write(f"Statistical Window (tested): {analysis_window[0]}s to {analysis_window[1]}s\n")
         else:
-            # If no analysis window, show the effective window from the STC object
             f.write(f"Statistical Window (tested): {stc_grand_average.times[0]:.3f}s to {stc_grand_average.times[-1]:.3f}s\n")
         f.write(f"Source Method: {config['source']['method']}\n")
         f.write(f"Source SNR: {config['source']['snr']}\n")
         f.write("\n")
+
+        if config.get('_hs_normalized'):
+            power = config.get('_hs_normalization_power', 1.0)
+            norm_desc = "total current" if abs(power - 1.0) < 1e-6 else "total power"
+            f.write("Post-processing:\n")
+            f.write("-" * 20 + "\n")
+            f.write(
+                f"Source values were normalized to unit {norm_desc} per subject and "
+                "log-transformed following Hyde & Spelke (2012) and the LORETA-KEY documentation.\n"
+            )
+            f.write("\n")
+        else:
+            norm_desc = None
 
         f.write("Statistical Parameters:\n")
         f.write("-" * 20 + "\n")
@@ -251,7 +336,19 @@ def generate_source_report(stats_results, stc_grand_average, config, output_dir,
         f.write(f"Number of permutations: {config['stats']['n_permutations']}\n")
         f.write("\n")
 
-        # Inverse operator provenance (if available)
+        if movie_artifacts:
+            f.write("Visualization Movies:\n")
+            f.write("-" * 20 + "\n")
+            labels = {
+                "source": "Source movie",
+                "topo": "Sensor topomap movie",
+                "stitched": "Side-by-side movie",
+            }
+            for key, path in movie_artifacts.items():
+                label = labels.get(key, key.capitalize())
+                f.write(f"{label}: {path}\n")
+            f.write("\n")
+
         try:
             prov_path = Path(output_dir) / "inverse_provenance.json"
             if prov_path.exists():
@@ -283,15 +380,12 @@ def generate_source_report(stats_results, stc_grand_average, config, output_dir,
                 f.write("No significant clusters found.\n")
         else:
             f.write(f"Found {len(sig_cluster_indices)} significant cluster(s).\n\n")
-            
-            # --- Filter and sort clusters for reporting (CH's suggestion) ---
+
             alpha = float(config['stats']['cluster_alpha'])
             sig_clusters_with_p = [(clusters[i], cluster_p_values[i]) for i in sig_cluster_indices]
 
-            # Sort by p-value
             sorted_clusters = sorted(sig_clusters_with_p, key=lambda x: x[1])
 
-            # Cap the number of reported clusters
             max_report = int(config['stats'].get('max_report_clusters', 25))
             if len(sorted_clusters) > max_report:
                 f.write(f"Displaying the top {max_report} most significant clusters (out of {len(sorted_clusters)} found):\n\n")
@@ -375,8 +469,9 @@ def generate_source_report(stats_results, stc_grand_average, config, output_dir,
                     if desc is not None:
                         ci_mean_low, ci_mean_high = desc["ci_mean"]
                         ci_d_low, ci_d_high = desc["ci_d"]
-                        f.write(f"    Mean difference: {desc['mean']:.3f} {amplitude_info['unit']} ")
-                        f.write(f"(95% CI [{ci_mean_low:.3f}, {ci_mean_high:.3f}])\n")
+                        # Use compact scientific formatting for arbitrary units to avoid misleading zeros
+                        f.write(f"    Mean difference: {desc['mean']:.3g} {amplitude_info['unit']} ")
+                        f.write(f"(95% CI [{ci_mean_low:.3g}, {ci_mean_high:.3g}])\n")
                         f.write(f"    Cohen's d: {desc['cohen_d']:.2f} ")
                         f.write(f"(95% CI [{ci_d_low:.2f}, {ci_d_high:.2f}])\n")
                     else:
@@ -384,7 +479,67 @@ def generate_source_report(stats_results, stc_grand_average, config, output_dir,
                 else:
                     f.write(f"  - Peak t-value: {peak_t_val:.3f} at {peak_time_ms:.1f} ms (vertex index unavailable)\n")
                     f.write("    Mean difference / effect size could not be estimated (mapping issue).\n")
+
+                cluster_vertices_global = np.unique(v_inds)
+                lh_vertex_ids = np.array([], dtype=int)
+                rh_vertex_ids = np.array([], dtype=int)
+                if cluster_vertices_global.size:
+                    cluster_vertices_global = cluster_vertices_global.astype(int)
+                    if keep_idx is not None:
+                        try:
+                            keep_idx_arr = np.asarray(keep_idx, dtype=int)
+                            cluster_vertices_global = keep_idx_arr[cluster_vertices_global]
+                        except Exception:
+                            pass
+                    cluster_vertices_global = np.asarray(cluster_vertices_global, dtype=int)
+                    lh_mask = cluster_vertices_global < n_lh
+                    if lh_mask.any():
+                        lh_vertex_ids = vertices_lh[cluster_vertices_global[lh_mask]]
+                    if (~lh_mask).any():
+                        rh_indices = cluster_vertices_global[~lh_mask] - n_lh
+                        rh_vertex_ids = vertices_rh[rh_indices]
+
+                aparc_hits = _describe_cluster_with_aparc(
+                    {
+                        'lh': lh_vertex_ids,
+                        'rh': rh_vertex_ids,
+                    },
+                    subjects_dir,
+                )
+                if aparc_hits:
+                    f.write("    Anatomy (aparc):\n")
+                    for hemi_label in ('lh', 'rh'):
+                        hits = aparc_hits.get(hemi_label)
+                        if not hits:
+                            continue
+                        hit_str = ", ".join(f"{name} ({count})" for name, count in hits)
+                        f.write(f"      {hemi_label}: {hit_str}\n")
+                else:
+                    f.write("    Anatomy (aparc): no label coverage detected.\n")
+
                 f.write(f"  - Time window: {tmin_ms:.1f} ms to {tmax_ms:.1f} ms\n")
                 f.write(f"  - Number of vertices: {n_verts}\n\n")
     
+        label_cfg = (config.get('stats', {}).get('label_timeseries') or {})
+        label_summary_path = Path(output_dir) / "aux" / "label_cluster_summary.txt"
+        if bool(label_cfg.get('enabled', True)):
+            if label_summary_path.exists():
+                try:
+                    rel_label_path = label_summary_path.relative_to(output_dir)
+                except Exception:
+                    rel_label_path = label_summary_path
+                f.write(
+                    "\nLabel-level tests were also run; see "
+                    f"{rel_label_path} for detailed results (p-values uncorrected across labels).\n"
+                )
+            else:
+                f.write(
+                    "\nLabel-level tests were configured but no label summary file was generated. "
+                    "Check logs for label clustering errors.\n"
+                )
+        else:
+            f.write(
+                "\nLabel-level tests were not run (stats.label_timeseries.enabled = false).\n"
+            )
+
     log.info("Source report generation complete.")

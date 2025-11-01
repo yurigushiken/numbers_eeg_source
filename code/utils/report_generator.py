@@ -1,4 +1,5 @@
 import yaml
+import re
 from pathlib import Path
 import logging
 from datetime import datetime
@@ -14,6 +15,7 @@ from code.utils.caption_generator import (
     infer_topography_from_channels
 )
 from code.utils.data_quality_checker import get_preprocessing_info_from_config
+from code.utils.label_summary import parse_label_summary
 
 log = logging.getLogger()
 
@@ -436,6 +438,7 @@ def _build_source_section_html(
 
     source_report_path = source_output_dir / f"{analysis_name_base}_report.txt"
     source_plot_path = source_output_dir / f"{analysis_name_base}_source_cluster.png"
+    continuous_preview_path = source_output_dir / f"{analysis_name_base}_grand_average_continuous.png"
     anatomical_report_path = source_output_dir / f"{analysis_name_base}_anatomical_report.csv"
     hs_summary_path = source_output_dir / f"{analysis_name_base}_anatomical_summary_hs.csv"
     label_ts_summary_path = source_output_dir / "aux" / "label_cluster_summary.txt"
@@ -446,9 +449,29 @@ def _build_source_section_html(
     # --- Build each component separately ---
 
     # 1. Statistical Findings
+    hs_note_html = ""
+    coverage_warning_html = ""
+    note_snippet = "Source values were normalized to unit"
+    if note_snippet in source_stats:
+        hs_note_html = (
+            "<p class=\"meta-info\">Source values were normalized to unit total current "
+            "per subject and log-transformed.</p>"
+        )
+        large_clusters = [
+            d for d in cluster_details.values() if d.get("n_vertices", 0) >= 2000
+        ]
+        if large_clusters:
+            coverage_warning_html = (
+                "<p class=\"warning\">Warning: surviving clusters cover most of the "
+                "tested vertices. Review normalization parameters to ensure they are not "
+                "over-smoothing subject differences.</p>"
+            )
+
     statistical_findings_html = f"""
         <div class="findings">
             <h3>Statistical Findings</h3>
+            {hs_note_html}
+            {coverage_warning_html}
             <pre><code>{source_stats}</code></pre>
         </div>
     """
@@ -510,13 +533,61 @@ def _build_source_section_html(
         pass
 
     # If we have plots but no anatomical data, fall back to showing plots only
+    config = {}
+    if source_config_path and source_config_path.exists():
+        try:
+            with open(source_config_path, 'r', encoding='utf-8') as cf:
+                config = yaml.safe_load(cf) or {}
+        except Exception:
+            config = {}
+
+    stats_cfg = (config.get('stats') or {})
+    vertex_enabled = bool((stats_cfg.get('vertex') or {}).get('enabled', False))
+    label_ts_enabled = bool((stats_cfg.get('label_timeseries') or {}).get('enabled', False))
+    analysis_window = stats_cfg.get('analysis_window')
+    analysis_window_ms_label = ""
+    if isinstance(analysis_window, (list, tuple)) and len(analysis_window) == 2:
+        try:
+            start_ms = int(round(float(analysis_window[0]) * 1000))
+            end_ms = int(round(float(analysis_window[1]) * 1000))
+            analysis_window_ms_label = f"{start_ms}-{end_ms} ms"
+        except Exception:
+            analysis_window_ms_label = ""
+
+    vertex_cfg = (stats_cfg.get('vertex') or {})
+    vertex_restricted = False
+    if isinstance(vertex_cfg, dict):
+        if vertex_cfg.get('restrict_to_roi'):
+            vertex_restricted = True
+        restrict_list = vertex_cfg.get('restrict_to') or []
+        if restrict_list:
+            vertex_restricted = True
+    label_cfg = (stats_cfg.get('label_timeseries') or {})
+
+    combined_plot_path = source_output_dir / f"{analysis_name_base}_source_clusters_combined.png"
+    is_whole_brain = (
+        vertex_enabled
+        and not bool(label_cfg.get('enabled'))
+        and not vertex_restricted
+    )
+    has_combined = combined_plot_path.exists()
+    suppress_cluster_figures = is_whole_brain and has_combined
+    log.debug(
+        "Source report section '%s': is_whole_brain=%s, combined_path=%s, exists=%s",
+        analysis_name_base,
+        is_whole_brain,
+        combined_plot_path,
+        has_combined,
+    )
+
     if cluster_plots and not cluster_ids:
         for cluster_id in sorted(cluster_plots.keys()):
             plot_path = cluster_plots[cluster_id]
             rel_path = os.path.relpath(plot_path.resolve(), start=report_dir)
             fig_num = f"{figure_number_prefix}.{cluster_id}"
 
-            cluster_blocks_html += f"""
+            if not suppress_cluster_figures:
+                cluster_blocks_html += f"""
             <div class="figure-container">
                 <img src="{rel_path}" alt="Source Cluster {cluster_id}">
                 <figcaption><strong>Figure {fig_num} (Cluster #{cluster_id})</strong></figcaption>
@@ -531,7 +602,7 @@ def _build_source_section_html(
                 cluster_blocks_html += anatomical_html
 
             # Add plot for this cluster right after (if it exists)
-            if cluster_id in cluster_plots:
+            if cluster_id in cluster_plots and not suppress_cluster_figures:
                 plot_path = cluster_plots[cluster_id]
                 rel_path = os.path.relpath(plot_path.resolve(), start=report_dir)
                 fig_num = f"{figure_number_prefix}.{cluster_id}"
@@ -546,11 +617,256 @@ def _build_source_section_html(
     label_ts_summary = label_ts_summary_path.read_text() if label_ts_summary_path.exists() else ""
     label_ts_section = LABEL_TS_SECTION_TEMPLATE.format(label_ts_summary=label_ts_summary) if label_ts_summary else ""
 
-    # If no clusters found at all, show null result
-    if not cluster_blocks_html:
-        cluster_blocks_html = NULL_SOURCE_SECTION_TEMPLATE.format(label_ts_section=label_ts_section)
+    label_summary_data = parse_label_summary(label_ts_summary_path) if label_ts_summary_path.exists() else None
+    significant_labels = label_summary_data.significant if label_summary_data else []
+    best_label_entry = significant_labels[0] if significant_labels else None
+
+    best_label_name = best_label_entry.name if best_label_entry else ""
+    best_label_p = f"{best_label_entry.p_value:.4f}" if (best_label_entry and best_label_entry.p_value is not None) else ""
+
+    if not analysis_window_ms_label and label_summary_data:
+        start_s = label_summary_data.header.get('window_start_s')
+        end_s = label_summary_data.header.get('window_end_s')
+        if start_s is not None and end_s is not None:
+            try:
+                start_ms = int(round(float(start_s) * 1000))
+                end_ms = int(round(float(end_s) * 1000))
+                analysis_window_ms_label = f"{start_ms}-{end_ms} ms"
+            except Exception:
+                analysis_window_ms_label = ""
+
+    combined_html = ""
+    if suppress_cluster_figures:
+        n_clusters = len(cluster_details) if cluster_details else len(cluster_plots)
+        if n_clusters > 0:
+            try:
+                combined_rel = os.path.relpath(combined_plot_path.resolve(), start=report_dir)
+            except Exception:
+                combined_rel = str(combined_plot_path)
+            min_p = min([d.get('p_value', 1.0) for d in cluster_details.values()]) if cluster_details else None
+            p_text = f"p≤{min_p:.3f}" if min_p is not None else "p<0.05"
+            caption = (
+                f"Whole-brain source analysis (combined view). {n_clusters} significant clusters ({p_text}). "
+                "See run folder for individual cluster figures."
+            )
+            combined_html = f"""
+        <div class="figure-container">
+            <img src="{combined_rel}" alt="Combined source clusters">
+            <figcaption><strong>{caption}</strong></figcaption>
+        </div>
+        """
+
+    label_results_block = ""
+    if label_summary_data:
+        lines = ["RESULTS", "=" * 79]
+        if significant_labels:
+            lines.append(f"Found {len(significant_labels)} significant label(s) (p-values uncorrected across labels).")
+            lines.append("-" * 40)
+            perms = label_summary_data.header.get('n_permutations')
+            perm_text = str(perms) if perms is not None else "unknown"
+            for idx, entry in enumerate(significant_labels, start=1):
+                lines.append(f"Label #{idx}: {entry.name}")
+                lines.append("-" * 40)
+                if entry.p_value is not None:
+                    lines.append(f"  - p-value: {entry.p_value:.4f}")
+                if entry.t_sum is not None:
+                    lines.append(f"  - t-sum: {entry.t_sum:.2f}")
+                if entry.time_start_ms is not None and entry.time_end_ms is not None:
+                    lines.append(f"  - time window: {entry.time_start_ms:.1f}-{entry.time_end_ms:.1f} ms")
+                if entry.peak_ms is not None:
+                    lines.append(f"  - peak: {entry.peak_ms:.1f} ms")
+                lines.append(f"  - permutations: {perm_text}")
+                lines.append(f"  - solver: {method.upper()}")
+                lines.append("-" * 40)
+        else:
+            lines.append("No labels exceeded the cluster threshold; see aux/label_cluster_summary.txt for full table.")
+        block_text = "\n".join(lines)
+        label_results_block = f"<pre><code>{block_text}</code></pre>"
     elif label_ts_section:
-        cluster_blocks_html += label_ts_section
+        block_lines = ["RESULTS", "=" * 79, "Label summary unavailable; see aux/label_cluster_summary.txt for full table."]
+        block_text = "\n".join(block_lines)
+        label_results_block = f"<pre><code>{block_text}</code></pre>"
+
+    label_only_mode = (not vertex_enabled and bool(label_ts_section))
+    summary_sentence = ""
+
+    if label_only_mode:
+        sentence_parts = ["Label-only source analysis (vertex clusters disabled)."]
+        if best_label_name and best_label_p:
+            sentence_parts.append(f"Most significant label: {best_label_name} (p={best_label_p}).")
+        if analysis_window_ms_label:
+            sentence_parts.append(f"Window={analysis_window_ms_label}.")
+        sentence_parts.append(f"Method={method.upper()}.")
+        summary_sentence = " ".join(sentence_parts)
+
+        cleaned_lines = [
+            ln for ln in source_stats.splitlines()
+            if "Vertex-space clustering was disabled" not in ln
+            and "Label-level tests were also run" not in ln
+        ]
+        cleaned_source_stats = "\n".join(cleaned_lines).strip()
+        if not cleaned_source_stats:
+            cleaned_source_stats = "Label-only cluster permutation results are summarized below."
+
+        statistical_findings_html = f"""
+        <div class="findings">
+            <h3>Statistical Findings</h3>
+            <p>{summary_sentence}</p>
+            {hs_note_html}
+            {coverage_warning_html}
+            {label_results_block}
+            <pre><code>{cleaned_source_stats}</code></pre>
+        </div>
+        """
+
+        cluster_blocks_html = ""
+
+    continuous_html = ""
+    if continuous_preview_path.exists():
+        try:
+            continuous_rel = os.path.relpath(continuous_preview_path.resolve(), start=report_dir)
+        except Exception:
+            continuous_rel = str(continuous_preview_path)
+
+        window_caption = analysis_window_ms_label or "the analysis window"
+        caption = (
+            f"Continuous grand-average STC (time-averaged over {window_caption}). "
+            "Use this to define data-driven ROIs."
+        )
+        caption += f" Solver: {method.upper()}."
+
+        continuous_html = f"""
+        <div class="figure-container">
+            <img src="{continuous_rel}" alt="Continuous grand-average STC">
+            <figcaption><strong>{caption}</strong></figcaption>
+        </div>
+        """
+
+    label_highlight_html = ""
+    if label_only_mode:
+        label_top_path = source_output_dir / f"{analysis_name_base}_label_top.png"
+        if label_top_path.exists() and best_label_entry:
+            try:
+                label_top_rel = os.path.relpath(label_top_path.resolve(), start=report_dir)
+            except Exception:
+                label_top_rel = str(label_top_path)
+
+            window_text = ""
+            if (
+                best_label_entry.time_start_ms is not None
+                and best_label_entry.time_end_ms is not None
+            ):
+                window_text = f"window={best_label_entry.time_start_ms:.1f}-{best_label_entry.time_end_ms:.1f} ms"
+            solver_text = f"Solver: {method.upper()}"
+            parts = [f"Most significant label: {best_label_entry.name}"]
+            if best_label_entry.p_value is not None:
+                parts[-1] += f" (p={best_label_entry.p_value:.4f})"
+            if window_text:
+                parts.append(window_text)
+            parts.append(solver_text)
+            highlight_caption = " | ".join(parts)
+
+            label_highlight_html = f"""
+            <div class="figure-container">
+                <img src="{label_top_rel}" alt="Top label highlight">
+                <figcaption><strong>{highlight_caption}</strong></figcaption>
+            </div>
+            """
+
+    peak_html = ""
+    peak_image_path = source_output_dir / f"{analysis_name_base}_grand_average_peak.png"
+    if peak_image_path.exists():
+        try:
+            peak_rel = os.path.relpath(peak_image_path.resolve(), start=report_dir)
+        except Exception:
+            peak_rel = str(peak_image_path)
+
+        peak_meta = {}
+        peak_meta_path = source_output_dir / f"{analysis_name_base}_grand_average_peak.json"
+        if peak_meta_path.exists():
+            try:
+                peak_meta = _json.loads(peak_meta_path.read_text())
+            except Exception:
+                peak_meta = {}
+
+        caption_lines = ["<strong>Peak-moment snapshot</strong>"]
+        reason = peak_meta.get('reason')
+        method_meta = peak_meta.get('method', method.upper())
+        if reason == 'label' and peak_meta.get('label_name'):
+            label_line = f"Label {peak_meta['label_name']}"
+            if peak_meta.get('label_p') is not None:
+                try:
+                    label_line += f" (p={float(peak_meta['label_p']):.4f})"
+                except Exception:
+                    pass
+            caption_lines.append(label_line)
+        elif reason == 'vertex' and peak_meta.get('cluster_p') is not None:
+            try:
+                caption_lines.append(f"Vertex cluster (p={float(peak_meta['cluster_p']):.4f})")
+            except Exception:
+                caption_lines.append("Vertex cluster (peak)")
+        elif reason == 'global':
+            caption_lines.append("Global maximum across the analysis window")
+        elif reason == 'window':
+            window_ms = peak_meta.get('analysis_window_ms')
+            if window_ms and isinstance(window_ms, (list, tuple)) and len(window_ms) == 2:
+                try:
+                    caption_lines.append(
+                        f"Analysis window midpoint ({float(window_ms[0]):.1f}-{float(window_ms[1]):.1f} ms)"
+                    )
+                except Exception:
+                    pass
+
+        time_ms = peak_meta.get('time_ms')
+        if time_ms is not None:
+            try:
+                caption_lines.append(f"Time = {float(time_ms):.1f} ms")
+            except Exception:
+                caption_lines.append("Time = n/a")
+        else:
+            caption_lines.append("Time = n/a")
+
+        caption_lines.append("Source = grand-average STC (single time slice)")
+        caption_lines.append("Purpose: show the focal pattern that drove the stats.")
+        caption_lines.append(f"Solver: {method_meta}")
+
+        peak_caption = "<br>".join(caption_lines)
+        peak_html = f"""
+        <div class="figure-container">
+            <img src="{peak_rel}" alt="Peak grand-average STC">
+            <figcaption>{peak_caption}</figcaption>
+        </div>
+        """
+
+    sections = []
+    if combined_html:
+        sections.append(combined_html)
+
+    if not label_only_mode and cluster_blocks_html:
+        sections.append(cluster_blocks_html)
+
+    if continuous_html:
+        sections.append(continuous_html)
+
+    if peak_html:
+        sections.append(peak_html)
+
+    if label_highlight_html:
+        sections.append(label_highlight_html)
+
+    if label_ts_section:
+        sections.append(label_ts_section)
+
+    if not sections:
+        if label_only_mode:
+            fallback = summary_sentence or "Label-only source analysis (vertex clusters disabled)."
+            sections.append(f"<p class=\"meta-info\">{fallback}</p>")
+            if label_ts_section:
+                sections.append(label_ts_section)
+        else:
+            sections.append(NULL_SOURCE_SECTION_TEMPLATE.format(label_ts_section=label_ts_section))
+
+    cluster_blocks_html = "".join(sections)
 
     # Build section title with config path if available
     title_with_config = section_title

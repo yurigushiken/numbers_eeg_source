@@ -109,23 +109,45 @@ def main():
         analysis_slug = sensor_config_path.stem
         if analysis_slug.startswith("sensor_"):
             analysis_slug = analysis_slug[len("sensor_"):]
-        candidate_paths = sorted(sensor_config_path.parent.glob(f"*_{analysis_slug}.yaml"))
+        target_group = config_data.get('report_group', analysis_slug)
+        candidate_paths = []
+        for candidate in sensor_config_path.parent.glob("*.yaml"):
+            if candidate.resolve() == sensor_config_path.resolve():
+                continue
+            try:
+                with open(candidate, 'r', encoding='utf-8') as cf:
+                    candidate_cfg = yaml.safe_load(cf) or {}
+            except Exception as exc:
+                log.warning(f"Failed to load candidate source config {candidate}: {exc}")
+                continue
+
+            if (candidate_cfg or {}).get("domain") != "source":
+                continue
+
+            candidate_group = candidate_cfg.get('report_group')
+            candidate_slug_match = candidate.stem.endswith(f"_{analysis_slug}")
+            group_matches = (
+                (candidate_group is not None and candidate_group == target_group)
+                or (candidate_group is None and candidate_slug_match)
+            )
+            if not group_matches:
+                continue
+
+            order_val = candidate_cfg.get('report_order')
+            sort_key = (1, candidate.name.lower())
+            if isinstance(order_val, (int, float)):
+                sort_key = (0, float(order_val))
+            elif isinstance(order_val, str):
+                try:
+                    sort_key = (0, float(order_val))
+                except ValueError:
+                    sort_key = (0, order_val.lower())
+            candidate_paths.append((sort_key, candidate, candidate_cfg))
+
         if not candidate_paths:
             log.warning("No companion source-space configs found in directory; skipping source analyses.")
         else:
-            for candidate in candidate_paths:
-                if candidate.resolve() == sensor_config_path.resolve():
-                    continue
-                try:
-                    with open(candidate, 'r', encoding='utf-8') as cf:
-                        candidate_cfg = yaml.safe_load(cf) or {}
-                except Exception as exc:
-                    log.warning(f"Failed to load candidate source config {candidate}: {exc}")
-                    continue
-
-                if (candidate_cfg or {}).get("domain") != "source":
-                    continue
-
+            for _, candidate, candidate_cfg in sorted(candidate_paths, key=lambda x: x[0]):
                 method = (candidate_cfg.get("source") or {}).get("method", "unknown")
                 log.info(f"--- Running source analysis ({method}) for {candidate} ---")
                 output_dir = run_source_analysis(

@@ -8,6 +8,7 @@ import yaml
 import mne
 from mne.datasets import fetch_fsaverage
 from mne.minimum_norm import make_inverse_operator, write_inverse_operator
+import numpy as np
 import mne.channels
 
 logging.basicConfig(level=logging.INFO)
@@ -274,8 +275,15 @@ def create_subject_contrast(subject_dir, config, accuracy: str = "all"):
             return None, None
 
         # Average the evoked responses for each condition set
-        grand_average_A = mne.grand_average(evoked_A)
-        grand_average_B = mne.grand_average(evoked_B)
+        if len(evoked_A) > 1:
+            grand_average_A = mne.grand_average(evoked_A)
+        else:
+            grand_average_A = evoked_A[0].copy()
+
+        if len(evoked_B) > 1:
+            grand_average_B = mne.grand_average(evoked_B)
+        else:
+            grand_average_B = evoked_B[0].copy()
 
         # Create the contrast
         contrast_evoked = mne.combine_evoked(
@@ -482,6 +490,72 @@ def get_evoked_for_condition(subject_dir, condition_info, baseline=None, use_com
     return [], []
 
 
+def normalize_and_log_stc(
+    stc,
+    *,
+    window: tuple[float, float] | list[float],
+    power: float = 1.0,
+    take_abs: bool = False,
+    eps: float = 1e-12,
+):
+    """Normalize an STC to unit total current over an analysis window and log it.
+
+    This mirrors the Hyde & Spelke (2012) LORETA workflow: compute one
+    scalar image per subject (via time averaging inside ``window``),
+    normalize that image to unit total current (or power), and apply a
+    log transform. The sign of the averaged activity is preserved unless
+    ``take_abs`` is explicitly requested.
+    """
+
+    if power <= 0:
+        raise ValueError("normalization power must be positive")
+
+    if window is None:
+        window = (stc.tmin, stc.tmax)
+
+    tmin, tmax = float(window[0]), float(window[1])
+    stc_window = stc.copy().crop(tmin=tmin, tmax=tmax)
+
+    data = stc_window.data
+    if data.size == 0:
+        return stc_window
+
+    mean_map = data.mean(axis=1, keepdims=True)
+
+    if take_abs:
+        map_for_norm = np.abs(mean_map)
+    else:
+        map_for_norm = mean_map
+
+    norm_denom = np.sum(np.abs(map_for_norm) ** power)
+    norm_denom = float(max(norm_denom ** (1.0 / power), eps))
+
+    magnitude = np.abs(map_for_norm) / norm_denom
+    logged = np.log(magnitude + eps)
+
+    if take_abs:
+        normalized_map = logged
+    else:
+        normalized_map = np.sign(mean_map) * logged
+
+    replicated = np.repeat(normalized_map, data.shape[1], axis=1)
+    stc_window._data = replicated
+    return stc_window
+
+
+def align_stc_sign(stc, *, window=None, vertices: np.ndarray | None = None):
+    """Flip STC sign so the analysis window has positive mean."""
+
+    stc_copy = stc if window is None else stc.copy().crop(tmin=window[0], tmax=window[1])
+    data = stc_copy.data
+    if vertices is not None and vertices.size:
+        data = data[vertices]
+    mean_val = float(data.mean())
+    if mean_val < 0:
+        stc._data *= -1.0
+    return stc
+
+
 def get_inverse_operator(subject_dir):
     """
     Reads the inverse operator for a given subject.
@@ -632,7 +706,7 @@ def generate_template_inverse_operator_from_epochs(epochs, subject_dir, config):
     # 5. Get inverse params from config, with EEG-appropriate defaults
     inverse_params = config.get('inverse', {})
     loose = inverse_params.get('loose', 0.2)
-    depth = inverse_params.get('depth', 3.0)
+    depth = inverse_params.get('depth', 0.8)
     log.info(f"Computing inverse operator with loose={loose}, depth={depth}...")
 
     # 6. Compute inverse operator

@@ -13,14 +13,18 @@ from scipy.spatial.distance import pdist, squareform
 log = logging.getLogger()
 
 def _resolve_fs_subjects_dir(project_root: Path) -> Path:
-    candidates = [
-        project_root / 'data' / 'fs_subjects_dir',
-        project_root / 'data' / 'all' / 'fs_subjects_dir',
-    ]
-    for cand in candidates:
-        if cand.exists():
-            return cand
-    return candidates[0]
+    """Return the required FS subjects directory, failing fast if missing.
+
+    This project standardizes on data/fs_subjects_dir and does not support
+    legacy data/all/fs_subjects_dir fallbacks.
+    """
+    subjects_dir = project_root / 'data' / 'fs_subjects_dir'
+    if not subjects_dir.exists():
+        raise FileNotFoundError(
+            f"FreeSurfer subjects directory not found at {subjects_dir}. "
+            "Expected fsaverage under data/fs_subjects_dir/."
+        )
+    return subjects_dir
 
 def _load_sensor_roi_definitions():
     """
@@ -219,7 +223,7 @@ def run_sensor_cluster_test(contrasts, config):
     return (t_obs, clusters, cluster_p_values, H0), ch_names
 
 
-def run_source_cluster_test(stcs, fsaverage_src, config):
+def run_source_cluster_test(stcs, fsaverage_src, config, *, make_magnitude: bool = False):
     """
     Runs a spatio-temporal cluster 1-sample t-test on source-space contrasts.
     """
@@ -354,7 +358,13 @@ def run_source_cluster_test(stcs, fsaverage_src, config):
             config['stats']['_keep_idx'] = keep_idx.tolist()
         except Exception:
             pass
-    log.info(f"Clustering over cropped window {tmin:.3f}s to {tmax:.3f}s with data shape {X_cropped.shape}")
+    if make_magnitude:
+        X_cropped = np.abs(X_cropped)
+        log.info(
+            f"Clustering over cropped window {tmin:.3f}s to {tmax:.3f}s with magnitude data shape {X_cropped.shape}"
+        )
+    else:
+        log.info(f"Clustering over cropped window {tmin:.3f}s to {tmax:.3f}s with data shape {X_cropped.shape}")
 
     # Run the cluster permutation test on the cropped data
     log.info(f"Running source cluster permutation test with {config['stats']['n_permutations']} permutations...")
@@ -392,11 +402,30 @@ def run_label_timecourse_cluster_test(stcs, fsaverage_src, config):
     if lt_cfg.get('enabled', True) is False:
         raise ValueError("Label time-series analysis was disabled in the config.")
 
+    extraction_mode = str(
+        lt_cfg.get(
+            'mode',
+            lt_cfg.get(
+                '_extract_mode_resolved',
+                lt_cfg.get(
+                    'extraction_mode',
+                    lt_cfg.get('ts_mode', lt_cfg.get('aggregation', 'mean_flip'))
+                ),
+            ),
+        )
+    ).lower()
+    if extraction_mode in {'', 'fallback', 'always', 'only'}:
+        extraction_mode = 'mean_flip'
+
     parc = lt_cfg.get('parc', 'aparc')
-    labels_wanted = lt_cfg.get('labels') or stats_cfg.get('roi', {}).get('labels', [])
-    if not labels_wanted:
-        raise ValueError("No labels provided for label time-series test (stats.label_timeseries.labels).")
-    labels_wanted = [s.lower() for s in labels_wanted]
+    labels_wanted = (
+        lt_cfg.get('labels') or
+        lt_cfg.get('restrict_to') or
+        stats_cfg.get('roi', {}).get('labels', [])
+    )
+    # Treat omitted or empty restriction as "all aparc labels"
+    use_all_labels = not labels_wanted or (isinstance(labels_wanted, (list, tuple)) and len(labels_wanted) == 0)
+    labels_wanted = [s.lower() for s in (labels_wanted or [])]
 
     project_root = Path(__file__).resolve().parents[2]
     subjects_dir = _resolve_fs_subjects_dir(project_root)
@@ -406,9 +435,26 @@ def run_label_timecourse_cluster_test(stcs, fsaverage_src, config):
         name = name.lower()
         return name[:-3] if name.endswith('-lh') or name.endswith('-rh') else name
 
-    selected_labels = [lab for lab in all_labels if _base_label(lab.name) in labels_wanted]
-    if not selected_labels:
-        raise ValueError("Selected labels not found on fsaverage. Check parc and label names.")
+    available_names = sorted({lab.name for lab in all_labels})
+    log.debug(f"Loaded {len(available_names)} labels from {parc} (fsaverage): {available_names}")
+
+    if use_all_labels:
+        selected_labels = list(all_labels)
+    else:
+        selected_labels = []
+        missing = []
+        wanted_set = {_base_label(w) for w in labels_wanted}
+        for lab in all_labels:
+            if _base_label(lab.name) in wanted_set:
+                selected_labels.append(lab)
+        found_basenames = {_base_label(l.name) for l in selected_labels}
+        missing = sorted(wanted_set - found_basenames)
+        if missing:
+            log.warning(
+                "Restrict-to labels not found in %s annot: %s", parc, ", ".join(missing)
+            )
+        if not selected_labels:
+            raise ValueError("Selected labels not found on fsaverage. Check parc and label names.")
 
     label_names = [lab.name for lab in selected_labels]
     label_timecourses = []
@@ -417,7 +463,7 @@ def run_label_timecourse_cluster_test(stcs, fsaverage_src, config):
             stc,
             selected_labels,
             src=fsaverage_src,
-            mode='mean_flip',
+            mode=extraction_mode,
             allow_empty=True,
             verbose=False,
         )
@@ -453,8 +499,9 @@ def run_label_timecourse_cluster_test(stcs, fsaverage_src, config):
             'tail': lt_tail,
             'n_permutations': lt_n_permutations,
             'cluster_alpha': lt_cluster_alpha,
-            'labels': labels_wanted,
+            'labels': labels_wanted if not use_all_labels else 'ALL',
             'resolved_label_names': label_names,
+            'extract_mode': extraction_mode,
         }
     except Exception:
         pass
@@ -469,7 +516,7 @@ def run_label_timecourse_cluster_test(stcs, fsaverage_src, config):
 
     log.info(
         f"Running 1D time clustering over labels {labels_wanted} with threshold {thr:.3f}, "
-        f"n_permutations={lt_n_permutations}, tail={lt_tail}"
+        f"n_permutations={lt_n_permutations}, tail={lt_tail}, extraction_mode={extraction_mode}"
     )
 
     per_label_results = []

@@ -22,7 +22,7 @@ log = logging.getLogger()
 
 def _load_and_prep_epochs(subject_id, data_root, montage_path):
     """
-    Load and concatenate all per-condition epoch files for a subject from data/all,
+    Load and concatenate all per-condition epoch files for a subject from data/,
     apply baseline correction, average reference, and standard montage.
     """
     try:
@@ -175,8 +175,8 @@ def _compute_and_save_inverse_operator(info, noise_cov, subject_id, subjects_dir
         verbose=False
     )
 
-    # Save the final product strictly within data/all
-    original_deriv_dir = project_root / "data" / "all" / subject_id
+    # Save the final product strictly within data/
+    original_deriv_dir = project_root / "data" / subject_id
     original_deriv_dir.mkdir(exist_ok=True)
     inv_filename = original_deriv_dir / f"{subject_id}-inv.fif"
     mne.minimum_norm.write_inverse_operator(inv_filename, inv_op, overwrite=True, verbose=False)
@@ -190,19 +190,23 @@ def main():
 
     # 1. Define key paths
     project_root = Path(__file__).resolve().parents[1]
-    # Strictly use data/all as the source of per-condition epochs
-    data_root = project_root / "data" / "all"
+    # Strictly use data/ as the source of per-condition epochs
+    data_root = project_root / "data"
     montage_path = project_root / "assets" / "Channel Location - Net128_v1.sfp" / "AdultAverageNet128_v1.sfp"
     # Create a dedicated output directory for these one-time generated files
     output_root = project_root / "derivatives" / "inverse_solutions_QC"
     output_root.mkdir(exist_ok=True)
 
-    # 2. Resolve fsaverage strictly from data
-    subjects_dir = project_root / "data" / "all" / "fs_subjects_dir"
+    # 2. Resolve fsaverage strictly from data (fail fast if missing)
+    subjects_dir = project_root / "data" / "fs_subjects_dir"
+    if not subjects_dir.exists():
+        raise FileNotFoundError(
+            f"FreeSurfer subjects directory not found at {subjects_dir}. Expected fsaverage under data/fs_subjects_dir/."
+        )
 
 
-    # 3. Get list of subjects strictly from data/all
-    subject_list_root = project_root / "data" / "all"
+    # 3. Get list of subjects strictly from data/
+    subject_list_root = project_root / "data"
     subject_dirs = sorted([d for d in subject_list_root.iterdir() if d.is_dir() and d.name.startswith('sub-')])
 
     # 4. Main Loop

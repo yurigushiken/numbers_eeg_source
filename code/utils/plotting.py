@@ -8,7 +8,10 @@ import numpy as np
 import mne
 from pathlib import Path
 import re
+from typing import Optional
+
 from code.utils.electrodes import ELECTRODE_GROUPS
+from code.utils.label_summary import parse_label_summary
 
 
 log = logging.getLogger()
@@ -24,13 +27,14 @@ except Exception:
 
 
 def _check_fsaverage_path():
-    """Resolve fsaverage directory, preferring data/fs_subjects_dir when available."""
+    """Resolve fsaverage directory; fail fast if not under data/fs_subjects_dir."""
     project_root = Path(__file__).resolve().parents[2]
-    candidates = [
-        project_root / "data" / "fs_subjects_dir",
-        project_root / "data" / "all" / "fs_subjects_dir",
-    ]
-    subjects_dir = next((cand for cand in candidates if cand.exists()), candidates[0])
+    subjects_dir = project_root / "data" / "fs_subjects_dir"
+    if not subjects_dir.exists():
+        raise FileNotFoundError(
+            f"FreeSurfer subjects directory not found at {subjects_dir}. "
+            "Expected fsaverage under data/fs_subjects_dir/."
+        )
     fsaverage_path = subjects_dir / "fsaverage"
     return str(subjects_dir), fsaverage_path
 
@@ -62,8 +66,20 @@ def _create_blank_image(path, message):
 
 
 def _compose_source_figure(
-    stc_data, vertices, tmin, tstep, colormap, clim, cbar_label, output_path,
-    analysis_name, config, cluster_p_val, time_label, peak_info, subjects_dir
+    stc_data,
+    vertices,
+    tmin,
+    tstep,
+    colormap,
+    clim,
+    cbar_label,
+    output_path,
+    analysis_name,
+    config,
+    cluster_p_val,
+    time_label,
+    peak_info,
+    subjects_dir,
 ):
     """Helper to generate and save a 6-view source plot composite."""
     stc_to_plot = mne.SourceEstimate(
@@ -77,20 +93,47 @@ def _compose_source_figure(
     peak_vertno, hemi_code = peak_info['vertno'], peak_info['hemi_code']
 
     for view in views:
-        brain = stc_to_plot.plot(
-            subject='fsaverage', subjects_dir=subjects_dir, surface='inflated',
-            hemi='both', views=[view], size=(800, 600), background='white',
-            foreground='black', time_viewer=False, show_traces=False,
-            colorbar=False, colormap=colormap, cortex='classic',
-            smoothing_steps=10, clim=clim,
-            initial_time=float(stc_to_plot.times[0]), transparent=False,
-            alpha=1.0, title=""
-        )
-        brain.add_foci(
-            [peak_vertno], coords_as_verts=True,
-            hemi=('lh' if hemi_code == 0 else 'rh'),
-            scale_factor=0.7, color='black'
-        )
+        brain = None
+        try:
+            brain = stc_to_plot.plot(
+                subject='fsaverage',
+                subjects_dir=subjects_dir,
+                surface='white',
+                hemi='both',
+                views=[view],
+                size=(800, 600),
+                background='white',
+                foreground='black',
+                time_viewer=False,
+                show_traces=False,
+                colorbar=False,
+                colormap=colormap,
+                cortex='high_contrast',
+                smoothing_steps=10,
+                clim=clim,
+                initial_time=float(stc_to_plot.times[0]),
+                transparent=False,
+                alpha=1.0,
+                title="",
+                silhouette=True,
+            )
+        except TypeError:
+            log.debug("silhouette argument not supported; rendering without it.")
+            brain = stc_to_plot.plot(
+                subject='fsaverage', subjects_dir=subjects_dir, surface='white',
+                hemi='both', views=[view], size=(800, 600), background='white',
+                foreground='black', time_viewer=False, show_traces=False,
+                colorbar=False, colormap=colormap, cortex='high_contrast',
+                smoothing_steps=10, clim=clim,
+                initial_time=float(stc_to_plot.times[0]), transparent=False,
+                alpha=1.0, title=""
+            )
+        if peak_vertno is not None:
+            brain.add_foci(
+                [peak_vertno], coords_as_verts=True,
+                hemi=('lh' if hemi_code == 0 else 'rh'),
+                scale_factor=0.7, color='black'
+            )
         tmp_path = output_dir / f"{analysis_name}_tile_{view}.png"
         try:
             brain.save_image(tmp_path)
@@ -125,14 +168,27 @@ def _compose_source_figure(
 
     # --- Compose and add metadata strings ---
     title_main = f"{config['contrast']['name']}"
-    subtitle_1 = (
-        f"Most significant cluster (p={cluster_p_val:.3f}), averaged within {time_label} | "
-        f"{peak_info['subtitle_1_stats']}"
-    )
-    subtitle_2 = (
-        f"Peak t={peak_info['t']:.2f} at MNI {peak_info['mni_str']}, "
-        f"region {peak_info['region']}, cluster size={peak_info['size']} vertices"
-    )
+    if cluster_p_val is not None:
+        subtitle_1 = (
+            f"Most significant cluster (p={cluster_p_val:.3f}), averaged within {time_label} | "
+            f"{peak_info['subtitle_1_stats']}"
+        )
+        subtitle_2 = (
+            f"Peak t={peak_info['t']:.2f} at MNI {peak_info['mni_str']}, "
+            f"region {peak_info['region']}, cluster size={peak_info['size']} vertices"
+        )
+    else:
+        subtitle_text = peak_info.get('subtitle_label')
+        if subtitle_text is None:
+            stats_info = peak_info.get('subtitle_1_stats', '')
+            subtitle_text = f"Label-only snapshot | {stats_info}" if stats_info else "Label-only snapshot"
+        detail_text = peak_info.get('subtitle_label_detail')
+        if detail_text is None:
+            detail_text = (
+                f"Peak |t|={peak_info['t']:.2f} at MNI {peak_info['mni_str']} (region {peak_info['region']})"
+            )
+        subtitle_1 = f"{subtitle_text}"
+        subtitle_2 = detail_text
     fig.text(0.02, 0.995, title_main, ha='left', va='top', fontsize=22)
     fig.text(0.02, 0.955, subtitle_1, ha='left', va='top', fontsize=10)
     fig.text(0.02, 0.925, subtitle_2, ha='left', va='top', fontsize=10)
@@ -186,6 +242,12 @@ def plot_source_clusters(stats_results, stc_grand_average, config, output_dir):
         # Order them by p-value for consistent numbering
         ordered_indices = sig_idx[np.argsort(cluster_p_values[sig_idx])]
 
+        # Prepare storage for combined view
+        full_vertices = [np.array(stc_grand_average.vertices[0]), np.array(stc_grand_average.vertices[1])]
+        full_n = int(np.sum([len(v) for v in full_vertices]))
+        combined_masks = []
+        combined_p_values = []
+
         # --- Loop through each significant cluster ---
         n_sig = len(ordered_indices)
         for rank, cluster_idx in enumerate(ordered_indices, start=1):
@@ -206,15 +268,15 @@ def plot_source_clusters(stats_results, stc_grand_average, config, output_dir):
             t_map_local[v_inds_cluster_local] = t_avg_all[v_inds_cluster_local]
 
             keep_idx = config.get('stats', {}).get('_keep_idx')
-            full_vertices = [np.array(stc_grand_average.vertices[0]), np.array(stc_grand_average.vertices[1])]
-            full_n = int(np.sum([len(v) for v in full_vertices]))
-            
             t_map_full = t_map_local
             if keep_idx is not None and int(t_map_local.size) != full_n:
                 keep_idx = np.asarray(keep_idx, dtype=int)
                 full_vec = np.full(full_n, np.nan, dtype=float)
                 full_vec[keep_idx] = t_map_local
                 t_map_full = full_vec
+
+            combined_masks.append(~np.isnan(t_map_full))
+            combined_p_values.append(float(cluster_p_values[cluster_idx]))
             
             # --- 3. Calculate Metadata for the Current Cluster ---
             cluster_times = stc_grand_average.times[time_inds]
@@ -289,11 +351,440 @@ def plot_source_clusters(stats_results, stc_grand_average, config, output_dir):
                 cluster_p_values[cluster_idx], time_label, peak_info, subjects_dir
             )
 
+        # Combined cluster overview
+        if combined_masks:
+            combined_data = np.zeros(full_n, dtype=float)
+            for idx, mask in enumerate(combined_masks, start=1):
+                combined_data[mask] = float(idx)
+            max_idx = float(len(combined_masks))
+            if max_idx <= 0:
+                max_idx = 1.0
+            combined_stc = combined_data.reshape(-1, 1)
+            combined_clim = dict(kind='value', lims=[0.0, max_idx * 0.5, max_idx])
+            combined_path = output_dir / f"{analysis_name}_source_clusters_combined.png"
+            min_p = min(combined_p_values) if combined_p_values else 1.0
+            combined_info = {
+                't': 0.0,
+                'vertno': None,
+                'hemi_code': 0,
+                'mni_str': '',
+                'region': f"{n_sig} clusters",
+                'size': int(np.count_nonzero(combined_data)),
+                'subtitle_1_stats': f"Combined cluster view | k={n_sig}, min p={min_p:.4f}",
+                'footer': "fsaverage | clusters tinted by rank"
+            }
+            _compose_source_figure(
+                combined_stc,
+                full_vertices,
+                float(stc_grand_average.times[0]) if stc_grand_average.times.size else 0.0,
+                0.0,
+                'tab20',
+                combined_clim,
+                'Cluster index',
+                combined_path,
+                analysis_name,
+                config,
+                None,
+                'combined',
+                combined_info,
+                subjects_dir,
+            )
+
     except Exception as e:
         log.error(f"Failed to generate source cluster plots: {e}", exc_info=True)
         # Do not abort pipeline on plotting failure
         return
 
+
+def plot_grand_average_snapshot(stc_grand_average, config, output_dir):
+    """Render a continuous (time-averaged) grand-average STC preview."""
+    try:
+        analysis_name = config['analysis_name']
+        subjects_dir, _ = _check_fsaverage_path()
+
+        stc = stc_grand_average.copy()
+        stats_cfg = config.get('stats', {}) or {}
+        aw = stats_cfg.get('analysis_window')
+
+        if aw and len(aw) == 2:
+            tmin, tmax = float(aw[0]), float(aw[1])
+            stc = stc.copy().crop(tmin=tmin, tmax=tmax)
+            if stc.times.size == 0:
+                stc = stc_grand_average.copy()
+                data_vector = stc.data.mean(axis=1, keepdims=True)
+                time_label = "full window"
+                stc_tmin = float(stc.times[0]) if stc.times.size else 0.0
+            else:
+                data_vector = stc.data.mean(axis=1, keepdims=True)
+                time_label = f"{tmin*1000:.0f}-{tmax*1000:.0f} ms"
+                stc_tmin = tmin
+        else:
+            idx = int(np.argmax(np.abs(stc.data)))
+            vert_idx, time_idx = np.unravel_index(idx, stc.data.shape)
+            data_vector = stc.data[:, [time_idx]]
+            time_label = f"{stc.times[time_idx]*1000:.1f} ms"
+            stc_tmin = float(stc.times[time_idx])
+
+        data_vec_flat = data_vector.reshape(-1)
+        abs_vals = np.abs(data_vec_flat)
+        vmax_abs = float(np.nanpercentile(abs_vals, 98)) if abs_vals.size else 0.0
+        if not np.isfinite(vmax_abs) or vmax_abs <= 0:
+            vmax_abs = float(np.nanmax(abs_vals)) if abs_vals.size else 0.0
+        output_path = output_dir / f"{analysis_name}_grand_average_continuous.png"
+
+        if not np.isfinite(vmax_abs) or vmax_abs <= 0:
+            _create_blank_image(output_path, "Continuous STC preview unavailable (flat signal).")
+            return
+
+        clim = dict(kind='value', lims=[-vmax_abs, 0.0, vmax_abs])
+
+        lh_n = len(stc_grand_average.vertices[0])
+        peak_idx = int(np.nanargmax(np.abs(data_vec_flat)))
+        hemi_code = 0 if peak_idx < lh_n else 1
+        if hemi_code == 0:
+            peak_vertno = int(stc_grand_average.vertices[0][peak_idx])
+        else:
+            peak_vertno = int(stc_grand_average.vertices[1][peak_idx - lh_n])
+        peak_mni = mne.vertex_to_mni([peak_vertno], hemis=hemi_code, subject='fsaverage', subjects_dir=subjects_dir)[0]
+
+        lt_cfg = stats_cfg.get('label_timeseries') or {}
+        parc = lt_cfg.get('parc', 'aparc')
+        try:
+            labels = mne.read_labels_from_annot('fsaverage', parc=parc, subjects_dir=subjects_dir, verbose=False)
+        except Exception:
+            labels = []
+        peak_region = "Unknown"
+        for lbl in labels:
+            if lbl.hemi == ('lh' if hemi_code == 0 else 'rh') and peak_vertno in lbl.vertices:
+                peak_region = lbl.name.replace('-lh', '').replace('-rh', '')
+                break
+
+        method = str(config.get('source', {}).get('method', 'eLORETA')).upper()
+        peak_info = {
+            't': vmax_abs,
+            'vertno': peak_vertno,
+            'hemi_code': hemi_code,
+            'mni_str': f"({peak_mni[0]:.1f}, {peak_mni[1]:.1f}, {peak_mni[2]:.1f})",
+            'region': peak_region,
+            'size': int(np.count_nonzero(np.abs(data_vec_flat) > 0)),
+            'subtitle_1_stats': f"Continuous preview | method={method} | window={time_label}",
+            'footer': "fsaverage | continuous preview",
+        }
+
+        _compose_source_figure(
+            data_vector,
+            stc_grand_average.vertices,
+            stc_tmin,
+            0.0,
+            'RdBu_r',
+            clim,
+            'Contrast amplitude (a.u.)',
+            output_path,
+            analysis_name,
+            config,
+            None,
+            time_label,
+            peak_info,
+            subjects_dir,
+        )
+    except Exception as e:
+        log.error(f"Failed to render grand-average snapshot: {e}", exc_info=True)
+        placeholder = output_dir / f"{config['analysis_name']}_grand_average_continuous.png"
+        _create_blank_image(placeholder, f"Failed to render continuous preview: {e}")
+
+
+def plot_label_top_highlight(stc_grand_average, config, output_dir, summary_path):
+    """Render a highlight figure for the top significant label in label-only runs."""
+    try:
+        if not summary_path or not Path(summary_path).exists():
+            return
+
+        summary = parse_label_summary(Path(summary_path))
+        if not summary.significant:
+            log.info("No significant labels found for highlight plot.")
+            return
+
+        top_label = summary.significant[0]
+        label_name = top_label.name
+        if not label_name:
+            return
+
+        stats_cfg = config.get('stats', {}) or {}
+        lt_cfg = stats_cfg.get('label_timeseries') or {}
+        parc = lt_cfg.get('parc', 'aparc')
+
+        subjects_dir, _ = _check_fsaverage_path()
+        labels = mne.read_labels_from_annot(
+            'fsaverage', parc=parc, subjects_dir=subjects_dir, verbose=False
+        )
+        if not labels:
+            log.warning("Unable to load labels for parc %s; skipping label highlight", parc)
+            return
+
+        # Match label case-insensitively
+        target = label_name.lower()
+        label_obj = None
+        for lbl in labels:
+            if lbl.name.lower() == target:
+                label_obj = lbl
+                break
+
+        if label_obj is None:
+            log.warning("Top label %s not found in parc %s", label_name, parc)
+            return
+
+        analysis_name = config['analysis_name']
+        output_path = output_dir / f"{analysis_name}_label_top.png"
+
+        lh_vertices = np.array(stc_grand_average.vertices[0])
+        rh_vertices = np.array(stc_grand_average.vertices[1])
+        lh_count = lh_vertices.size
+        rh_count = rh_vertices.size
+
+        if lh_count + rh_count == 0:
+            log.warning("Grand average STC appears empty; skipping label highlight plot.")
+            return
+
+        data = np.zeros((lh_count + rh_count, 1), dtype=float)
+        hemi_code = 0 if label_obj.hemi == 'lh' else 1
+
+        if hemi_code == 0:
+            mask = np.isin(lh_vertices, label_obj.vertices)
+            data[:lh_count, 0][mask] = 1.0
+        else:
+            mask = np.isin(rh_vertices, label_obj.vertices)
+            data[lh_count:, 0][mask] = 1.0
+
+        if not np.any(data):
+            log.warning("Label %s has no vertices in fsaverage source space; skipping highlight.", label_name)
+            return
+
+        vertno_array = (lh_vertices if hemi_code == 0 else rh_vertices)
+        peak_vertno = int(vertno_array[np.where(mask)[0][0]])
+        peak_mni = mne.vertex_to_mni(
+            [peak_vertno], hemis=hemi_code, subject='fsaverage', subjects_dir=subjects_dir
+        )[0]
+
+        method = str(config.get('source', {}).get('method', 'eLORETA')).upper()
+        time_label = "Label highlight"
+        if top_label.time_start_ms is not None and top_label.time_end_ms is not None:
+            time_label = f"{top_label.time_start_ms:.1f}-{top_label.time_end_ms:.1f} ms"
+
+        peak_info = {
+            't': 1.0,
+            'vertno': peak_vertno,
+            'hemi_code': hemi_code,
+            'mni_str': f"({peak_mni[0]:.1f}, {peak_mni[1]:.1f}, {peak_mni[2]:.1f})",
+            'region': label_name,
+            'size': int(np.count_nonzero(data)),
+            'subtitle_label': f"Label highlight | {label_name} (p={top_label.p_value:.4f})",
+            'subtitle_label_detail': (
+                f"Window {time_label} | solver {method}"
+            ),
+            'footer': "fsaverage | label highlight snapshot",
+        }
+
+        clim = dict(kind='value', lims=[0.0, 0.5, 1.0])
+
+        _compose_source_figure(
+            data,
+            stc_grand_average.vertices,
+            0.0,
+            0.0,
+            'Reds',
+            clim,
+            'Label membership (a.u.)',
+            output_path,
+            analysis_name,
+            config,
+            None,
+            time_label,
+            peak_info,
+            subjects_dir,
+        )
+    except Exception as e:
+        log.error(f"Failed to render label highlight snapshot: {e}", exc_info=True)
+
+
+def plot_grand_average_peak(stc_grand_average, config, output_dir, stats_results=None, summary_path=None):
+    """Render a single-time-point peak snapshot derived from label or vertex stats."""
+    try:
+        analysis_name = config['analysis_name']
+        subjects_dir, _ = _check_fsaverage_path()
+        stats_cfg = config.get('stats', {}) or {}
+        method = str(config.get('source', {}).get('method', 'eLORETA')).upper()
+
+        summary = None
+        if summary_path and Path(summary_path).exists():
+            summary = parse_label_summary(Path(summary_path))
+
+        time_s: Optional[float] = None
+        caption_info = {}
+
+        if summary and summary.significant:
+            top_label = summary.significant[0]
+            if top_label.peak_ms is not None:
+                time_s = top_label.peak_ms / 1000.0
+            elif top_label.time_start_ms is not None:
+                time_s = top_label.time_start_ms / 1000.0
+            caption_info.update({
+                'reason': 'label',
+                'label_name': top_label.name,
+                'label_p': top_label.p_value,
+                'label_time': (top_label.time_start_ms, top_label.time_end_ms),
+                'label_peak_ms': top_label.peak_ms,
+            })
+
+        if time_s is None and stats_results is not None:
+            try:
+                t_obs, clusters, cluster_p_values, _ = stats_results
+                if clusters is not None and cluster_p_values is not None and len(cluster_p_values):
+                    alpha = float(stats_cfg.get('cluster_alpha', 0.05))
+                    sig_idx = np.where(cluster_p_values < alpha)[0]
+                    if sig_idx.size:
+                        best_idx = sig_idx[np.argmin(cluster_p_values[sig_idx])]
+                        cluster_mask = clusters[best_idx]
+                        coords = np.where(cluster_mask)
+                        if coords[0].size:
+                            abs_vals = np.abs(t_obs[coords])
+                            peak_pos = int(np.argmax(abs_vals))
+                            time_index = int(coords[0][peak_pos])
+                            time_s = float(stc_grand_average.times[time_index])
+                            caption_info.update({
+                                'reason': 'vertex',
+                                'cluster_p': float(cluster_p_values[best_idx]),
+                            })
+            except Exception as exc:
+                log.debug("Vertex peak selection failed: %s", exc)
+
+        if time_s is None:
+            aw = stats_cfg.get('analysis_window') or []
+            if isinstance(aw, (list, tuple)) and len(aw) == 2:
+                try:
+                    start = float(aw[0])
+                    end = float(aw[1])
+                    time_s = (start + end) / 2.0
+                    caption_info.update({'reason': 'window', 'window': (start, end)})
+                except Exception:
+                    pass
+
+        if time_s is None and stc_grand_average.times.size:
+            idx = int(np.nanargmax(np.abs(stc_grand_average.data)))
+            _, time_idx = np.unravel_index(idx, stc_grand_average.data.shape)
+            time_s = float(stc_grand_average.times[time_idx])
+            caption_info.update({'reason': 'global'})
+
+        if time_s is None:
+            log.info("Unable to determine peak time; skipping peak snapshot.")
+            return
+
+        times = stc_grand_average.times
+        if times.size == 0:
+            return
+        nearest_idx = int(np.argmin(np.abs(times - time_s)))
+        time_s = float(times[nearest_idx])
+
+        data_vector = stc_grand_average.data[:, [nearest_idx]].copy()
+        data_vec_flat = data_vector.reshape(-1)
+        abs_vals = np.abs(data_vec_flat)
+        vmax_abs = float(np.nanpercentile(abs_vals, 98)) if abs_vals.size else 0.0
+        if not np.isfinite(vmax_abs) or vmax_abs <= 0:
+            vmax_abs = float(np.nanmax(abs_vals)) if abs_vals.size else 0.0
+        if not np.isfinite(vmax_abs) or vmax_abs <= 0:
+            log.info("Peak snapshot skipped due to flat data at selected time.")
+            return
+
+        clim = dict(kind='value', lims=[-vmax_abs, 0.0, vmax_abs])
+
+        lh_n = len(stc_grand_average.vertices[0])
+        peak_idx = int(np.nanargmax(np.abs(data_vec_flat)))
+        hemi_code = 0 if peak_idx < lh_n else 1
+        peak_vertno = int(
+            stc_grand_average.vertices[0][peak_idx]
+            if hemi_code == 0
+            else stc_grand_average.vertices[1][peak_idx - lh_n]
+        )
+        peak_mni = mne.vertex_to_mni(
+            [peak_vertno], hemis=hemi_code, subject='fsaverage', subjects_dir=subjects_dir
+        )[0]
+
+        reason = caption_info.get('reason', 'window')
+        subtitle = "Peak snapshot"
+        detail = f"Time={time_s*1000:.1f} ms | solver {method}"
+
+        if reason == 'label' and caption_info.get('label_name'):
+            label_name = caption_info['label_name']
+            p_val = caption_info.get('label_p')
+            subtitle = f"Peak snapshot | label {label_name} (p={p_val:.4f})"
+            if caption_info.get('label_time'):
+                start_ms, end_ms = caption_info['label_time']
+                detail = (
+                    f"Peak={caption_info.get('label_peak_ms', time_s*1000):.1f} ms | window {start_ms:.1f}-{end_ms:.1f} ms | solver {method}"
+                )
+        elif reason == 'vertex' and caption_info.get('cluster_p') is not None:
+            p_val = caption_info['cluster_p']
+            subtitle = f"Peak snapshot | vertex cluster (p={p_val:.4f})"
+            detail = f"Time={time_s*1000:.1f} ms | solver {method}"
+        elif reason == 'global':
+            subtitle = "Peak snapshot | global max"
+        else:
+            subtitle = "Peak snapshot | analysis window midpoint"
+
+        peak_info = {
+            't': vmax_abs,
+            'vertno': peak_vertno,
+            'hemi_code': hemi_code,
+            'mni_str': f"({peak_mni[0]:.1f}, {peak_mni[1]:.1f}, {peak_mni[2]:.1f})",
+            'region': caption_info.get('label_name', 'N/A'),
+            'size': int(np.count_nonzero(np.abs(data_vec_flat) > 0)),
+            'subtitle_label': subtitle,
+            'subtitle_label_detail': detail,
+            'footer': "fsaverage | peak-moment snapshot",
+        }
+
+        output_path = output_dir / f"{analysis_name}_grand_average_peak.png"
+        _compose_source_figure(
+            data_vector,
+            stc_grand_average.vertices,
+            time_s,
+            0.0,
+            'RdBu_r',
+            clim,
+            'Contrast amplitude (a.u.)',
+            output_path,
+            analysis_name,
+            config,
+            None,
+            f"{time_s*1000:.1f} ms",
+            peak_info,
+            subjects_dir,
+        )
+
+        meta = {
+            'time_ms': time_s * 1000.0,
+            'reason': reason,
+            'method': method,
+        }
+        if caption_info.get('label_name'):
+            meta['label_name'] = caption_info['label_name']
+            meta['label_p'] = caption_info.get('label_p')
+            meta['label_peak_ms'] = caption_info.get('label_peak_ms')
+            meta['label_window_ms'] = caption_info.get('label_time')
+        if caption_info.get('cluster_p') is not None:
+            meta['cluster_p'] = caption_info['cluster_p']
+        if caption_info.get('window'):
+            window = caption_info['window']
+            meta['analysis_window_ms'] = (float(window[0]) * 1000.0, float(window[1]) * 1000.0)
+
+        meta_path = output_dir / f"{analysis_name}_grand_average_peak.json"
+        try:
+            import json as _json
+
+            meta_path.write_text(_json.dumps(meta, indent=2))
+        except Exception as exc:
+            log.debug("Failed to write peak snapshot metadata: %s", exc)
+    except Exception as e:
+        log.error(f"Failed to render peak snapshot: {e}", exc_info=True)
 
 def _choose_time_and_clim(stc_sum):
     """Choose a time point and clims for plotting the summary STC."""

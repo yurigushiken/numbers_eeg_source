@@ -2,6 +2,7 @@
 
 # 1. General Analysis Information
 analysis_name: "sensor_13_31"
+report_group: "13_31"
 domain: "sensor"
 
 # 2. Epoch Time Window and Baseline Correction
