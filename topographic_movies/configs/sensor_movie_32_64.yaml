@@ -1,0 +1,19 @@
+analysis_name: "sensor_movie_32_64"
+report_group: "movie_32_64"
+domain: "sensor"
+
+epoch_window:
+  tmin: -0.2
+  tmax: 0.496
+  baseline: [-0.2, 0.0]
+
+contrast:
+  name: "Movie: 32 vs 64"
+  condition_A:
+    name: "3 to 2 (Decreasing)"
+    condition_set_name: "TRANSITION_32"
+  condition_B:
+    name: "6 to 4 (Decreasing)"
+    condition_set_name: "TRANSITION_64"
+  combination_weights: [1, -1]
+

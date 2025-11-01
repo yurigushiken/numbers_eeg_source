@@ -197,6 +197,12 @@ TRANSITION_23:
 TRANSITION_32:
   "3 to 2 (Decreasing)": ["32"]
 
+TRANSITION_46:
+  "4 to 6 (Increasing)": ["46"]
+
+TRANSITION_64:
+  "6 to 4 (Decreasing)": ["64"]
+
 # Combined transition sets (change + no-change) for 2-3 range
 # Tests: Direction effect combining change (23, 32) with no-change (22, 33)
 TRANSITIONS_23_33:

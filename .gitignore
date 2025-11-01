@@ -27,6 +27,8 @@ venv/
 
 # Project data (do not track)
 data/
+topographic_movies/topos/
+temp_source_refactor/
 
 
 # Supplemental data / local artifacts (do not track)

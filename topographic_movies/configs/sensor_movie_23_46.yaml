@@ -1,0 +1,19 @@
+analysis_name: "sensor_movie_23_46"
+report_group: "movie_23_46"
+domain: "sensor"
+
+epoch_window:
+  tmin: -0.2
+  tmax: 0.496
+  baseline: [-0.2, 0.0]
+
+contrast:
+  name: "Movie: 23 vs 46"
+  condition_A:
+    name: "2 to 3 (Increasing)"
+    condition_set_name: "TRANSITION_23"
+  condition_B:
+    name: "4 to 6 (Increasing)"
+    condition_set_name: "TRANSITION_46"
+  combination_weights: [1, -1]
+

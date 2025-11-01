@@ -130,6 +130,26 @@ derivatives/
 - To export synchronized source/sensor movies, set `visualization.movie.enabled: true` in the source YAML. The pipeline will write `movie_source.mp4`, `movie_topo.mp4`, and (when ffmpeg is available) `movie_source_topo.mp4` into the source output directory using the requested window, codec, and frame count.
 - Movies are generated with standard MNE workflows: `SourceEstimate.plot(...).save_movie(...)` as in “Visualize source time courses (stcs)” and `evoked.animate_topomap(...)` from “Plotting topographic maps of evoked data”.
 
+### Standalone Topographic Movie Library
+
+- The lightweight exporter in `code/run_topo_movie.py` now lives alongside a dedicated directory `topographic_movies/` (it used to be `temp_viz/`).
+- Minimal YAMLs under `topographic_movies/configs/` contain only what the exporter needs: `analysis_name`, `epoch_window`, and `contrast` (condition sets + weights). They reuse the global `code/condition_sets.yaml` entries, so you can request any transition already declared there.
+- Running, e.g.
+  ```powershell
+  python -m code.run_topo_movie `
+      --config topographic_movies\configs\sensor_movie_23_46.yaml `
+      --fps 5
+  ```
+  creates 4-ms sampled movies in `topographic_movies/topos/` (`*_A.mp4`, `*_B.mp4`, `*_A-minus-B.mp4`, `*_panel.mp4`). `--fps` controls playback speed only; it no longer affects which frames are sampled.
+- Current presets:
+  - `sensor_movie_13_31.yaml` (1→3 vs 3→1)
+  - `sensor_movie_11_31.yaml` (11 vs 31)
+  - `sensor_movie_cardinality1_vs_cardinality3.yaml`
+  - `sensor_movie_23_46.yaml`
+  - `sensor_movie_32_64.yaml`
+- All exports automatically drop the non-scalp HydroCel channels (`E1`, `E8`, …, `E128`) before plotting, so every movie shares the same clean topomap layout.
+- You can add a new movie by dropping another YAML into `topographic_movies/configs/` and re-running the command above; no other pipeline components need to change.
+
 ## Current PI Run (Nov 2025)
 
 - Whole-brain discovery (orientation-invariant): `configs/13_31/source_eloreta_wholebrain_magnitude_90_300.yaml`.
