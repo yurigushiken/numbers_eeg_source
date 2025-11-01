@@ -186,6 +186,7 @@ def _render_frame(
     scales: Sequence[tuple[float, float]],
     labels: Sequence[str],
     frame_path: Path,
+    title: str | None,
 ) -> Path:
     n_rows = len(evokeds)
     width = 5.4 if n_rows > 1 else 4.0
@@ -209,7 +210,11 @@ def _render_frame(
         cbar = plt.colorbar(im, ax=ax, orientation="horizontal", fraction=frac, pad=0.12)
         cbar.set_label("Amplitude (µV)")
 
+    if title:
+        fig.suptitle(title, fontsize=13, y=0.975, wrap=True, ha="center")
+
     fig.subplots_adjust(top=0.92, bottom=0.08, hspace=0.32)
+    # Layout tuned for panel snapshots; rely on plot_topomap defaults for bounds.
     fig.savefig(frame_path, dpi=180)
     plt.close(fig)
     return frame_path
@@ -300,9 +305,20 @@ def main() -> None:
         assert len(tracks) == 1
         evs, scales, labels, video_path, prefix = tracks[0]
         frames: list[Path] = []
+        acc_a = condition_a_cfg.get("accuracy") or args.accuracy or "all"
+        acc_b = condition_b_cfg.get("accuracy") or args.accuracy or "all"
+        accuracy_a = str(acc_a).upper()
+        accuracy_b = str(acc_b).upper()
+        clean_label_a = label_a.split("(")[0].strip()
+        clean_label_b = label_b.split("(")[0].strip()
+        title = (
+            f"{clean_label_a} vs {clean_label_b}\n"
+            f"accuracy={accuracy_a} vs accuracy={accuracy_b}"
+        )
+
         for order, idx in enumerate(frame_indices):
             frame_path = frame_root / f"{prefix}_{order:04d}.png"
-            _render_frame(evs, idx, scales, labels, frame_path)
+            _render_frame(evs, idx, scales, labels, frame_path, title)
             frames.append(frame_path)
 
         if frames:

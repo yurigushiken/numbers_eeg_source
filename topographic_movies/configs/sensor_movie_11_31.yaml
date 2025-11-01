@@ -11,9 +11,11 @@ contrast:
   name: "Movie: 11 vs 31"
   condition_A:
     name: "Cardinality 1 (11)"
-    condition_set_name: "CARDINALITY_1"
+    conditions: ["11"]
+    accuracy: all
   condition_B:
     name: "3 to 1 (31)"
-    condition_set_name: "TRANSITION_31"
+    conditions: ["31"]
+    accuracy: acc1
   combination_weights: [1, -1]
 

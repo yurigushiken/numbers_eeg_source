@@ -11,9 +11,11 @@ contrast:
   name: "Movie: 32 vs 64"
   condition_A:
     name: "3 to 2 (Decreasing)"
-    condition_set_name: "TRANSITION_32"
+    conditions: ["32"]
+    accuracy: acc1
   condition_B:
     name: "6 to 4 (Decreasing)"
-    condition_set_name: "TRANSITION_64"
+    conditions: ["64"]
+    accuracy: acc1
   combination_weights: [1, -1]
 

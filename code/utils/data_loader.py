@@ -329,15 +329,35 @@ def get_evoked_for_condition(subject_dir, condition_info, baseline=None, use_com
     epochs_list : list of mne.Epochs
         List of Epochs objects for each condition
     """
-    condition_set_name = condition_info['condition_set_name']
-    condition_set = CONDITION_SETS.get(condition_set_name)
-    if not condition_set:
-        log.warning(f"Condition set '{condition_set_name}' not found.")
-        return [], []
+    condition_numbers = []
+    condition_set_name = condition_info.get('condition_set_name')
+    if condition_set_name:
+        condition_set = CONDITION_SETS.get(condition_set_name)
+        if not condition_set:
+            log.warning(f"Condition set '{condition_set_name}' not found.")
+            return [], []
+        condition_numbers = [num for sublist in condition_set.values() for num in sublist]
+    else:
+        explicit_conditions = condition_info.get('conditions')
+        if isinstance(explicit_conditions, dict):
+            for values in explicit_conditions.values():
+                if isinstance(values, (list, tuple, set)):
+                    condition_numbers.extend(values)
+                else:
+                    condition_numbers.append(values)
+        elif isinstance(explicit_conditions, (list, tuple, set)):
+            condition_numbers.extend(explicit_conditions)
+        elif explicit_conditions is not None:
+            condition_numbers.append(explicit_conditions)
 
-    # The values of the condition set dict are the lists of condition numbers.
-    # We need to flatten them into a single list.
-    condition_numbers = [num for sublist in condition_set.values() for num in sublist]
+        if not condition_numbers:
+            log.warning(
+                "No conditions provided for %s; please specify 'conditions' or 'condition_set_name'.",
+                condition_info.get('name', 'unknown condition'),
+            )
+            return [], []
+
+    condition_numbers = [str(num) for num in condition_numbers]
 
     evoked_list = []
     epochs_list = []
