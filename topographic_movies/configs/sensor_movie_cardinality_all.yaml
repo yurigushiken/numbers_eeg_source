@@ -1,0 +1,30 @@
+analysis_name: "sensor_movie_cardinality_all"
+report_group: "movie_cardinality_all"
+domain: "sensor"
+
+movie:
+  fps: 5
+
+panel:
+  title: "Cardinality 1-6"
+  layout: [2, 3]
+  tracks:
+    - label: "Cardinality 1"
+      conditions: ["11"]
+      accuracy: all
+    - label: "Cardinality 2"
+      conditions: ["22"]
+      accuracy: all
+    - label: "Cardinality 3"
+      conditions: ["33"]
+      accuracy: all
+    - label: "Cardinality 4"
+      conditions: ["44"]
+      accuracy: all
+    - label: "Cardinality 5"
+      conditions: ["55"]
+      accuracy: all
+    - label: "Cardinality 6"
+      conditions: ["66"]
+      accuracy: all
+

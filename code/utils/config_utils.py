@@ -5,6 +5,7 @@ These functions are imported both by pipeline code and unit tests.
 """
 from __future__ import annotations
 
+from copy import deepcopy
 from pathlib import Path
 from typing import Dict, Any, Optional, Tuple, List
 import yaml
@@ -23,7 +24,12 @@ def load_common_defaults(project_root: str | Path = ".") -> Dict[str, Any]:
         return yaml.safe_load(f) or {}
 
 
-def merge_common_into_config(common: Dict[str, Any], analysis_cfg: Dict[str, Any]) -> Dict[str, Any]:
+def merge_common_into_config(
+    common: Dict[str, Any],
+    analysis_cfg: Dict[str, Any],
+    *,
+    overwrite: bool = False,
+) -> Dict[str, Any]:
     """Merge selected defaults from `common` into `analysis_cfg` (non-destructive).
 
     Rules (minimal option A):
@@ -34,12 +40,20 @@ def merge_common_into_config(common: Dict[str, Any], analysis_cfg: Dict[str, Any
     merged = dict(analysis_cfg)  # shallow copy
     resolved_defaults: Dict[str, Any] = {}
 
-    # Baseline default
+    # Epoch window defaults (full dict plus baseline convenience)
+    epoch_window_common = common.get("epoch_window") if common else None
+    epoch_window = dict(merged.get("epoch_window") or {})
+    if epoch_window_common:
+        for key, value in epoch_window_common.items():
+            if overwrite or key not in epoch_window:
+                epoch_window[key] = value
+        merged["epoch_window"] = epoch_window
+        resolved_defaults["epoch_window"] = epoch_window_common
+
     baseline_common = (
         (common.get("epoch_defaults") or {}).get("baseline") if common else None
     )
-    epoch_window = dict(merged.get("epoch_window") or {})
-    if "baseline" not in epoch_window and baseline_common is not None:
+    if (overwrite or "baseline" not in epoch_window) and baseline_common is not None:
         epoch_window["baseline"] = baseline_common
         merged["epoch_window"] = epoch_window
         resolved_defaults["baseline"] = baseline_common
@@ -47,8 +61,29 @@ def merge_common_into_config(common: Dict[str, Any], analysis_cfg: Dict[str, Any
     # Data defaults (for discovery helpers)
     data_common = common.get("data") or {}
     if data_common:
+        merged.setdefault("data", {})
+        for key, value in data_common.items():
+            if overwrite or key not in merged["data"]:
+                merged["data"][key] = value
         resolved_defaults["data_source"] = data_common.get("source")
         resolved_defaults["preprocessing"] = data_common.get("preprocessing")
+
+    # Channel defaults (e.g., non-scalp electrodes)
+    channels_common = common.get("channels") or {}
+    if channels_common:
+        merged.setdefault("channels", {})
+        for key, value in channels_common.items():
+            if overwrite or key not in merged["channels"]:
+                merged["channels"][key] = deepcopy(value)
+        resolved_defaults["channels"] = channels_common
+
+    movie_common = common.get("movie") or {}
+    if movie_common:
+        merged.setdefault("movie", {})
+        for key, value in movie_common.items():
+            if overwrite or key not in merged["movie"]:
+                merged["movie"][key] = deepcopy(value)
+        resolved_defaults["movie"] = movie_common
 
     if resolved_defaults:
         merged.setdefault("_resolved_defaults", {}).update(resolved_defaults)

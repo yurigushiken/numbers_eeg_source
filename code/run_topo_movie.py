@@ -30,6 +30,16 @@ from code.utils import data_loader  # noqa: E402
 
 log = logging.getLogger("topo_movie")
 
+COLOR_SCALE = (-4.0, 4.0)
+DEFAULT_FPS = 10.0
+
+DEFAULT_NON_SCALP_CHANNELS = [
+    "E1", "E8", "E14", "E17", "E21", "E25", "E32", "E38", "E43",
+    "E44", "E48", "E49", "E56", "E63", "E68", "E73", "E81", "E88",
+    "E94", "E99", "E107", "E113", "E114", "E119", "E120", "E121",
+    "E125", "E126", "E127", "E128",
+]
+
 
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Export sensor-space topomap videos")
@@ -61,7 +71,6 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--fps",
         type=float,
-        default=10.0,
         help="Frames per second for the exported videos",
     )
     parser.add_argument(
@@ -122,62 +131,277 @@ def _get_condition(config: dict, override: str | None, default_key: str) -> dict
     return deepcopy(condition)
 
 
+_CONDITION_FIELDS = {
+    "name",
+    "condition_set_name",
+    "conditions",
+    "accuracy",
+    "baseline",
+    "data_subset",
+    "metadata",
+    "metadata_filters",
+}
+
+
+def _extract_condition_dict(source: dict, *, fallback_name: str | None = None) -> dict:
+    if not isinstance(source, dict):
+        raise TypeError("Condition specification must be a dictionary")
+
+    condition = {}
+    for field in _CONDITION_FIELDS:
+        if field in source:
+            condition[field] = deepcopy(source[field])
+
+    if fallback_name and "name" not in condition:
+        condition["name"] = fallback_name
+
+    if "conditions" not in condition and "condition_set_name" not in condition:
+        raise ValueError("Condition entry must specify 'conditions' or 'condition_set_name'")
+
+    return condition
+
+
+def _condition_cache_key(condition_cfg: dict, accuracy: str) -> tuple:
+    items: list[tuple[str, object]] = []
+    for key, value in condition_cfg.items():
+        if key == "name":
+            continue
+        if isinstance(value, Sequence) and not isinstance(value, (str, bytes)):
+            items.append((key, tuple(value)))
+        elif isinstance(value, dict):
+            items.append((key, tuple(sorted(value.items()))))
+        else:
+            items.append((key, value))
+    return (accuracy, tuple(sorted(items)))
+
+
+def _format_accuracy_display(values: Sequence[str]) -> str | None:
+    formatted = [str(val).upper() for val in values if val]
+    if not formatted:
+        return None
+    if all(token == formatted[0] for token in formatted):
+        return formatted[0]
+    return "/".join(formatted)
+
+
+def _build_panel_spec(config: dict, accuracy_override: str | None) -> dict | None:
+    panel_cfg = config.get("panel") or {}
+    tracks_cfg = panel_cfg.get("tracks")
+    if not tracks_cfg:
+        return None
+
+    if not isinstance(tracks_cfg, Sequence):
+        raise ValueError("panel.tracks must be a sequence of track definitions")
+
+    layout_cfg = panel_cfg.get("layout") or []
+    if isinstance(layout_cfg, Sequence) and len(layout_cfg) == 2:
+        rows = max(int(layout_cfg[0]), 1)
+        cols = max(int(layout_cfg[1]), 1)
+    else:
+        rows = len(tracks_cfg)
+        cols = 1
+
+    tracks: list[dict] = []
+    for idx, entry in enumerate(tracks_cfg):
+        if not isinstance(entry, dict):
+            raise ValueError("Each panel track must be a dictionary")
+
+        label = entry.get("label") or entry.get("name") or f"Track {idx + 1}"
+
+        components: list[dict] = []
+        components_cfg = entry.get("components")
+        if isinstance(components_cfg, Sequence) and components_cfg:
+            for comp_index, comp in enumerate(components_cfg):
+                if not isinstance(comp, dict):
+                    raise ValueError("panel.components entries must be dictionaries")
+                weight = float(comp.get("weight", 1.0))
+                cond_source = comp.get("condition") or comp
+                condition_cfg = _extract_condition_dict(cond_source, fallback_name=f"{label} component {comp_index + 1}")
+                accuracy_value = comp.get("accuracy") or condition_cfg.get("accuracy") or entry.get("accuracy") or accuracy_override or "all"
+                accuracy_value = str(accuracy_value).lower()
+                condition_cfg["accuracy"] = accuracy_value
+                components.append({
+                    "condition": condition_cfg,
+                    "weight": weight,
+                    "accuracy": accuracy_value,
+                })
+        elif "weights" in entry and isinstance(entry.get("conditions"), Sequence):
+            cond_sets = entry["conditions"]
+            weights = entry.get("weights")
+            if not isinstance(weights, Sequence) or len(cond_sets) != len(weights):
+                raise ValueError("panel track 'weights' must match length of 'conditions'")
+            for cond_set, weight in zip(cond_sets, weights, strict=False):
+                if isinstance(cond_set, (str, bytes)):
+                    cond_values = [cond_set]
+                else:
+                    cond_values = list(cond_set)
+                base = dict(entry)
+                base.pop("weights", None)
+                base["conditions"] = cond_values
+                condition_cfg = _extract_condition_dict(base, fallback_name=label)
+                accuracy_value = condition_cfg.get("accuracy") or accuracy_override or "all"
+                accuracy_value = str(accuracy_value).lower()
+                condition_cfg["accuracy"] = accuracy_value
+                components.append({
+                    "condition": condition_cfg,
+                    "weight": float(weight),
+                    "accuracy": accuracy_value,
+                })
+        else:
+            cond_source = entry.get("condition") or entry
+            condition_cfg = _extract_condition_dict(cond_source, fallback_name=label)
+            accuracy_value = cond_source.get("accuracy") or condition_cfg.get("accuracy") or entry.get("accuracy") or accuracy_override or "all"
+            accuracy_value = str(accuracy_value).lower()
+            condition_cfg["accuracy"] = accuracy_value
+            weight = float(entry.get("weight", 1.0))
+            components.append({
+                "condition": condition_cfg,
+                "weight": weight,
+                "accuracy": accuracy_value,
+            })
+
+        accuracy_display = _format_accuracy_display([comp["accuracy"] for comp in components])
+        tracks.append({
+            "label": label,
+            "components": components,
+            "accuracy_display": accuracy_display,
+        })
+
+    if rows * cols < len(tracks):
+        raise ValueError("panel.layout is too small for the number of tracks")
+
+    title = panel_cfg.get("title") or config.get("analysis_name")
+
+    return {
+        "layout": (rows, cols),
+        "tracks": tracks,
+        "title": title,
+    }
+
+
+def _clean_label(text: str) -> str:
+    if "(" in text and ")" in text:
+        return text.split("(")[0].strip()
+    return text.strip()
+
+
+def _build_contrast_spec(config: dict, args: argparse.Namespace) -> dict:
+    condition_a_cfg = _get_condition(config, args.condition_a, "condition_A")
+    condition_b_cfg = _get_condition(config, args.condition_b, "condition_B")
+
+    label_a = _clean_label(condition_a_cfg.get("name") or condition_a_cfg.get("condition_set_name") or "Condition A")
+    label_b = _clean_label(condition_b_cfg.get("name") or condition_b_cfg.get("condition_set_name") or "Condition B")
+
+    acc_a = str(condition_a_cfg.get("accuracy") or args.accuracy or "all").lower()
+    acc_b = str(condition_b_cfg.get("accuracy") or args.accuracy or "all").lower()
+    condition_a_cfg["accuracy"] = acc_a
+    condition_b_cfg["accuracy"] = acc_b
+
+    comp_a = {
+        "condition": condition_a_cfg,
+        "weight": 1.0,
+        "accuracy": acc_a,
+    }
+    comp_b = {
+        "condition": condition_b_cfg,
+        "weight": 1.0,
+        "accuracy": acc_b,
+    }
+
+    tracks = [
+        {
+            "label": label_a,
+            "components": [comp_a],
+            "accuracy_display": _format_accuracy_display([acc_a]),
+        },
+        {
+            "label": label_b,
+            "components": [comp_b],
+            "accuracy_display": _format_accuracy_display([acc_b]),
+        },
+        {
+            "label": f"{label_a} - {label_b}",
+            "components": [
+                {
+                    "condition": deepcopy(condition_a_cfg),
+                    "weight": 1.0,
+                    "accuracy": acc_a,
+                },
+                {
+                    "condition": deepcopy(condition_b_cfg),
+                    "weight": -1.0,
+                    "accuracy": acc_b,
+                },
+            ],
+            "accuracy_display": _format_accuracy_display([acc_a, acc_b]),
+        },
+    ]
+
+    title = f"{label_a} ({str(acc_a).upper()}) vs {label_b} ({str(acc_b).upper()})"
+
+    return {
+        "layout": (2, 2),
+        "tracks": tracks,
+        "title": title,
+    }
+
+
+def _build_movie_spec(config: dict, args: argparse.Namespace) -> dict:
+    panel_spec = _build_panel_spec(config, args.accuracy)
+    if panel_spec is not None:
+        return panel_spec
+    return _build_contrast_spec(config, args)
+
+
 def _compute_per_subject_evoked(
     subject_dirs: Iterable[Path],
     condition_cfg: dict,
     baseline: Sequence[float] | None,
-    accuracy_override: str | None,
-) -> list[mne.Evoked]:
+    accuracy: str,
+) -> tuple[list[mne.Evoked], int]:
     per_subject: list[mne.Evoked] = []
-    acc_flag = condition_cfg.get("accuracy") or accuracy_override or "all"
+    total_epochs = 0
 
     for subject_dir in subject_dirs:
-        evokeds, _ = data_loader.get_evoked_for_condition(
+        evokeds, epochs_list = data_loader.get_evoked_for_condition(
             subject_dir,
             condition_cfg,
             baseline=baseline,
-            accuracy=acc_flag,
+            accuracy=accuracy,
         )
         if not evokeds:
             continue
         if len(evokeds) > 1:
-            per_subject.append(mne.grand_average(evokeds))
+            subject_evoked = mne.grand_average(evokeds)
         else:
-            per_subject.append(evokeds[0].copy())
+            subject_evoked = evokeds[0].copy()
+
+        per_subject.append(subject_evoked)
+
+        subject_epoch_count = 0
+        for epochs in epochs_list:
+            try:
+                subject_epoch_count += len(epochs)
+            except TypeError:
+                continue
+        if subject_epoch_count == 0:
+            try:
+                subject_epoch_count = int(subject_evoked.nave or 0)
+            except Exception:
+                subject_epoch_count = 0
+        total_epochs += subject_epoch_count
 
     if not per_subject:
-        raise RuntimeError(
-            f"No evoked data found for condition set '{condition_cfg.get('condition_set_name')}'"
-        )
-    return per_subject
+        identifier = condition_cfg.get("name") or \
+            condition_cfg.get("condition_set_name") or \
+            ",".join(condition_cfg.get("conditions", []))
+        raise RuntimeError(f"No evoked data found for condition '{identifier}'")
+    return per_subject, total_epochs
 
 
-def _compute_scale(evoked: mne.Evoked, mask: np.ndarray) -> tuple[float, float]:
-    data = evoked.get_data() * 1e6
-    if mask.shape[0] != data.shape[1]:
-        mask = np.ones(data.shape[1], dtype=bool)
-    slice_data = data[:, mask]
-    if slice_data.size == 0:
-        slice_data = data
-    vmax = np.nanpercentile(np.abs(slice_data), 99.0)
-    if not np.isfinite(vmax) or vmax <= 0:
-        vmax = np.nanmax(np.abs(slice_data))
-    if not np.isfinite(vmax) or vmax <= 0:
-        vmax = 1.0
-    return (-float(vmax), float(vmax))
-
-
-BELT_CHANNELS = [
-    "E1", "E8", "E14", "E17", "E21", "E25", "E32", "E38", "E43",
-    "E44", "E48", "E49", "E56", "E63", "E68", "E73", "E81", "E88",
-    "E94", "E99", "E107", "E113", "E114", "E119", "E120", "E121",
-    "E125", "E126", "E127", "E128",
-]
-
-
-def _identify_belt_channels(info: mne.Info) -> list[str]:
+def _identify_non_scalp_channels(info: mne.Info, candidates: Sequence[str]) -> list[str]:
     names = set(info.get("ch_names", []))
-    return [ch for ch in BELT_CHANNELS if ch in names]
+    return [ch for ch in candidates if ch in names]
 
 
 def _render_frame(
@@ -187,15 +411,35 @@ def _render_frame(
     labels: Sequence[str],
     frame_path: Path,
     title: str | None,
+    layout: tuple[int, int],
 ) -> Path:
-    n_rows = len(evokeds)
-    width = 5.4 if n_rows > 1 else 4.0
-    fig, axes = plt.subplots(n_rows, 1, figsize=(width, 3.4 * n_rows), dpi=180)
-    if n_rows == 1:
-        axes = [axes]
+    rows, cols = layout
+    if rows <= 0 or cols <= 0:
+        raise ValueError("Panel layout must have positive row and column counts")
+
+    figsize = (4.0 * cols, 3.4 * rows)
+    # Use GridSpec to allow the bottom row to span both columns in contrast mode
+    if rows == 2 and cols == 2 and len(evokeds) == 3:
+        fig = plt.figure(figsize=figsize, dpi=180)
+        gs = fig.add_gridspec(2, 2)
+        ax_top_left = fig.add_subplot(gs[0, 0])
+        ax_top_right = fig.add_subplot(gs[0, 1])
+        ax_bottom_center = fig.add_subplot(gs[1, :])  # span both columns
+        flat_axes = [ax_top_left, ax_top_right, ax_bottom_center]
+    else:
+        fig, axes = plt.subplots(rows, cols, figsize=figsize, dpi=180, squeeze=False)
+        flat_axes = list(axes.flat)
     time_ms = evokeds[0].times[time_index] * 1000.0
 
-    for ax, evoked, scale, label in zip(axes, evokeds, scales, labels, strict=False):
+    for idx, ax in enumerate(flat_axes):
+        if idx >= len(evokeds):
+            ax.axis("off")
+            continue
+
+        evoked = evokeds[idx]
+        scale = scales[idx]
+        label = labels[idx]
+
         data = evoked.data[:, time_index] * 1e6
         im, _ = mne.viz.plot_topomap(
             data,
@@ -205,16 +449,21 @@ def _render_frame(
             cmap="RdBu_r",
             vlim=(scale[0], scale[1]),
         )
-        ax.set_title(f"{label} @ {time_ms:.0f} ms", fontsize=11)
-        frac = 0.06 if n_rows > 1 else 0.046
-        cbar = plt.colorbar(im, ax=ax, orientation="horizontal", fraction=frac, pad=0.12)
+        title_lines = [label, f"@ {time_ms:.0f} ms"]
+        ax.set_title("\n".join(title_lines), fontsize=11)
+
+        cbar = plt.colorbar(im, ax=ax, orientation="horizontal", fraction=0.05, pad=0.18)
+        cbar.set_ticks(np.arange(int(COLOR_SCALE[0]), int(COLOR_SCALE[1]) + 1, 1))
         cbar.set_label("Amplitude (µV)")
 
     if title:
-        fig.suptitle(title, fontsize=13, y=0.975, wrap=True, ha="center")
+        text = fig.suptitle(title, fontsize=13, y=0.99, ha="center")
+        try:
+            text.set_wrap(True)
+        except AttributeError:
+            pass
 
-    fig.subplots_adjust(top=0.92, bottom=0.08, hspace=0.32)
-    # Layout tuned for panel snapshots; rely on plot_topomap defaults for bounds.
+    fig.subplots_adjust(top=0.9, bottom=0.08, hspace=0.6, wspace=0.35)
     fig.savefig(frame_path, dpi=180)
     plt.close(fig)
     return frame_path
@@ -234,104 +483,168 @@ def main() -> None:
         raise ValueError("This exporter currently supports sensor-space configs only.")
 
     config_slug = config_path.stem
-    analysis_name = config.get("analysis_name") or config_slug
     slug = config_slug
 
-    condition_a_cfg = _get_condition(config, args.condition_a, "condition_A")
-    condition_b_cfg = _get_condition(config, args.condition_b, "condition_B")
+    movie_spec = _build_movie_spec(config, args)
 
-    label_a = condition_a_cfg.get("name") or condition_a_cfg.get("condition_set_name") or "Condition A"
-    label_b = condition_b_cfg.get("name") or condition_b_cfg.get("condition_set_name") or "Condition B"
-    diff_label = f"{label_a} − {label_b}"
+    movie_defaults = (config.get("movie") or {})
+    fps = args.fps
+    if fps is None:
+        try:
+            fps = float(movie_defaults.get("fps", DEFAULT_FPS))
+        except Exception:
+            fps = DEFAULT_FPS
+
+    if args.skip_panel:
+        log.info("Skipping panel rendering (--skip-panel).")
+        return
 
     baseline = None
     epoch_cfg = config.get("epoch_window") or {}
     if epoch_cfg:
         baseline = epoch_cfg.get("baseline")
 
-    subject_dirs = data_loader.get_subject_dirs("all", project_root=PROJECT_ROOT)
+    data_cfg = config.get("data") or {}
+    data_source_override = data_cfg.get("source")
+    preprocessing_override = data_cfg.get("preprocessing")
+    custom_data_source = None
+    if data_source_override:
+        custom_data_source = str(data_source_override)
+    elif preprocessing_override:
+        custom_data_source = str(Path("data") / "data_preprocessed" / str(preprocessing_override))
+
+    subject_dirs = data_loader.get_subject_dirs(
+        "all",
+        project_root=PROJECT_ROOT,
+        data_source=custom_data_source,
+    )
     if not subject_dirs:
         raise RuntimeError("Could not locate any subject directories; did you preprocess data?")
 
-    per_subject_a = _compute_per_subject_evoked(subject_dirs, condition_a_cfg, baseline, args.accuracy)
-    per_subject_b = _compute_per_subject_evoked(subject_dirs, condition_b_cfg, baseline, args.accuracy)
+    condition_cache: dict[tuple, tuple[mne.Evoked, int]] = {}
+    track_evokeds: list[mne.Evoked] = []
+    track_display_labels: list[str] = []
 
-    grand_a = mne.grand_average(list(per_subject_a))
-    grand_b = mne.grand_average(list(per_subject_b))
+    for track in movie_spec["tracks"]:
+        components = track["components"]
+        component_evokeds: list[mne.Evoked] = []
+        component_counts: list[int] = []
+        for component in components:
+            condition_cfg = component["condition"]
+            accuracy_flag = component["accuracy"]
+            cache_key = _condition_cache_key(condition_cfg, accuracy_flag)
+            if cache_key not in condition_cache:
+                per_subject, epoch_count = _compute_per_subject_evoked(
+                    subject_dirs,
+                    condition_cfg,
+                    baseline,
+                    accuracy_flag,
+                )
+                aggregated = mne.grand_average(list(per_subject))
+                condition_cache[cache_key] = (aggregated, epoch_count)
+            cached_evoked, cached_epochs = condition_cache[cache_key]
+            component_evokeds.append(cached_evoked.copy())
+            component_counts.append(cached_epochs)
+
+        if len(component_evokeds) == 1:
+            track_evoked = component_evokeds[0]
+        else:
+            weights = [component["weight"] for component in components]
+            track_evoked = mne.combine_evoked(component_evokeds, weights=weights)
+
+        track_evokeds.append(track_evoked)
+
+        accuracy_display = track.get("accuracy_display")
+        if accuracy_display:
+            accuracy_display = str(accuracy_display)
+            if "/" in accuracy_display:
+                accuracy_display_fmt = " vs ".join(accuracy_display.split("/"))
+            else:
+                accuracy_display_fmt = accuracy_display
+        else:
+            accuracy_display_fmt = None
+
+        if len(component_counts) == 1:
+            count_display = f"n={component_counts[0]}"
+        else:
+            count_display = "n=" + " vs ".join(str(c) for c in component_counts)
+
+        if accuracy_display_fmt and count_display:
+            display = f"{track['label']} ({accuracy_display_fmt}, {count_display})"
+        elif accuracy_display_fmt:
+            display = f"{track['label']} ({accuracy_display_fmt})"
+        else:
+            display = f"{track['label']} ({count_display})"
+
+        track_display_labels.append(display)
+
+    if not track_evokeds:
+        raise RuntimeError("No tracks available to render; check configuration")
+
+    channels_cfg = config.get("channels") or {}
+    configured_non_scalp = channels_cfg.get("non_scalp")
+    if isinstance(configured_non_scalp, (str, bytes)):
+        configured_non_scalp = [configured_non_scalp]
+    elif not isinstance(configured_non_scalp, Sequence):
+        configured_non_scalp = None
+    non_scalp_candidates = list(configured_non_scalp or DEFAULT_NON_SCALP_CHANNELS)
 
     dropped_channels: list[str] = []
     if not args.include_belt:
-        dropped_channels = _identify_belt_channels(grand_a.info)
+        dropped_channels = _identify_non_scalp_channels(track_evokeds[0].info, non_scalp_candidates)
         if dropped_channels:
             log.info(
-                "Dropping %d below-belt electrodes: %s",
+                "Dropping %d non-scalp electrodes: %s",
                 len(dropped_channels),
                 ", ".join(dropped_channels),
             )
-            grand_a = grand_a.copy().drop_channels(dropped_channels, on_missing="ignore")
-            grand_b = grand_b.copy().drop_channels(dropped_channels, on_missing="ignore")
+            for idx, evoked in enumerate(track_evokeds):
+                track_evokeds[idx] = evoked.copy().drop_channels(dropped_channels, on_missing="ignore")
 
-    grand_diff = mne.combine_evoked([grand_a, grand_b], weights=[1.0, -1.0])
+    times = track_evokeds[0].times
+    for evoked in track_evokeds[1:]:
+        if not np.allclose(times, evoked.times):
+            raise RuntimeError("Time axes are not aligned across evokeds; cannot build synced movie.")
 
-    times = grand_a.times
-    if not np.allclose(times, grand_b.times) or not np.allclose(times, grand_diff.times):
-        raise RuntimeError("Time axes are not aligned across evokeds; cannot build synced movie.")
-
-    tmin = epoch_cfg.get("tmin")
-    tmax = epoch_cfg.get("tmax")
-    if tmin is None or tmax is None:
-        mask = np.ones_like(times, dtype=bool)
-    else:
-        mask = (times >= float(tmin)) & (times <= float(tmax))
-    scale_a = _compute_scale(grand_a, mask)
-    scale_b = _compute_scale(grand_b, mask)
-    scale_diff = _compute_scale(grand_diff, mask)
+    scales = [COLOR_SCALE for _ in track_evokeds]
 
     step = max(args.frame_step or 1, 1)
     frame_indices = list(range(0, len(times), step)) or [0]
     if frame_indices[-1] != len(times) - 1:
         frame_indices.append(len(times) - 1)
+
     output_root = Path(args.output_dir)
     frame_root = output_root / "frames" / slug
     frame_root.mkdir(parents=True, exist_ok=True)
 
-    tracks: list[tuple] = []
-    if not args.skip_panel:
-        tracks.append(
-            ([grand_a, grand_b, grand_diff], [scale_a, scale_b, scale_diff], [label_a, label_b, diff_label], output_root / f"{slug}_panel.mp4", f"{slug}_panel")
+    prefix = f"{slug}_panel"
+    video_path = output_root / f"{prefix}.mp4"
+
+    frames: list[Path] = []
+    for order, idx in enumerate(frame_indices):
+        frame_path = frame_root / f"{prefix}_{order:04d}.png"
+        _render_frame(
+            track_evokeds,
+            idx,
+            scales,
+            track_display_labels,
+            frame_path,
+            movie_spec.get("title"),
+            movie_spec.get("layout", (len(track_evokeds), 1)),
         )
+        frames.append(frame_path)
 
-    if tracks:
-        assert len(tracks) == 1
-        evs, scales, labels, video_path, prefix = tracks[0]
-        frames: list[Path] = []
-        acc_a = condition_a_cfg.get("accuracy") or args.accuracy or "all"
-        acc_b = condition_b_cfg.get("accuracy") or args.accuracy or "all"
-        accuracy_a = str(acc_a).upper()
-        accuracy_b = str(acc_b).upper()
-        clean_label_a = label_a.split("(")[0].strip()
-        clean_label_b = label_b.split("(")[0].strip()
-        title = (
-            f"{clean_label_a} vs {clean_label_b}\n"
-            f"accuracy={accuracy_a} vs accuracy={accuracy_b}"
-        )
-
-        for order, idx in enumerate(frame_indices):
-            frame_path = frame_root / f"{prefix}_{order:04d}.png"
-            _render_frame(evs, idx, scales, labels, frame_path, title)
-            frames.append(frame_path)
-
-        if frames:
-            video_path.parent.mkdir(parents=True, exist_ok=True)
-            with imageio.get_writer(video_path, format="mp4", fps=args.fps, macro_block_size=1) as writer:
-                for frame_path in frames:
-                    frame_img = imageio.imread(frame_path)
-                    if frame_img.shape[0] % 2:
-                        frame_img = np.pad(frame_img, ((0, 1), (0, 0), (0, 0)), mode="edge")
-                    if frame_img.shape[1] % 2:
-                        frame_img = np.pad(frame_img, ((0, 0), (0, 1), (0, 0)), mode="edge")
-                    writer.append_data(frame_img)
-            log.info("Wrote %s (%d frames)", video_path, len(frames))
+    if frames:
+        video_path.parent.mkdir(parents=True, exist_ok=True)
+        with imageio.get_writer(video_path, format="mp4", fps=fps, macro_block_size=1) as writer:
+            for frame_path in frames:
+                frame_img = imageio.imread(frame_path)
+                if frame_img.shape[0] % 2:
+                    frame_img = np.pad(frame_img, ((0, 1), (0, 0), (0, 0)), mode="edge")
+                if frame_img.shape[1] % 2:
+                    frame_img = np.pad(frame_img, ((0, 0), (0, 1), (0, 0)), mode="edge")
+                writer.append_data(frame_img)
+        log.info("Wrote %s (%d frames)", video_path, len(frames))
 
 
 if __name__ == "__main__":

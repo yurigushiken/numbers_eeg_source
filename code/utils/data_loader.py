@@ -78,11 +78,21 @@ def load_config(config_path, project_root: str | Path = "."):
     - If configs/common.yaml exists, apply minimal defaults (e.g., baseline),
       without overwriting analysis-specific values.
     """
+    config_path = Path(config_path)
     log.info(f"Loading configuration from: {config_path}")
     with open(config_path, 'r', encoding='utf-8') as f:
         cfg = yaml.safe_load(f)
     common = load_common_defaults(project_root)
     cfg = merge_common_into_config(common, cfg)
+
+    # Optional local defaults (e.g., topographic_movies/configs/common.yaml)
+    local_common_path = config_path.parent / "common.yaml"
+    if local_common_path.exists():
+        with open(local_common_path, 'r', encoding='utf-8') as f:
+            local_common = yaml.safe_load(f) or {}
+        if local_common:
+            cfg = merge_common_into_config(local_common, cfg, overwrite=True)
+
     log.info("Configuration loaded successfully (common defaults applied if present).")
     return cfg
 
@@ -387,10 +397,10 @@ def get_evoked_for_condition(subject_dir, condition_info, baseline=None, use_com
         if combined_epochs is not None:
             log.debug(f"Using combined file approach for {condition_set_name}")
 
+            metadata = combined_epochs.metadata
             accuracy_mask = None
             acc_flag = (accuracy or "all").lower()
             if acc_flag in {"acc1", "acc0"}:
-                metadata = combined_epochs.metadata
                 if metadata is not None and 'Target.ACC' in metadata.columns:
                     try:
                         acc_series = metadata['Target.ACC'].astype(float)
@@ -430,12 +440,22 @@ def get_evoked_for_condition(subject_dir, condition_info, baseline=None, use_com
                     cond_mask = combined_epochs.metadata['Condition'] == int(cond_num)
 
                 mask = cond_mask
+                # Optional metadata filters (equality or membership)
+                meta_filters = condition_info.get('metadata') or condition_info.get('metadata_filters')
+                if meta_filters and metadata is not None:
+                    for col, wanted in (meta_filters.items() if isinstance(meta_filters, dict) else []):
+                        if col in metadata.columns:
+                            series = metadata[col].astype(str)
+                            if isinstance(wanted, (list, tuple, set)):
+                                mask = mask & series.isin([str(v) for v in wanted])
+                            else:
+                                mask = mask & (series == str(wanted))
                 if accuracy_mask is not None:
                     mask = cond_mask & accuracy_mask
 
                 if not mask.any():
                     log.debug(
-                        "No epochs remaining for condition %s after accuracy filtering.",
+                        "No epochs remaining for condition %s after filters.",
                         cond_num,
                     )
                     continue
@@ -447,10 +467,21 @@ def get_evoked_for_condition(subject_dir, condition_info, baseline=None, use_com
 
                 # Apply baseline correction if provided
                 if baseline is not None:
-                    try:
-                        epochs_cond.apply_baseline(baseline=tuple(baseline), verbose=False)
-                    except Exception:
-                        epochs_cond.apply_baseline(baseline=(baseline[0], baseline[1]), verbose=False)
+                    b_start, b_stop = float(baseline[0]), float(baseline[1])
+                    e_start = float(epochs_cond.times[0])
+                    e_stop = float(epochs_cond.times[-1])
+                    adj_start = max(b_start, e_start)
+                    adj_stop = min(b_stop, e_stop)
+                    if adj_start < adj_stop:
+                        epochs_cond.apply_baseline(baseline=(adj_start, adj_stop), verbose=False)
+                    else:
+                        log.warning(
+                            "Skipping baseline correction for %s (requested window %s outside [%s, %s]).",
+                            cond_num,
+                            baseline,
+                            e_start,
+                            e_stop,
+                        )
 
                 # Ensure average EEG reference is applied
                 if not any(p['desc'] == 'Average EEG reference' for p in epochs_cond.info['projs']):
@@ -488,10 +519,21 @@ def get_evoked_for_condition(subject_dir, condition_info, baseline=None, use_com
 
                     epochs_cond = combined_epochs[cond_mask].copy()
                     if baseline is not None:
-                        try:
-                            epochs_cond.apply_baseline(baseline=tuple(baseline), verbose=False)
-                        except Exception:
-                            epochs_cond.apply_baseline(baseline=(baseline[0], baseline[1]), verbose=False)
+                        b_start, b_stop = float(baseline[0]), float(baseline[1])
+                        e_start = float(epochs_cond.times[0])
+                        e_stop = float(epochs_cond.times[-1])
+                        adj_start = max(b_start, e_start)
+                        adj_stop = min(b_stop, e_stop)
+                        if adj_start < adj_stop:
+                            epochs_cond.apply_baseline(baseline=(adj_start, adj_stop), verbose=False)
+                        else:
+                            log.warning(
+                                "Skipping baseline correction for %s (requested window %s outside [%s, %s]).",
+                                cond_num,
+                                baseline,
+                                e_start,
+                                e_stop,
+                            )
                     if not any(p['desc'] == 'Average EEG reference' for p in epochs_cond.info['projs']):
                         epochs_cond.set_eeg_reference('average', projection=True, verbose=False)
                     if STANDARD_MONTAGE:

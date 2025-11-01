@@ -2,13 +2,8 @@ analysis_name: "sensor_movie_cardinality1_vs_cardinality3"
 report_group: "movie_cardinality1_vs_cardinality3"
 domain: "sensor"
 
-epoch_window:
-  tmin: -0.2
-  tmax: 0.496
-  baseline: [-0.2, 0.0]
-
 contrast:
-  name: "Movie: Card1 vs Card3"
+  name: "Movie: Cardinality 1 vs Cardinality 3"
   condition_A:
     name: "Cardinality 1"
     conditions: ["11"]
