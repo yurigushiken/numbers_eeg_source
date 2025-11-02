@@ -577,10 +577,33 @@ def _render_frame(
         ax_bottom_center = fig.add_subplot(gs[1, :])  # span both columns
         flat_axes = [ax_top_left, ax_top_right, ax_bottom_center]
     else:
-        fig, axes = plt.subplots(rows, cols, figsize=figsize, dpi=180, squeeze=False)
-        flat_axes = list(axes.flat)
-    time_ms = evokeds[0].times[time_index] * 1000.0
+        fig = plt.figure(figsize=figsize, dpi=180)
+        gs = fig.add_gridspec(rows, cols)
+        flat_axes: list[plt.Axes] = []
 
+        total_tracks = len(evokeds)
+        full_rows = min(total_tracks // cols, rows)
+        track_counter = 0
+
+        for r in range(full_rows):
+            for c in range(cols):
+                if track_counter >= total_tracks:
+                    break
+                ax = fig.add_subplot(gs[r, c])
+                flat_axes.append(ax)
+                track_counter += 1
+
+        if track_counter < total_tracks and full_rows < rows:
+            remainder = total_tracks - track_counter
+            sub_spec = gs[full_rows, :]
+            sub_gs = sub_spec.subgridspec(1, remainder)
+            for c in range(remainder):
+                ax = fig.add_subplot(sub_gs[0, c])
+                flat_axes.append(ax)
+                track_counter += 1
+ 
+    time_ms = evokeds[0].times[time_index] * 1000.0
+ 
     for idx, ax in enumerate(flat_axes):
         if idx >= len(evokeds):
             ax.axis("off")
