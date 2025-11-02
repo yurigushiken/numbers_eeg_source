@@ -1,0 +1,42 @@
+analysis_name: "sensor_movie_prime5_c"
+report_group: "movie_prime5_letter_c"
+domain: "sensor"
+
+data:
+  preprocessing: "lab_data_original_with_primes"
+
+panel:
+  title: "Prime stimuli variant C"
+  layout: [2, 3]
+  tracks:
+    - label: "1c"
+      conditions: ["11"]
+      metadata:
+        Prime5: "1c.jpg"
+      accuracy: all
+    - label: "2c"
+      conditions: ["22"]
+      metadata:
+        Prime5: "2c.jpg"
+      accuracy: all
+    - label: "3c"
+      conditions: ["33"]
+      metadata:
+        Prime5: "3c.jpg"
+      accuracy: all
+    - label: "4c"
+      conditions: ["44"]
+      metadata:
+        Prime5: "4c.jpg"
+      accuracy: all
+    - label: "5c"
+      conditions: ["55"]
+      metadata:
+        Prime5: "5c.jpg"
+      accuracy: all
+    - label: "6c"
+      conditions: ["66"]
+      metadata:
+        Prime5: "6c.jpg"
+      accuracy: all
+

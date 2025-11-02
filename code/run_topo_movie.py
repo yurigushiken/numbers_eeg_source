@@ -603,7 +603,7 @@ def _render_frame(
                 track_counter += 1
  
     time_ms = evokeds[0].times[time_index] * 1000.0
- 
+
     for idx, ax in enumerate(flat_axes):
         if idx >= len(evokeds):
             ax.axis("off")

@@ -1,0 +1,42 @@
+analysis_name: "sensor_movie_prime5_b"
+report_group: "movie_prime5_letter_b"
+domain: "sensor"
+
+data:
+  preprocessing: "lab_data_original_with_primes"
+
+panel:
+  title: "Prime stimuli variant B"
+  layout: [2, 3]
+  tracks:
+    - label: "1b"
+      conditions: ["11"]
+      metadata:
+        Prime5: "1b.jpg"
+      accuracy: all
+    - label: "2b"
+      conditions: ["22"]
+      metadata:
+        Prime5: "2b.jpg"
+      accuracy: all
+    - label: "3b"
+      conditions: ["33"]
+      metadata:
+        Prime5: "3b.jpg"
+      accuracy: all
+    - label: "4b"
+      conditions: ["44"]
+      metadata:
+        Prime5: "4b.jpg"
+      accuracy: all
+    - label: "5b"
+      conditions: ["55"]
+      metadata:
+        Prime5: "5b.jpg"
+      accuracy: all
+    - label: "6b"
+      conditions: ["66"]
+      metadata:
+        Prime5: "6b.jpg"
+      accuracy: all
+
