@@ -14,6 +14,7 @@ import matplotlib
 matplotlib.use("Agg")
 
 import matplotlib.pyplot as plt
+from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 import mne
 import numpy as np
 import imageio.v2 as imageio
@@ -398,6 +399,106 @@ def _parse_frame_window(config: dict) -> tuple[float | None, float | None]:
     return tmin, tmax
 
 
+def _load_thumbnail_image(
+    image_path: Path,
+    *,
+    cache: dict[Path, np.ndarray | None],
+) -> np.ndarray | None:
+    if image_path in cache:
+        return cache[image_path]
+
+    try:
+        data = imageio.imread(image_path)
+    except FileNotFoundError:
+        log.warning("Thumbnail image not found: %s", image_path)
+        cache[image_path] = None  # Cache miss to avoid repeated warnings
+        return None
+    except Exception as exc:
+        log.warning("Failed to load thumbnail image %s: %s", image_path, exc)
+        cache[image_path] = None
+        return None
+
+    cache[image_path] = data
+    return data
+
+
+def _resolve_centerpiece_image(
+    config: dict,
+    *,
+    thumbnail_root_path: Path | None,
+    thumbnail_cache: dict[Path, np.ndarray | None],
+    project_root: Path,
+) -> tuple[np.ndarray | None, dict[str, object]]:
+    overlays_cfg = config.get("overlays") or {}
+    options = overlays_cfg.get("static_center_logo") or {}
+    if not options:
+        return None, {}
+
+    analysis_name = str(config.get("analysis_name") or "")
+    analysis_suffix = ""
+    if analysis_name:
+        parts = analysis_name.split("_")
+        analysis_suffix = parts[-1] if parts else analysis_name
+    numerosity_first_digit = None
+    for ch in analysis_suffix:
+        if ch.isdigit():
+            numerosity_first_digit = ch
+            break
+
+    context = {
+        "analysis_name": analysis_name,
+        "analysis_suffix": analysis_suffix,
+        "numerosity_first_digit": numerosity_first_digit or "",
+    }
+
+    filename_value = options.get("filename")
+    path_value = options.get("path")
+    candidate_path: Path | None = None
+
+    if filename_value:
+        try:
+            formatted = str(filename_value).format(**context)
+        except KeyError:
+            formatted = str(filename_value)
+        if thumbnail_root_path is None:
+            log.warning(
+                "Centerpiece filename '%s' specified but thumbnail root unavailable; skipping.",
+                filename_value,
+            )
+            return None, options
+        candidate_path = thumbnail_root_path / formatted
+
+    if candidate_path is None and path_value:
+        try:
+            formatted = str(path_value).format(**context)
+        except KeyError:
+            formatted = str(path_value)
+        candidate_path = Path(formatted)
+
+    if candidate_path is None:
+        return None, options
+
+    if not candidate_path.is_absolute():
+        root_override = options.get("root")
+        base_dir: Path | None = None
+        if root_override:
+            root_path = Path(str(root_override))
+            if not root_path.is_absolute():
+                base_dir = project_root / root_path
+            else:
+                base_dir = root_path
+        elif thumbnail_root_path is not None and not path_value:
+            base_dir = thumbnail_root_path
+        else:
+            base_dir = project_root
+        candidate_path = base_dir / candidate_path
+
+    image = _load_thumbnail_image(candidate_path, cache=thumbnail_cache)
+    if image is None:
+        log.warning("Centerpiece image not found: %s", candidate_path)
+    return image, options
+
+
 def _compute_per_subject_evoked(
     subject_dirs: Iterable[Path],
     condition_cfg: dict,
@@ -454,6 +555,10 @@ def _render_frame(
     time_index: int,
     scales: Sequence[tuple[float, float]],
     labels: Sequence[str],
+    thumbnails: Sequence[np.ndarray | None],
+    thumbnail_options: dict[str, object],
+    centerpiece: np.ndarray | None,
+    centerpiece_options: dict[str, object],
     frame_path: Path,
     title: str | None,
     layout: tuple[int, int],
@@ -501,12 +606,110 @@ def _render_frame(
         cbar.set_ticks(np.arange(int(COLOR_SCALE[0]), int(COLOR_SCALE[1]) + 1, 1))
         cbar.set_label("Amplitude (µV)")
 
+        thumb = thumbnails[idx] if idx < len(thumbnails) else None
+        if thumb is not None:
+            width = float(thumbnail_options.get("width", 0.32))
+            height = float(thumbnail_options.get("height", width))
+            width = max(min(width, 0.95), 0.05)
+            height = max(min(height, 0.95), 0.05)
+            position = thumbnail_options.get("position")
+            units = str(thumbnail_options.get("position_units", "axes")).lower()
+
+            if isinstance(position, Sequence) and len(position) == 2:
+                try:
+                    x0 = float(position[0])
+                    y0 = float(position[1])
+                except Exception:
+                    x0, y0 = 0.05, 0.05
+
+                if units == "figure":
+                    inset = ax.figure.add_axes([x0, y0, width, height], zorder=ax.get_zorder() + 1)
+                else:  # axes (default)
+                    inset = ax.inset_axes([x0, y0, width, height], transform=ax.transAxes)
+                    inset.set_clip_on(False)
+            else:
+                loc = str(thumbnail_options.get("loc", "lower left"))
+                borderpad = float(thumbnail_options.get("borderpad", 0.6))
+                inset = inset_axes(
+                    ax,
+                    width=f"{width * 100:.0f}%",
+                    height=f"{height * 100:.0f}%",
+                    loc=loc,
+                    borderpad=borderpad,
+                )
+                inset.set_clip_on(False)
+            inset.axis("off")
+            inset.set_facecolor("white")
+            if thumb.ndim == 2:
+                inset.imshow(thumb, cmap="gray", vmin=np.min(thumb), vmax=np.max(thumb))
+            else:
+                inset.imshow(thumb)
+
     if title:
         text = fig.suptitle(title, fontsize=13, y=0.99, ha="center")
         try:
             text.set_wrap(True)
         except AttributeError:
             pass
+
+    if centerpiece is not None:
+        c_width = float(centerpiece_options.get("width", 0.3))
+        c_height = float(centerpiece_options.get("height", c_width))
+        position = centerpiece_options.get("position") or [0.35, 0.35]
+        units = str(centerpiece_options.get("position_units", "figure")).lower()
+
+        try:
+            x0 = float(position[0])
+            y0 = float(position[1])
+        except Exception:
+            x0, y0 = 0.35, 0.35
+
+        c_width = max(min(c_width, 0.95), 0.05)
+        c_height = max(min(c_height, 0.95), 0.05)
+
+        if units == "axes" and flat_axes:
+            ref_ax = flat_axes[0]
+            inset = ref_ax.inset_axes([x0, y0, c_width, c_height], transform=ref_ax.transAxes)
+            inset.set_clip_on(False)
+        else:
+            inset = fig.add_axes([x0, y0, c_width, c_height], zorder=10)
+
+        inset.set_xticks([])
+        inset.set_yticks([])
+        inset.tick_params(labelbottom=False, labelleft=False, bottom=False, left=False)
+        inset.set_facecolor("white")
+        border_color = centerpiece_options.get("border_color")
+        border_width = float(centerpiece_options.get("border_width", 1.0))
+        patch = inset.patch
+        if border_color:
+            patch.set_edgecolor(border_color)
+            patch.set_linewidth(border_width)
+        else:
+            patch.set_edgecolor("none")
+
+        if centerpiece.ndim == 2:
+            inset.imshow(centerpiece, cmap="gray", vmin=np.min(centerpiece), vmax=np.max(centerpiece))
+        else:
+            inset.imshow(centerpiece)
+
+        caption = centerpiece_options.get("caption")
+        if caption:
+            offset = centerpiece_options.get("caption_offset") or [0.0, -0.05]
+            try:
+                dx = float(offset[0])
+                dy = float(offset[1])
+            except Exception:
+                dx, dy = 0.0, -0.05
+            inset.text(
+                0.5 + dx,
+                dy,
+                str(caption),
+                ha="center",
+                va="top",
+                transform=inset.transAxes,
+                fontsize=float(centerpiece_options.get("caption_size", 8)),
+                color=centerpiece_options.get("caption_color") or "black",
+            )
 
     fig.subplots_adjust(top=0.9, bottom=0.08, hspace=0.6, wspace=0.35)
     fig.savefig(frame_path, dpi=180)
@@ -566,9 +769,50 @@ def main() -> None:
     if not subject_dirs:
         raise RuntimeError("Could not locate any subject directories; did you preprocess data?")
 
+    thumbnail_cfg = (movie_defaults.get("thumbnail") or {})
+    thumbnail_root = thumbnail_cfg.get("root")
+    if thumbnail_root:
+        thumbnail_root_path = Path(thumbnail_root)
+        if not thumbnail_root_path.is_absolute():
+            thumbnail_root_path = PROJECT_ROOT / thumbnail_root_path
+    else:
+        thumbnail_root_path = None
+    thumbnail_metadata_key = thumbnail_cfg.get("metadata_key")
+    thumbnail_width = float(thumbnail_cfg.get("width", 0.32))
+    thumbnail_height = float(thumbnail_cfg.get("height", thumbnail_width))
+    thumbnail_loc = thumbnail_cfg.get("loc", "lower left")
+    thumbnail_borderpad = float(thumbnail_cfg.get("borderpad", 0.6))
+    thumbnail_position = thumbnail_cfg.get("position")
+    thumbnail_position_units = str(thumbnail_cfg.get("position_units", "axes")).lower()
+
+    thumbnail_cache: dict[Path, np.ndarray | None] = {}
+    centerpiece_image, centerpiece_cfg = _resolve_centerpiece_image(
+        config,
+        thumbnail_root_path=thumbnail_root_path,
+        thumbnail_cache=thumbnail_cache,
+        project_root=PROJECT_ROOT,
+    )
+    if centerpiece_cfg:
+        centerpiece_options = {
+            "width": float(centerpiece_cfg.get("width", 0.3)),
+            "height": float(centerpiece_cfg.get("height", centerpiece_cfg.get("width", 0.3))),
+            "position": centerpiece_cfg.get("position") or [0.35, 0.35],
+            "position_units": str(centerpiece_cfg.get("position_units", "figure")).lower(),
+            "border_color": centerpiece_cfg.get("border_color"),
+            "border_width": float(centerpiece_cfg.get("border_width", 1.0)),
+            "caption": centerpiece_cfg.get("caption"),
+            "caption_offset": centerpiece_cfg.get("caption_offset") or [0.0, -0.05],
+            "caption_size": float(centerpiece_cfg.get("caption_size", 8)),
+            "caption_color": centerpiece_cfg.get("caption_color") or "black",
+        }
+    else:
+        centerpiece_options = {}
+
     condition_cache: dict[tuple, tuple[mne.Evoked, int]] = {}
     track_evokeds: list[mne.Evoked] = []
     track_display_labels: list[str] = []
+    track_thumbnails: list[np.ndarray | None] = []
+    missing_thumbnail_keys: set[str] = set()
 
     for track in movie_spec["tracks"]:
         components = track["components"]
@@ -599,6 +843,29 @@ def main() -> None:
 
         track_evokeds.append(track_evoked)
 
+        thumbnail_image: np.ndarray | None = None
+        if (
+            thumbnail_root_path is not None
+            and thumbnail_metadata_key
+        ):
+            for component in components:
+                metadata = (component.get("condition") or {}).get("metadata")
+                if not isinstance(metadata, dict):
+                    continue
+                candidate = metadata.get(thumbnail_metadata_key)
+                if not candidate:
+                    continue
+                candidate_path = Path(candidate)
+                if not candidate_path.is_absolute():
+                    candidate_path = thumbnail_root_path / candidate_path
+                image = _load_thumbnail_image(candidate_path, cache=thumbnail_cache)
+                if image is not None:
+                    thumbnail_image = image
+                else:
+                    missing_thumbnail_keys.add(str(candidate_path))
+                break
+        track_thumbnails.append(thumbnail_image)
+
         accuracy_display = track.get("accuracy_display")
         if accuracy_display:
             accuracy_display = str(accuracy_display)
@@ -625,6 +892,17 @@ def main() -> None:
 
     if not track_evokeds:
         raise RuntimeError("No tracks available to render; check configuration")
+
+    if missing_thumbnail_keys:
+        missing_list = sorted(missing_thumbnail_keys)
+        preview = ", ".join(missing_list[:5])
+        if len(missing_list) > 5:
+            preview += f", +{len(missing_list) - 5} more"
+        log.warning(
+            "Unable to attach %d thumbnail(s); missing files: %s",
+            len(missing_list),
+            preview,
+        )
 
     channels_cfg = config.get("channels") or {}
     configured_non_scalp = channels_cfg.get("non_scalp")
@@ -699,6 +977,17 @@ def main() -> None:
             idx,
             scales,
             track_display_labels,
+            track_thumbnails,
+            {
+                "width": max(min(thumbnail_width, 0.95), 0.05),
+                "height": max(min(thumbnail_height, 0.95), 0.05),
+                "loc": thumbnail_loc,
+                "borderpad": thumbnail_borderpad,
+                "position": thumbnail_position,
+                "position_units": thumbnail_position_units,
+            },
+            centerpiece_image,
+            centerpiece_options,
             frame_path,
             movie_spec.get("title"),
             movie_spec.get("layout", (len(track_evokeds), 1)),

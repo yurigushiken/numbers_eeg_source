@@ -29,3 +29,17 @@ panel:
       metadata:
         Prime5: "2d.jpg"
       accuracy: all
+
+overlays:
+  static_center_logo:
+    filename: "{numerosity_first_digit}e.jpg"
+    width: 0.1
+    height: 0.1
+    position: [0.45, 0.45]
+    position_units: "figure"
+    border_color: "#000000"
+    border_width: 3
+    caption: "oddball"
+    caption_color: "#444444"
+    caption_size: 7.5
+    caption_offset: [0.0, -0.08]

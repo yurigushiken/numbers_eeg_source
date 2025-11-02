@@ -1,6 +1,7 @@
 """
 Data Loading Utilities
 """
+from copy import deepcopy
 import logging
 import os
 from pathlib import Path
@@ -72,6 +73,23 @@ def load_common_config(project_root: str | Path = "."):
             return yaml.safe_load(f)
     return {}
 
+def _deep_merge(base: dict, overrides: dict) -> dict:
+    """Return a deep copy of *base* updated with *overrides* (overrides win)."""
+
+    if not isinstance(base, dict):
+        raise TypeError("base must be a dict")
+    if not isinstance(overrides, dict):
+        return deepcopy(base)
+
+    merged = dict(base)
+    for key, value in overrides.items():
+        if isinstance(value, dict) and isinstance(merged.get(key), dict):
+            merged[key] = _deep_merge(merged[key], value)
+        else:
+            merged[key] = deepcopy(value)
+    return merged
+
+
 def load_config(config_path, project_root: str | Path = "."):
     """Loads and validates a YAML configuration file and applies common defaults.
 
@@ -81,9 +99,11 @@ def load_config(config_path, project_root: str | Path = "."):
     config_path = Path(config_path)
     log.info(f"Loading configuration from: {config_path}")
     with open(config_path, 'r', encoding='utf-8') as f:
-        cfg = yaml.safe_load(f)
+        analysis_cfg = yaml.safe_load(f) or {}
+    analysis_overrides = deepcopy(analysis_cfg)
+
     common = load_common_defaults(project_root)
-    cfg = merge_common_into_config(common, cfg)
+    cfg = merge_common_into_config(common, analysis_cfg)
 
     # Optional local defaults (e.g., topographic_movies/configs/common.yaml)
     local_common_path = config_path.parent / "common.yaml"
@@ -92,6 +112,9 @@ def load_config(config_path, project_root: str | Path = "."):
             local_common = yaml.safe_load(f) or {}
         if local_common:
             cfg = merge_common_into_config(local_common, cfg, overwrite=True)
+
+    # Reapply explicit analysis-level overrides last so they always win
+    cfg = _deep_merge(cfg, analysis_overrides)
 
     log.info("Configuration loaded successfully (common defaults applied if present).")
     return cfg
