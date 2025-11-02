@@ -2,9 +2,6 @@ analysis_name: "sensor_movie_cardinality_all"
 report_group: "movie_cardinality_all"
 domain: "sensor"
 
-movie:
-  fps: 5
-
 panel:
   title: "Cardinality 1-6"
   layout: [2, 3]

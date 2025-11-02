@@ -1,0 +1,16 @@
+analysis_name: "sensor_movie_23_46"
+report_group: "movie_23_32"
+domain: "sensor"
+
+contrast:
+  name: "Movie: 23 vs 32"
+  condition_A:
+    name: "2 to 3"
+    conditions: ["23"]
+    accuracy: acc1
+  condition_B:
+    name: "3 to 2"
+    conditions: ["32"]
+    accuracy: acc1
+  combination_weights: [1, -1]
+

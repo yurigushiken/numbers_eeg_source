@@ -353,6 +353,51 @@ def _build_movie_spec(config: dict, args: argparse.Namespace) -> dict:
     return _build_contrast_spec(config, args)
 
 
+def _parse_frame_window(config: dict) -> tuple[float | None, float | None]:
+    movie_cfg = config.get("movie") or {}
+    window = movie_cfg.get("frame_window")
+
+    tmin: float | None = None
+    tmax: float | None = None
+
+    if isinstance(window, (list, tuple)) and len(window) == 2:
+        try:
+            tmin = float(window[0]) if window[0] is not None else None
+        except Exception:
+            tmin = None
+        try:
+            tmax = float(window[1]) if window[1] is not None else None
+        except Exception:
+            tmax = None
+
+    if tmin is None or tmax is None:
+        epoch_cfg = config.get("epoch_window") or {}
+        if tmin is None:
+            try:
+                raw_tmin = epoch_cfg.get("tmin")
+                if raw_tmin is not None:
+                    tmin = float(raw_tmin)
+            except Exception:
+                tmin = None
+        if tmax is None:
+            try:
+                raw_tmax = epoch_cfg.get("tmax")
+                if raw_tmax is not None:
+                    tmax = float(raw_tmax)
+            except Exception:
+                tmax = None
+
+    if tmin is not None and tmax is not None and tmin > tmax:
+        log.warning(
+            "Frame window tmin (%.3f) exceeds tmax (%.3f); swapping values.",
+            tmin,
+            tmax,
+        )
+        tmin, tmax = tmax, tmin
+
+    return tmin, tmax
+
+
 def _compute_per_subject_evoked(
     subject_dirs: Iterable[Path],
     condition_cfg: dict,
@@ -609,9 +654,35 @@ def main() -> None:
     scales = [COLOR_SCALE for _ in track_evokeds]
 
     step = max(args.frame_step or 1, 1)
-    frame_indices = list(range(0, len(times), step)) or [0]
-    if frame_indices[-1] != len(times) - 1:
-        frame_indices.append(len(times) - 1)
+    frame_tmin, frame_tmax = _parse_frame_window(config)
+
+    start_idx = 0
+    end_idx = len(times) - 1
+
+    if frame_tmin is not None:
+        idx = int(np.searchsorted(times, frame_tmin, side="left"))
+        start_idx = min(max(idx, 0), len(times) - 1)
+
+    if frame_tmax is not None:
+        idx = int(np.searchsorted(times, frame_tmax, side="right") - 1)
+        end_idx = min(max(idx, 0), len(times) - 1)
+
+    if start_idx > end_idx:
+        log.warning(
+            "Frame window %.3f–%.3f outside data range %.3f–%.3f; using full window.",
+            frame_tmin if frame_tmin is not None else float(times[0]),
+            frame_tmax if frame_tmax is not None else float(times[-1]),
+            float(times[0]),
+            float(times[-1]),
+        )
+        start_idx = 0
+        end_idx = len(times) - 1
+
+    frame_indices = list(range(start_idx, end_idx + 1, step))
+    if not frame_indices:
+        frame_indices = [end_idx]
+    elif frame_indices[-1] != end_idx:
+        frame_indices.append(end_idx)
 
     output_root = Path(args.output_dir)
     frame_root = output_root / "frames" / slug

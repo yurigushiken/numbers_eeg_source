@@ -4,11 +4,6 @@ data:
 epoch_defaults:
   baseline: [-0.2, 0.0]
 
-epoch_window:
-  tmin: -0.2
-  tmax: 0.496
-  baseline: [-0.2, 0.0]
-
 channels:
   non_scalp:
     - E1
@@ -45,4 +40,5 @@ channels:
 movie:
   fps: 5
   output_dir: "topographic_movies/topos"
+  frame_window: [-0.050, 0.496]
 

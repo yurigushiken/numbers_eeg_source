@@ -1,0 +1,31 @@
+analysis_name: "sensor_movie_prime5_33"
+report_group: "movie_prime5_33"
+domain: "sensor"
+
+data:
+  preprocessing: "lab_data_original_with_primes"
+
+panel:
+  title: "Prime5 effects within condition 33"
+  layout: [2, 2]
+  tracks:
+    - label: "Prime5: 3a"
+      conditions: ["33"]
+      metadata:
+        Prime5: "3a.jpg"
+      accuracy: all
+    - label: "Prime5: 3b"
+      conditions: ["33"]
+      metadata:
+        Prime5: "3b.jpg"
+      accuracy: all
+    - label: "Prime5: 3c"
+      conditions: ["33"]
+      metadata:
+        Prime5: "3c.jpg"
+      accuracy: all
+    - label: "Prime5: 3d"
+      conditions: ["33"]
+      metadata:
+        Prime5: "3d.jpg"
+      accuracy: all
