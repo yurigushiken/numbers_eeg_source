@@ -49,4 +49,12 @@ movie:
     position: [-0.35, -0.12]
     position_units: "axes"
     borderpad: 0.6
+    mirror_padding: 0.0
+    caption_enabled: true
+    caption_color: "#444444"
+    caption_size: 8.0
+    caption_italic: true
+    caption_prefix_prime: "Prime "
+    caption_prefix_oddball: "oddball "
+    caption_offset: [0.0, -0.08]
 

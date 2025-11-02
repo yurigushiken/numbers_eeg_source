@@ -27,6 +27,9 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.append(str(PROJECT_ROOT))
 
 from code.utils import data_loader  # noqa: E402
+from code.topo_movie.specs import build_movie_spec  # noqa: E402
+from code.topo_movie.data import _condition_cache_key, _compute_per_subject_evoked  # noqa: E402
+from code.topo_movie.plot import _load_thumbnail_image, _clamp, _render_frame, build_track_thumbnails  # noqa: E402
 
 
 log = logging.getLogger("topo_movie")
@@ -92,274 +95,9 @@ def _parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def _normalize(text: str | None) -> str:
-    return (text or "").strip().lower()
 
 
-def _find_condition(config: dict, identifier: str) -> dict | None:
-    candidates: list[dict] = []
-    contrast_cfg = config.get("contrast") or {}
-    for key in ("condition_A", "condition_B"):
-        cond = contrast_cfg.get(key)
-        if cond:
-            candidates.append(cond)
-
-    extra = config.get("conditions")
-    if isinstance(extra, dict):
-        candidates.extend(extra.values())
-    elif isinstance(extra, Sequence):
-        candidates.extend(item for item in extra if isinstance(item, dict))
-
-    target = _normalize(identifier)
-    for cond in candidates:
-        if _normalize(cond.get("name")) == target:
-            return cond
-        if _normalize(cond.get("condition_set_name")) == target:
-            return cond
-    return None
-
-
-def _get_condition(config: dict, override: str | None, default_key: str) -> dict:
-    if override:
-        condition = _find_condition(config, override)
-        if condition is None:
-            raise ValueError(f"Could not locate condition matching '{override}' in config")
-        return deepcopy(condition)
-
-    condition = (config.get("contrast") or {}).get(default_key)
-    if not condition:
-        raise ValueError(f"Config missing contrast.{default_key}")
-    return deepcopy(condition)
-
-
-_CONDITION_FIELDS = {
-    "name",
-    "condition_set_name",
-    "conditions",
-    "accuracy",
-    "baseline",
-    "data_subset",
-    "metadata",
-    "metadata_filters",
-}
-
-
-def _extract_condition_dict(source: dict, *, fallback_name: str | None = None) -> dict:
-    if not isinstance(source, dict):
-        raise TypeError("Condition specification must be a dictionary")
-
-    condition = {}
-    for field in _CONDITION_FIELDS:
-        if field in source:
-            condition[field] = deepcopy(source[field])
-
-    if fallback_name and "name" not in condition:
-        condition["name"] = fallback_name
-
-    if "conditions" not in condition and "condition_set_name" not in condition:
-        raise ValueError("Condition entry must specify 'conditions' or 'condition_set_name'")
-
-    return condition
-
-
-def _freeze_value(value: object) -> object:
-    if isinstance(value, dict):
-        return tuple(sorted((k, _freeze_value(v)) for k, v in value.items()))
-    if isinstance(value, Sequence) and not isinstance(value, (str, bytes)):
-        return tuple(_freeze_value(v) for v in value)
-    return value
-
-
-def _condition_cache_key(condition_cfg: dict, accuracy: str) -> tuple:
-    items: list[tuple[str, object]] = []
-    for key, value in condition_cfg.items():
-        if key == "name":
-            continue
-        if isinstance(value, Sequence) and not isinstance(value, (str, bytes)):
-            items.append((key, tuple(_freeze_value(v) for v in value)))
-        elif isinstance(value, dict):
-            items.append((key, tuple(sorted((k, _freeze_value(v)) for k, v in value.items()))))
-        else:
-            items.append((key, value))
-    return (accuracy, tuple(sorted(items)))
-
-
-def _format_accuracy_display(values: Sequence[str]) -> str | None:
-    formatted = [str(val).upper() for val in values if val]
-    if not formatted:
-        return None
-    if all(token == formatted[0] for token in formatted):
-        return formatted[0]
-    return "/".join(formatted)
-
-
-def _build_panel_spec(config: dict, accuracy_override: str | None) -> dict | None:
-    panel_cfg = config.get("panel") or {}
-    tracks_cfg = panel_cfg.get("tracks")
-    if not tracks_cfg:
-        return None
-
-    if not isinstance(tracks_cfg, Sequence):
-        raise ValueError("panel.tracks must be a sequence of track definitions")
-
-    layout_cfg = panel_cfg.get("layout") or []
-    if isinstance(layout_cfg, Sequence) and len(layout_cfg) == 2:
-        rows = max(int(layout_cfg[0]), 1)
-        cols = max(int(layout_cfg[1]), 1)
-    else:
-        rows = len(tracks_cfg)
-        cols = 1
-
-    tracks: list[dict] = []
-    for idx, entry in enumerate(tracks_cfg):
-        if not isinstance(entry, dict):
-            raise ValueError("Each panel track must be a dictionary")
-
-        label = entry.get("label") or entry.get("name") or f"Track {idx + 1}"
-
-        components: list[dict] = []
-        components_cfg = entry.get("components")
-        if isinstance(components_cfg, Sequence) and components_cfg:
-            for comp_index, comp in enumerate(components_cfg):
-                if not isinstance(comp, dict):
-                    raise ValueError("panel.components entries must be dictionaries")
-                weight = float(comp.get("weight", 1.0))
-                cond_source = comp.get("condition") or comp
-                condition_cfg = _extract_condition_dict(cond_source, fallback_name=f"{label} component {comp_index + 1}")
-                accuracy_value = comp.get("accuracy") or condition_cfg.get("accuracy") or entry.get("accuracy") or accuracy_override or "all"
-                accuracy_value = str(accuracy_value).lower()
-                condition_cfg["accuracy"] = accuracy_value
-                components.append({
-                    "condition": condition_cfg,
-                    "weight": weight,
-                    "accuracy": accuracy_value,
-                })
-        elif "weights" in entry and isinstance(entry.get("conditions"), Sequence):
-            cond_sets = entry["conditions"]
-            weights = entry.get("weights")
-            if not isinstance(weights, Sequence) or len(cond_sets) != len(weights):
-                raise ValueError("panel track 'weights' must match length of 'conditions'")
-            for cond_set, weight in zip(cond_sets, weights, strict=False):
-                if isinstance(cond_set, (str, bytes)):
-                    cond_values = [cond_set]
-                else:
-                    cond_values = list(cond_set)
-                base = dict(entry)
-                base.pop("weights", None)
-                base["conditions"] = cond_values
-                condition_cfg = _extract_condition_dict(base, fallback_name=label)
-                accuracy_value = condition_cfg.get("accuracy") or accuracy_override or "all"
-                accuracy_value = str(accuracy_value).lower()
-                condition_cfg["accuracy"] = accuracy_value
-                components.append({
-                    "condition": condition_cfg,
-                    "weight": float(weight),
-                    "accuracy": accuracy_value,
-                })
-        else:
-            cond_source = entry.get("condition") or entry
-            condition_cfg = _extract_condition_dict(cond_source, fallback_name=label)
-            accuracy_value = cond_source.get("accuracy") or condition_cfg.get("accuracy") or entry.get("accuracy") or accuracy_override or "all"
-            accuracy_value = str(accuracy_value).lower()
-            condition_cfg["accuracy"] = accuracy_value
-            weight = float(entry.get("weight", 1.0))
-            components.append({
-                "condition": condition_cfg,
-                "weight": weight,
-                "accuracy": accuracy_value,
-            })
-
-        accuracy_display = _format_accuracy_display([comp["accuracy"] for comp in components])
-        tracks.append({
-            "label": label,
-            "components": components,
-            "accuracy_display": accuracy_display,
-        })
-
-    if rows * cols < len(tracks):
-        raise ValueError("panel.layout is too small for the number of tracks")
-
-    title = panel_cfg.get("title") or config.get("analysis_name")
-
-    return {
-        "layout": (rows, cols),
-        "tracks": tracks,
-        "title": title,
-    }
-
-
-def _clean_label(text: str) -> str:
-    if "(" in text and ")" in text:
-        return text.split("(")[0].strip()
-    return text.strip()
-
-
-def _build_contrast_spec(config: dict, args: argparse.Namespace) -> dict:
-    condition_a_cfg = _get_condition(config, args.condition_a, "condition_A")
-    condition_b_cfg = _get_condition(config, args.condition_b, "condition_B")
-
-    label_a = _clean_label(condition_a_cfg.get("name") or condition_a_cfg.get("condition_set_name") or "Condition A")
-    label_b = _clean_label(condition_b_cfg.get("name") or condition_b_cfg.get("condition_set_name") or "Condition B")
-
-    acc_a = str(condition_a_cfg.get("accuracy") or args.accuracy or "all").lower()
-    acc_b = str(condition_b_cfg.get("accuracy") or args.accuracy or "all").lower()
-    condition_a_cfg["accuracy"] = acc_a
-    condition_b_cfg["accuracy"] = acc_b
-
-    comp_a = {
-        "condition": condition_a_cfg,
-        "weight": 1.0,
-        "accuracy": acc_a,
-    }
-    comp_b = {
-        "condition": condition_b_cfg,
-        "weight": 1.0,
-        "accuracy": acc_b,
-    }
-
-    tracks = [
-        {
-            "label": label_a,
-            "components": [comp_a],
-            "accuracy_display": _format_accuracy_display([acc_a]),
-        },
-        {
-            "label": label_b,
-            "components": [comp_b],
-            "accuracy_display": _format_accuracy_display([acc_b]),
-        },
-        {
-            "label": f"{label_a} - {label_b}",
-            "components": [
-                {
-                    "condition": deepcopy(condition_a_cfg),
-                    "weight": 1.0,
-                    "accuracy": acc_a,
-                },
-                {
-                    "condition": deepcopy(condition_b_cfg),
-                    "weight": -1.0,
-                    "accuracy": acc_b,
-                },
-            ],
-            "accuracy_display": _format_accuracy_display([acc_a, acc_b]),
-        },
-    ]
-
-    title = f"{label_a} ({str(acc_a).upper()}) vs {label_b} ({str(acc_b).upper()})"
-
-    return {
-        "layout": (2, 2),
-        "tracks": tracks,
-        "title": title,
-    }
-
-
-def _build_movie_spec(config: dict, args: argparse.Namespace) -> dict:
-    panel_spec = _build_panel_spec(config, args.accuracy)
-    if panel_spec is not None:
-        return panel_spec
-    return _build_contrast_spec(config, args)
+ 
 
 
 def _parse_frame_window(config: dict) -> tuple[float | None, float | None]:
@@ -407,35 +145,10 @@ def _parse_frame_window(config: dict) -> tuple[float | None, float | None]:
     return tmin, tmax
 
 
-def _load_thumbnail_image(
-    image_path: Path,
-    *,
-    cache: dict[Path, np.ndarray | None],
-) -> np.ndarray | None:
-    if image_path in cache:
-        return cache[image_path]
-
-    try:
-        data = imageio.imread(image_path)
-    except FileNotFoundError:
-        log.warning("Thumbnail image not found: %s", image_path)
-        cache[image_path] = None  # Cache miss to avoid repeated warnings
-        return None
-    except Exception as exc:
-        log.warning("Failed to load thumbnail image %s: %s", image_path, exc)
-        cache[image_path] = None
-        return None
-
-    cache[image_path] = data
-    return data
+ 
 
 
-def _clamp(value: float, minimum: float, maximum: float) -> float:
-    if value < minimum:
-        return minimum
-    if value > maximum:
-        return maximum
-    return value
+ 
 
 
 def _resolve_centerpiece_image(
@@ -515,50 +228,7 @@ def _resolve_centerpiece_image(
     return image, options
 
 
-def _compute_per_subject_evoked(
-    subject_dirs: Iterable[Path],
-    condition_cfg: dict,
-    baseline: Sequence[float] | None,
-    accuracy: str,
-) -> tuple[list[mne.Evoked], int]:
-    per_subject: list[mne.Evoked] = []
-    total_epochs = 0
-
-    for subject_dir in subject_dirs:
-        evokeds, epochs_list = data_loader.get_evoked_for_condition(
-            subject_dir,
-            condition_cfg,
-            baseline=baseline,
-            accuracy=accuracy,
-        )
-        if not evokeds:
-            continue
-        if len(evokeds) > 1:
-            subject_evoked = mne.grand_average(evokeds)
-        else:
-            subject_evoked = evokeds[0].copy()
-
-        per_subject.append(subject_evoked)
-
-        subject_epoch_count = 0
-        for epochs in epochs_list:
-            try:
-                subject_epoch_count += len(epochs)
-            except TypeError:
-                continue
-        if subject_epoch_count == 0:
-            try:
-                subject_epoch_count = int(subject_evoked.nave or 0)
-            except Exception:
-                subject_epoch_count = 0
-        total_epochs += subject_epoch_count
-
-    if not per_subject:
-        identifier = condition_cfg.get("name") or \
-            condition_cfg.get("condition_set_name") or \
-            ",".join(condition_cfg.get("conditions", []))
-        raise RuntimeError(f"No evoked data found for condition '{identifier}'")
-    return per_subject, total_epochs
+ 
 
 
 def _identify_non_scalp_channels(info: mne.Info, candidates: Sequence[str]) -> list[str]:
@@ -566,197 +236,7 @@ def _identify_non_scalp_channels(info: mne.Info, candidates: Sequence[str]) -> l
     return [ch for ch in candidates if ch in names]
 
 
-def _render_frame(
-    evokeds: Sequence[mne.Evoked],
-    time_index: int,
-    scales: Sequence[tuple[float, float]],
-    labels: Sequence[str],
-    thumbnails: Sequence[dict[str, object]],
-    centerpiece: np.ndarray | None,
-    centerpiece_options: dict[str, object],
-    frame_path: Path,
-    title: str | None,
-    layout: tuple[int, int],
-) -> Path:
-    rows, cols = layout
-    if rows <= 0 or cols <= 0:
-        raise ValueError("Panel layout must have positive row and column counts")
-
-    figsize = (4.0 * cols, 3.4 * rows)
-    # Use GridSpec to allow the bottom row to span both columns in contrast mode
-    if rows == 2 and cols == 2 and len(evokeds) == 3:
-        fig = plt.figure(figsize=figsize, dpi=180)
-        gs = fig.add_gridspec(2, 2)
-        ax_top_left = fig.add_subplot(gs[0, 0])
-        ax_top_right = fig.add_subplot(gs[0, 1])
-        ax_bottom_center = fig.add_subplot(gs[1, :])  # span both columns
-        flat_axes = [ax_top_left, ax_top_right, ax_bottom_center]
-    else:
-        fig = plt.figure(figsize=figsize, dpi=180)
-        gs = fig.add_gridspec(rows, cols)
-        flat_axes: list[plt.Axes] = []
-
-        total_tracks = len(evokeds)
-        full_rows = min(total_tracks // cols, rows)
-        track_counter = 0
-
-        for r in range(full_rows):
-            for c in range(cols):
-                if track_counter >= total_tracks:
-                    break
-                ax = fig.add_subplot(gs[r, c])
-                flat_axes.append(ax)
-                track_counter += 1
-
-        if track_counter < total_tracks and full_rows < rows:
-            remainder = total_tracks - track_counter
-            sub_spec = gs[full_rows, :]
-            sub_gs = sub_spec.subgridspec(1, remainder)
-            for c in range(remainder):
-                ax = fig.add_subplot(sub_gs[0, c])
-                flat_axes.append(ax)
-                track_counter += 1
  
-    time_ms = evokeds[0].times[time_index] * 1000.0
-
-    for idx, ax in enumerate(flat_axes):
-        if idx >= len(evokeds):
-            ax.axis("off")
-            continue
-
-        evoked = evokeds[idx]
-        scale = scales[idx]
-        label = labels[idx]
-
-        data = evoked.data[:, time_index] * 1e6
-        im, _ = mne.viz.plot_topomap(
-            data,
-            evoked.info,
-            axes=ax,
-            show=False,
-            cmap="RdBu_r",
-            vlim=(scale[0], scale[1]),
-        )
-        title_lines = [label, f"@ {time_ms:.0f} ms"]
-        ax.set_title("\n".join(title_lines), fontsize=11)
-
-        cbar = plt.colorbar(im, ax=ax, orientation="horizontal", fraction=0.05, pad=0.18)
-        cbar.set_ticks(np.arange(int(COLOR_SCALE[0]), int(COLOR_SCALE[1]) + 1, 1))
-        cbar.set_label("Amplitude (µV)")
-
-        thumb_entry = thumbnails[idx] if idx < len(thumbnails) else None
-        if isinstance(thumb_entry, dict):
-            for thumb in thumb_entry.get("images", []):
-                data = thumb.get("image")
-                if data is None:
-                    continue
-                width = float(thumb.get("width", 0.32))
-                height = float(thumb.get("height", width))
-                width = max(min(width, 0.95), 0.05)
-                height = max(min(height, 0.95), 0.05)
-                position = thumb.get("position")
-                units = str(thumb.get("position_units", "axes")).lower()
-
-                if isinstance(position, Sequence) and len(position) == 2:
-                    try:
-                        x0 = float(position[0])
-                        y0 = float(position[1])
-                    except Exception:
-                        x0, y0 = 0.05, 0.05
-
-                    if units == "figure":
-                        inset = ax.figure.add_axes([x0, y0, width, height], zorder=ax.get_zorder() + 1)
-                    else:  # axes (default)
-                        inset = ax.inset_axes([x0, y0, width, height], transform=ax.transAxes)
-                        inset.set_clip_on(False)
-                else:
-                    loc = str(thumb.get("loc", "lower left"))
-                    borderpad = float(thumb.get("borderpad", 0.6))
-                    inset = inset_axes(
-                        ax,
-                        width=f"{width * 100:.0f}%",
-                        height=f"{height * 100:.0f}%",
-                        loc=loc,
-                        borderpad=borderpad,
-                    )
-                    inset.set_clip_on(False)
-                inset.axis("off")
-                inset.set_facecolor("white")
-                if data.ndim == 2:
-                    inset.imshow(data, cmap="gray", vmin=np.min(data), vmax=np.max(data))
-                else:
-                    inset.imshow(data)
-
-    if title:
-        text = fig.suptitle(title, fontsize=13, y=0.99, ha="center")
-        try:
-            text.set_wrap(True)
-        except AttributeError:
-            pass
-
-    if centerpiece is not None:
-        c_width = float(centerpiece_options.get("width", 0.3))
-        c_height = float(centerpiece_options.get("height", c_width))
-        position = centerpiece_options.get("position") or [0.35, 0.35]
-        units = str(centerpiece_options.get("position_units", "figure")).lower()
-
-        try:
-            x0 = float(position[0])
-            y0 = float(position[1])
-        except Exception:
-            x0, y0 = 0.35, 0.35
-
-        c_width = max(min(c_width, 0.95), 0.05)
-        c_height = max(min(c_height, 0.95), 0.05)
-
-        if units == "axes" and flat_axes:
-            ref_ax = flat_axes[0]
-            inset = ref_ax.inset_axes([x0, y0, c_width, c_height], transform=ref_ax.transAxes)
-            inset.set_clip_on(False)
-        else:
-            inset = fig.add_axes([x0, y0, c_width, c_height], zorder=10)
-
-        inset.set_xticks([])
-        inset.set_yticks([])
-        inset.tick_params(labelbottom=False, labelleft=False, bottom=False, left=False)
-        inset.set_facecolor("white")
-        border_color = centerpiece_options.get("border_color")
-        border_width = float(centerpiece_options.get("border_width", 1.0))
-        patch = inset.patch
-        if border_color:
-            patch.set_edgecolor(border_color)
-            patch.set_linewidth(border_width)
-        else:
-            patch.set_edgecolor("none")
-
-        if centerpiece.ndim == 2:
-            inset.imshow(centerpiece, cmap="gray", vmin=np.min(centerpiece), vmax=np.max(centerpiece))
-        else:
-            inset.imshow(centerpiece)
-
-        caption = centerpiece_options.get("caption")
-        if caption:
-            offset = centerpiece_options.get("caption_offset") or [0.0, -0.05]
-            try:
-                dx = float(offset[0])
-                dy = float(offset[1])
-            except Exception:
-                dx, dy = 0.0, -0.05
-            inset.text(
-                0.5 + dx,
-                dy,
-                str(caption),
-                ha="center",
-                va="top",
-                transform=inset.transAxes,
-                fontsize=float(centerpiece_options.get("caption_size", 8)),
-                color=centerpiece_options.get("caption_color") or "black",
-            )
-
-    fig.subplots_adjust(top=0.9, bottom=0.08, hspace=0.6, wspace=0.35)
-    fig.savefig(frame_path, dpi=180)
-    plt.close(fig)
-    return frame_path
 
 
 def main() -> None:
@@ -775,7 +255,7 @@ def main() -> None:
     config_slug = config_path.stem
     slug = config_slug
 
-    movie_spec = _build_movie_spec(config, args)
+    movie_spec = build_movie_spec(config, args)
 
     movie_defaults = (config.get("movie") or {})
     fps = args.fps
@@ -828,6 +308,17 @@ def main() -> None:
     thumbnail_borderpad = float(thumbnail_cfg.get("borderpad", 0.6))
     thumbnail_position = thumbnail_cfg.get("position")
     thumbnail_position_units = str(thumbnail_cfg.get("position_units", "axes")).lower()
+    mirror_padding = float(thumbnail_cfg.get("mirror_padding", 0.0))
+    caption_enabled = bool(thumbnail_cfg.get("caption_enabled", False))
+    caption_color = thumbnail_cfg.get("caption_color")
+    try:
+        caption_size = float(thumbnail_cfg.get("caption_size", 8.0))
+    except Exception:
+        caption_size = 8.0
+    caption_italic = bool(thumbnail_cfg.get("caption_italic", False))
+    caption_prefix_prime = thumbnail_cfg.get("caption_prefix_prime") or ""
+    caption_prefix_oddball = thumbnail_cfg.get("caption_prefix_oddball") or ""
+    caption_offset = thumbnail_cfg.get("caption_offset") or [0.0, -0.08]
 
     thumbnail_cache: dict[Path, np.ndarray | None] = {}
     centerpiece_image, centerpiece_cfg = _resolve_centerpiece_image(
@@ -887,103 +378,30 @@ def main() -> None:
 
         track_evokeds.append(track_evoked)
 
-        thumb_entries: dict[str, object] = {"images": []}
-        if thumbnail_root_path is not None and thumbnail_metadata_key:
-            prime_info: dict[str, object] | None = None
-            for component in components:
-                metadata = (component.get("condition") or {}).get("metadata")
-                if not isinstance(metadata, dict):
-                    continue
-                primary_candidate = metadata.get(thumbnail_metadata_key)
-                if primary_candidate:
-                    candidate_path = Path(primary_candidate)
-                    if not candidate_path.is_absolute():
-                        candidate_path = thumbnail_root_path / candidate_path
-                    image = _load_thumbnail_image(candidate_path, cache=thumbnail_cache)
-                    if image is not None:
-                        base_position = thumbnail_position or [0.05, 0.05]
-                        if not isinstance(base_position, Sequence) or len(base_position) != 2:
-                            base_position = [0.05, 0.05]
-                        used_width = thumbnail_width_clamped
-                        used_height = thumbnail_height_clamped
-                        prime_info = {
-                            "image": image,
-                            "position": [float(base_position[0]), float(base_position[1])],
-                            "position_units": thumbnail_position_units,
-                            "width": used_width,
-                            "height": used_height,
-                        }
-                        thumb_entries["images"].append(prime_info)
-                    else:
-                        missing_thumbnail_keys.add(str(candidate_path))
-
-                oddball_candidate = metadata.get("oddball")
-                if oddball_candidate:
-                    oddball_path = Path(oddball_candidate)
-                    if not oddball_path.is_absolute():
-                        oddball_path = thumbnail_root_path / oddball_path
-                    oddball_img = _load_thumbnail_image(oddball_path, cache=thumbnail_cache)
-                    if oddball_img is not None:
-                        custom_position = metadata.get("oddball_position")
-                        if isinstance(custom_position, Sequence) and len(custom_position) == 2:
-                            try:
-                                custom_x = float(custom_position[0])
-                                custom_y = float(custom_position[1])
-                                valid_custom = True
-                            except Exception:
-                                valid_custom = False
-                            else:
-                                valid_custom = True
-                        else:
-                            valid_custom = False
-
-                        if valid_custom:
-                            custom_units = str(metadata.get("oddball_position_units") or thumbnail_position_units).lower()
-                            custom_width = float(metadata.get("oddball_width", thumbnail_width))
-                            custom_height = float(metadata.get("oddball_height", thumbnail_height))
-                            thumb_entries["images"].append({
-                                "image": oddball_img,
-                                "position": [custom_x, custom_y],
-                                "position_units": custom_units,
-                                "width": max(min(custom_width, 0.95), 0.05),
-                                "height": max(min(custom_height, 0.95), 0.05),
-                            })
-                            continue
-
-                        if prime_info is not None:
-                            units = str(prime_info["position_units"]).lower()
-                            base_pos = prime_info["position"]
-                            used_width = float(prime_info["width"])
-                            used_height = float(prime_info["height"])
-                            base_x = float(base_pos[0])
-                            base_y = float(base_pos[1])
-                            if units == "figure":
-                                mirrored_x = 1.0 - base_x - used_width + 0.55
-                                mirrored_x = _clamp(mirrored_x, 0.0, 1.0 - used_width)
-                                mirrored_y = _clamp(base_y, 0.0, 1.0 - used_height)
-                                mirrored_y = _clamp(mirrored_y, 0.0, 1.0 - used_height)
-                            else:
-                                mirrored_x = 1.0 - base_x - used_width + 0.55
-                                mirrored_x = _clamp(mirrored_x, -0.2, 1.0 - used_width)
-                                mirrored_y = _clamp(base_y, -0.2, 1.0 - used_height)
-                            oddball_position = [mirrored_x, mirrored_y]
-                            oddball_units = units
-                        else:
-                            used_width = thumbnail_width_clamped
-                            used_height = thumbnail_height_clamped
-                            oddball_position = [0.95 - used_width, 0.05]
-                            oddball_units = thumbnail_position_units
-
-                        thumb_entries["images"].append({
-                            "image": oddball_img,
-                            "position": oddball_position,
-                            "position_units": oddball_units,
-                            "width": used_width,
-                            "height": used_height,
-                        })
-                    else:
-                        missing_thumbnail_keys.add(str(oddball_path))
+        thumb_entries, missing = build_track_thumbnails(
+            components,
+            thumbnail_root_path=thumbnail_root_path,
+            thumbnail_metadata_key=thumbnail_metadata_key,
+            thumbnail_width=thumbnail_width,
+            thumbnail_height=thumbnail_height,
+            thumbnail_width_clamped=thumbnail_width_clamped,
+            thumbnail_height_clamped=thumbnail_height_clamped,
+            thumbnail_position=thumbnail_position,
+            thumbnail_position_units=thumbnail_position_units,
+            thumbnail_loc=thumbnail_loc,
+            thumbnail_borderpad=thumbnail_borderpad,
+            thumbnail_cache=thumbnail_cache,
+            caption_enabled=caption_enabled,
+            caption_color=caption_color,
+            caption_size=caption_size,
+            caption_italic=caption_italic,
+            caption_prefix_prime=caption_prefix_prime,
+            caption_prefix_oddball=caption_prefix_oddball,
+            caption_offset=caption_offset,
+            mirror_padding=mirror_padding,
+        )
         track_thumbnails.append(thumb_entries)
+        missing_thumbnail_keys.update(missing)
 
         accuracy_display = track.get("accuracy_display")
         if accuracy_display:
