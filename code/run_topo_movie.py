@@ -162,15 +162,23 @@ def _extract_condition_dict(source: dict, *, fallback_name: str | None = None) -
     return condition
 
 
+def _freeze_value(value: object) -> object:
+    if isinstance(value, dict):
+        return tuple(sorted((k, _freeze_value(v)) for k, v in value.items()))
+    if isinstance(value, Sequence) and not isinstance(value, (str, bytes)):
+        return tuple(_freeze_value(v) for v in value)
+    return value
+
+
 def _condition_cache_key(condition_cfg: dict, accuracy: str) -> tuple:
     items: list[tuple[str, object]] = []
     for key, value in condition_cfg.items():
         if key == "name":
             continue
         if isinstance(value, Sequence) and not isinstance(value, (str, bytes)):
-            items.append((key, tuple(value)))
+            items.append((key, tuple(_freeze_value(v) for v in value)))
         elif isinstance(value, dict):
-            items.append((key, tuple(sorted(value.items()))))
+            items.append((key, tuple(sorted((k, _freeze_value(v)) for k, v in value.items()))))
         else:
             items.append((key, value))
     return (accuracy, tuple(sorted(items)))
@@ -422,6 +430,14 @@ def _load_thumbnail_image(
     return data
 
 
+def _clamp(value: float, minimum: float, maximum: float) -> float:
+    if value < minimum:
+        return minimum
+    if value > maximum:
+        return maximum
+    return value
+
+
 def _resolve_centerpiece_image(
     config: dict,
     *,
@@ -555,8 +571,7 @@ def _render_frame(
     time_index: int,
     scales: Sequence[tuple[float, float]],
     labels: Sequence[str],
-    thumbnails: Sequence[np.ndarray | None],
-    thumbnail_options: dict[str, object],
+    thumbnails: Sequence[dict[str, object]],
     centerpiece: np.ndarray | None,
     centerpiece_options: dict[str, object],
     frame_path: Path,
@@ -629,44 +644,48 @@ def _render_frame(
         cbar.set_ticks(np.arange(int(COLOR_SCALE[0]), int(COLOR_SCALE[1]) + 1, 1))
         cbar.set_label("Amplitude (µV)")
 
-        thumb = thumbnails[idx] if idx < len(thumbnails) else None
-        if thumb is not None:
-            width = float(thumbnail_options.get("width", 0.32))
-            height = float(thumbnail_options.get("height", width))
-            width = max(min(width, 0.95), 0.05)
-            height = max(min(height, 0.95), 0.05)
-            position = thumbnail_options.get("position")
-            units = str(thumbnail_options.get("position_units", "axes")).lower()
+        thumb_entry = thumbnails[idx] if idx < len(thumbnails) else None
+        if isinstance(thumb_entry, dict):
+            for thumb in thumb_entry.get("images", []):
+                data = thumb.get("image")
+                if data is None:
+                    continue
+                width = float(thumb.get("width", 0.32))
+                height = float(thumb.get("height", width))
+                width = max(min(width, 0.95), 0.05)
+                height = max(min(height, 0.95), 0.05)
+                position = thumb.get("position")
+                units = str(thumb.get("position_units", "axes")).lower()
 
-            if isinstance(position, Sequence) and len(position) == 2:
-                try:
-                    x0 = float(position[0])
-                    y0 = float(position[1])
-                except Exception:
-                    x0, y0 = 0.05, 0.05
+                if isinstance(position, Sequence) and len(position) == 2:
+                    try:
+                        x0 = float(position[0])
+                        y0 = float(position[1])
+                    except Exception:
+                        x0, y0 = 0.05, 0.05
 
-                if units == "figure":
-                    inset = ax.figure.add_axes([x0, y0, width, height], zorder=ax.get_zorder() + 1)
-                else:  # axes (default)
-                    inset = ax.inset_axes([x0, y0, width, height], transform=ax.transAxes)
+                    if units == "figure":
+                        inset = ax.figure.add_axes([x0, y0, width, height], zorder=ax.get_zorder() + 1)
+                    else:  # axes (default)
+                        inset = ax.inset_axes([x0, y0, width, height], transform=ax.transAxes)
+                        inset.set_clip_on(False)
+                else:
+                    loc = str(thumb.get("loc", "lower left"))
+                    borderpad = float(thumb.get("borderpad", 0.6))
+                    inset = inset_axes(
+                        ax,
+                        width=f"{width * 100:.0f}%",
+                        height=f"{height * 100:.0f}%",
+                        loc=loc,
+                        borderpad=borderpad,
+                    )
                     inset.set_clip_on(False)
-            else:
-                loc = str(thumbnail_options.get("loc", "lower left"))
-                borderpad = float(thumbnail_options.get("borderpad", 0.6))
-                inset = inset_axes(
-                    ax,
-                    width=f"{width * 100:.0f}%",
-                    height=f"{height * 100:.0f}%",
-                    loc=loc,
-                    borderpad=borderpad,
-                )
-                inset.set_clip_on(False)
-            inset.axis("off")
-            inset.set_facecolor("white")
-            if thumb.ndim == 2:
-                inset.imshow(thumb, cmap="gray", vmin=np.min(thumb), vmax=np.max(thumb))
-            else:
-                inset.imshow(thumb)
+                inset.axis("off")
+                inset.set_facecolor("white")
+                if data.ndim == 2:
+                    inset.imshow(data, cmap="gray", vmin=np.min(data), vmax=np.max(data))
+                else:
+                    inset.imshow(data)
 
     if title:
         text = fig.suptitle(title, fontsize=13, y=0.99, ha="center")
@@ -803,6 +822,8 @@ def main() -> None:
     thumbnail_metadata_key = thumbnail_cfg.get("metadata_key")
     thumbnail_width = float(thumbnail_cfg.get("width", 0.32))
     thumbnail_height = float(thumbnail_cfg.get("height", thumbnail_width))
+    thumbnail_width_clamped = max(min(thumbnail_width, 0.95), 0.05)
+    thumbnail_height_clamped = max(min(thumbnail_height, 0.95), 0.05)
     thumbnail_loc = thumbnail_cfg.get("loc", "lower left")
     thumbnail_borderpad = float(thumbnail_cfg.get("borderpad", 0.6))
     thumbnail_position = thumbnail_cfg.get("position")
@@ -834,7 +855,7 @@ def main() -> None:
     condition_cache: dict[tuple, tuple[mne.Evoked, int]] = {}
     track_evokeds: list[mne.Evoked] = []
     track_display_labels: list[str] = []
-    track_thumbnails: list[np.ndarray | None] = []
+    track_thumbnails: list[dict[str, object]] = []
     missing_thumbnail_keys: set[str] = set()
 
     for track in movie_spec["tracks"]:
@@ -866,28 +887,103 @@ def main() -> None:
 
         track_evokeds.append(track_evoked)
 
-        thumbnail_image: np.ndarray | None = None
-        if (
-            thumbnail_root_path is not None
-            and thumbnail_metadata_key
-        ):
+        thumb_entries: dict[str, object] = {"images": []}
+        if thumbnail_root_path is not None and thumbnail_metadata_key:
+            prime_info: dict[str, object] | None = None
             for component in components:
                 metadata = (component.get("condition") or {}).get("metadata")
                 if not isinstance(metadata, dict):
                     continue
-                candidate = metadata.get(thumbnail_metadata_key)
-                if not candidate:
-                    continue
-                candidate_path = Path(candidate)
-                if not candidate_path.is_absolute():
-                    candidate_path = thumbnail_root_path / candidate_path
-                image = _load_thumbnail_image(candidate_path, cache=thumbnail_cache)
-                if image is not None:
-                    thumbnail_image = image
-                else:
-                    missing_thumbnail_keys.add(str(candidate_path))
-                break
-        track_thumbnails.append(thumbnail_image)
+                primary_candidate = metadata.get(thumbnail_metadata_key)
+                if primary_candidate:
+                    candidate_path = Path(primary_candidate)
+                    if not candidate_path.is_absolute():
+                        candidate_path = thumbnail_root_path / candidate_path
+                    image = _load_thumbnail_image(candidate_path, cache=thumbnail_cache)
+                    if image is not None:
+                        base_position = thumbnail_position or [0.05, 0.05]
+                        if not isinstance(base_position, Sequence) or len(base_position) != 2:
+                            base_position = [0.05, 0.05]
+                        used_width = thumbnail_width_clamped
+                        used_height = thumbnail_height_clamped
+                        prime_info = {
+                            "image": image,
+                            "position": [float(base_position[0]), float(base_position[1])],
+                            "position_units": thumbnail_position_units,
+                            "width": used_width,
+                            "height": used_height,
+                        }
+                        thumb_entries["images"].append(prime_info)
+                    else:
+                        missing_thumbnail_keys.add(str(candidate_path))
+
+                oddball_candidate = metadata.get("oddball")
+                if oddball_candidate:
+                    oddball_path = Path(oddball_candidate)
+                    if not oddball_path.is_absolute():
+                        oddball_path = thumbnail_root_path / oddball_path
+                    oddball_img = _load_thumbnail_image(oddball_path, cache=thumbnail_cache)
+                    if oddball_img is not None:
+                        custom_position = metadata.get("oddball_position")
+                        if isinstance(custom_position, Sequence) and len(custom_position) == 2:
+                            try:
+                                custom_x = float(custom_position[0])
+                                custom_y = float(custom_position[1])
+                                valid_custom = True
+                            except Exception:
+                                valid_custom = False
+                            else:
+                                valid_custom = True
+                        else:
+                            valid_custom = False
+
+                        if valid_custom:
+                            custom_units = str(metadata.get("oddball_position_units") or thumbnail_position_units).lower()
+                            custom_width = float(metadata.get("oddball_width", thumbnail_width))
+                            custom_height = float(metadata.get("oddball_height", thumbnail_height))
+                            thumb_entries["images"].append({
+                                "image": oddball_img,
+                                "position": [custom_x, custom_y],
+                                "position_units": custom_units,
+                                "width": max(min(custom_width, 0.95), 0.05),
+                                "height": max(min(custom_height, 0.95), 0.05),
+                            })
+                            continue
+
+                        if prime_info is not None:
+                            units = str(prime_info["position_units"]).lower()
+                            base_pos = prime_info["position"]
+                            used_width = float(prime_info["width"])
+                            used_height = float(prime_info["height"])
+                            base_x = float(base_pos[0])
+                            base_y = float(base_pos[1])
+                            if units == "figure":
+                                mirrored_x = 1.0 - base_x - used_width + 0.55
+                                mirrored_x = _clamp(mirrored_x, 0.0, 1.0 - used_width)
+                                mirrored_y = _clamp(base_y, 0.0, 1.0 - used_height)
+                                mirrored_y = _clamp(mirrored_y, 0.0, 1.0 - used_height)
+                            else:
+                                mirrored_x = 1.0 - base_x - used_width + 0.55
+                                mirrored_x = _clamp(mirrored_x, -0.2, 1.0 - used_width)
+                                mirrored_y = _clamp(base_y, -0.2, 1.0 - used_height)
+                            oddball_position = [mirrored_x, mirrored_y]
+                            oddball_units = units
+                        else:
+                            used_width = thumbnail_width_clamped
+                            used_height = thumbnail_height_clamped
+                            oddball_position = [0.95 - used_width, 0.05]
+                            oddball_units = thumbnail_position_units
+
+                        thumb_entries["images"].append({
+                            "image": oddball_img,
+                            "position": oddball_position,
+                            "position_units": oddball_units,
+                            "width": used_width,
+                            "height": used_height,
+                        })
+                    else:
+                        missing_thumbnail_keys.add(str(oddball_path))
+        track_thumbnails.append(thumb_entries)
 
         accuracy_display = track.get("accuracy_display")
         if accuracy_display:
@@ -1001,14 +1097,6 @@ def main() -> None:
             scales,
             track_display_labels,
             track_thumbnails,
-            {
-                "width": max(min(thumbnail_width, 0.95), 0.05),
-                "height": max(min(thumbnail_height, 0.95), 0.05),
-                "loc": thumbnail_loc,
-                "borderpad": thumbnail_borderpad,
-                "position": thumbnail_position,
-                "position_units": thumbnail_position_units,
-            },
             centerpiece_image,
             centerpiece_options,
             frame_path,

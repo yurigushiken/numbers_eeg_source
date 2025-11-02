@@ -13,30 +13,36 @@ panel:
       conditions: ["11"]
       metadata:
         Prime5: "1a.jpg"
+        oddball: "1e.jpg"
       accuracy: all
     - label: "2a"
       conditions: ["22"]
       metadata:
         Prime5: "2a.jpg"
+        oddball: "2e.jpg"
       accuracy: all
     - label: "3a"
       conditions: ["33"]
       metadata:
         Prime5: "3a.jpg"
+        oddball: "3e.jpg"
       accuracy: all
     - label: "4a"
       conditions: ["44"]
       metadata:
         Prime5: "4a.jpg"
+        oddball: "4e.jpg"
       accuracy: all
     - label: "5a"
       conditions: ["55"]
       metadata:
         Prime5: "5a.jpg"
+        oddball: "5e.jpg"
       accuracy: all
     - label: "6a"
       conditions: ["66"]
       metadata:
         Prime5: "6a.jpg"
+        oddball: "6e.jpg"
       accuracy: all
 
