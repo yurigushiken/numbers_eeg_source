@@ -26,6 +26,7 @@ contrast:
 
 # 4. Statistical Analysis Parameters
 stats:
+  drop_non_scalp: true
   analysis_window: [0.00, 0.496]
   p_threshold: 0.005
   cluster_alpha: 0.05

@@ -1,0 +1,47 @@
+# =============================================================================
+# SENSOR-SPACE CONFIGURATION: 2-3 vs 5-6 Range
+# =============================================================================
+# Analysis: Clean test of PI (2-3) vs ANS (5-6) without boundary confounds
+# Rationale: Excludes '1' (too distinct) and '4' (ambiguous PI/ANS boundary)
+# Date: 2025-11-04
+# =============================================================================
+
+domain: sensor
+analysis_name: sensor_23_56
+
+# Epoch time window
+epoch_window:
+  tmin: 0.0      # Start of epoch (seconds)
+  tmax: 0.496    # End of epoch (seconds)
+  baseline: [-0.2, 0.0]
+
+# Contrast definition
+contrast:
+  name: "2-3 vs. 5-6 Range"
+
+  condition_A:
+    name: "2-3 Range"
+    condition_set_name: "WITHIN_23"
+    accuracy: all
+
+  condition_B:
+    name: "5-6 Range"
+    condition_set_name: "WITHIN_56"
+    accuracy: all
+
+  # Combination weights for grand average
+  # [1, -1] means: condition_A - condition_B (2-3 minus 5-6)
+  combination_weights: [1, -1]
+
+# Statistical parameters for cluster-based permutation test
+stats:
+  drop_non_scalp: true
+  analysis_window: [0.00, 0.496]
+  p_threshold: 0.01
+  cluster_alpha: 0.05
+  n_permutations: 5000
+  tail: 0  # two-sided test
+  seed: 42 # for reproducibility
+  connectivity:
+    method: "distance"
+    threshold: 0.04 # 4 cm

@@ -14,6 +14,7 @@ from datetime import datetime
 
 # It's crucial to import the utility modules we've created.
 from code.utils import data_loader, cluster_stats, plotting, reporter
+from code.utils.report_generator import create_html_report
 
 # Setup basic logging
 logging.basicConfig(level=logging.INFO,
@@ -148,9 +149,42 @@ def main(config_path=None, accuracy=None):
     if ga_cond_A is not None and ga_cond_B is not None:
         plotting.plot_condition_erps_rois(ga_cond_A, ga_cond_B, config, output_dir)
 
+    # --- 6. Generate HTML/PDF Report (Sensor-Only) ---
+    log.info("Generating HTML and PDF reports...")
+    derivatives_root = Path(os.environ.get("DERIVATIVES_ROOT", "derivatives"))
+    reports_dir = derivatives_root / "reports"
+    reports_dir.mkdir(parents=True, exist_ok=True)
+
+    report_output_path = reports_dir / f"{timestamped_analysis_name}_report.html"
+
+    # Build run command string for documentation
+    if accuracy is not None:
+        run_cmd = f"python -m code.run_sensor_analysis_pipeline --config {config_path} --accuracy {accuracy}"
+    else:
+        run_cmd = f"python -m code.run_sensor_analysis_pipeline --config {config_path}"
+
+    try:
+        create_html_report(
+            sensor_config_path=config_path,
+            sensor_output_dir=output_dir,
+            source_output_dir=None,  # No source analysis for sensor-only
+            loreta_output_dir=None,  # No eLORETA analysis for sensor-only
+            report_output_path=report_output_path,
+            run_command=run_cmd,
+            accuracy=accuracy,
+            data_source=None,
+        )
+        log.info(f"HTML report generated: {report_output_path}")
+        pdf_path = report_output_path.with_suffix('.pdf')
+        if pdf_path.exists():
+            log.info(f"PDF report generated: {pdf_path}")
+    except Exception as e:
+        log.warning(f"Failed to generate HTML/PDF report: {e}")
+
     log.info("-" * 80)
     log.info(f"Pipeline finished successfully for '{analysis_name}'.")
     log.info(f"All outputs are saved in: {output_dir}")
+    log.info(f"Report saved in: {reports_dir}")
     log.info("-" * 80)
     return output_dir
 

@@ -88,7 +88,7 @@ HTML_TEMPLATE = """
         </section>
 
         <section id="sensor-results">
-            <h2>Sensor-Space Results</h2>
+            <h2>Sensor-Space Results — {contrast_name}</h2>
             <div class="findings">
                 <h3>Statistical Findings</h3>
                 <pre><code>{sensor_stats}</code></pre>
@@ -201,8 +201,18 @@ def _format_tail_descriptor(tail_value: int) -> str:
         return "one-tailed, negative"
     return "two-tailed"
 
-def _build_analysis_parameters_table(sensor_config_path: Path, sensor_config: dict, report_dir: Path) -> str:
-    """Construct an HTML table summarizing key analysis parameters from sensor and source YAMLs."""
+def _build_analysis_parameters_table(
+    sensor_config_path: Path,
+    sensor_config: dict,
+    report_dir: Path,
+    *,
+    include_source_configs: bool = True,
+) -> str:
+    """Construct an HTML table summarizing key analysis parameters.
+
+    When include_source_configs is False, do NOT attempt to discover or list
+    companion source YAMLs; only sensor parameters are shown.
+    """
     # Sensor parameters
     sensor_tmin = sensor_config.get('tmin')
     sensor_tmax = sensor_config.get('tmax')
@@ -214,24 +224,25 @@ def _build_analysis_parameters_table(sensor_config_path: Path, sensor_config: di
     s_nperm = s_stats.get('n_permutations')
     s_tail = _format_tail_descriptor(int(s_stats.get('tail', 0)))
 
-    # Discover matching source-space configs in the same directory
+    # Discover matching source-space configs in the same directory (optional)
     source_configs: list[tuple[Path, dict]] = []
-    try:
-        analysis_slug = sensor_config_path.stem
-        if analysis_slug.startswith("sensor_"):
-            analysis_slug = analysis_slug[len("sensor_"):]
-        candidate_paths = sorted(sensor_config_path.parent.glob(f"*_{analysis_slug}.yaml"))
-        for candidate in candidate_paths:
-            if candidate.resolve() == sensor_config_path.resolve():
-                continue
-            with open(candidate, "r", encoding="utf-8") as f:
-                cfg = yaml.safe_load(f) or {}
-            if cfg.get("domain") != "source":
-                continue
-            source_configs.append((candidate, cfg))
-    except Exception as exc:
-        log.warning(f"Failed to gather source configuration details: {exc}")
-        source_configs = []
+    if include_source_configs:
+        try:
+            analysis_slug = sensor_config_path.stem
+            if analysis_slug.startswith("sensor_"):
+                analysis_slug = analysis_slug[len("sensor_"):]
+            candidate_paths = sorted(sensor_config_path.parent.glob(f"*_{analysis_slug}.yaml"))
+            for candidate in candidate_paths:
+                if candidate.resolve() == sensor_config_path.resolve():
+                    continue
+                with open(candidate, "r", encoding="utf-8") as f:
+                    cfg = yaml.safe_load(f) or {}
+                if cfg.get("domain") != "source":
+                    continue
+                source_configs.append((candidate, cfg))
+        except Exception as exc:
+            log.warning(f"Failed to gather source configuration details: {exc}")
+            source_configs = []
 
     # Build rows with config file headers
     rows = []
@@ -1156,7 +1167,14 @@ def create_html_report(sensor_config_path, sensor_output_dir, source_output_dir,
             roi_p3b_path=rel_p3b
         )
 
-    analysis_parameters_section = _build_analysis_parameters_table(sensor_config_path, config, report_dir)
+    # Decide whether to include source parameter blocks in the Analysis Parameters table
+    include_source_params = bool(source_output_dir or loreta_output_dir)
+    analysis_parameters_section = _build_analysis_parameters_table(
+        sensor_config_path,
+        config,
+        report_dir,
+        include_source_configs=include_source_params,
+    )
 
     # Generate data quality section
     data_quality_section = ""
@@ -1172,8 +1190,12 @@ def create_html_report(sensor_config_path, sensor_output_dir, source_output_dir,
         log.warning(f"Could not generate data quality section: {e}")
         data_quality_section = ""
 
+    # Determine report title based on whether source analysis was included
+    has_source = bool(source_section_html or eloreta_section_html)
+    report_title = f"{base_title} — Sensor + Source Report" if has_source else f"{base_title} — Sensor-Space Report"
+
     final_html = HTML_TEMPLATE.format(
-        title=f"{base_title} — Sensor + Source Report",
+        title=report_title,
         date=datetime.now().strftime("%Y-%m-%d"),
         contrast_name=config['contrast']['name'],
         run_details_section=_build_run_details_section(run_command, accuracy, data_source, sensor_config_path, report_dir),

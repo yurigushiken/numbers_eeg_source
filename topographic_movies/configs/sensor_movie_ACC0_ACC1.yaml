@@ -1,0 +1,22 @@
+analysis_name: "sensor_movie_ACC0_ACC1"
+report_group: "movie_ACC0_ACC1"
+domain: "sensor"
+
+# Contrast: All change codes (no cardinalities) with ACC1 vs ACC0
+contrast:
+  name: "Movie: ACC1 vs ACC0 (All Changes)"
+  condition_A:
+    name: "Change Trials (ACC1)"
+    conditions: [
+      "12", "13", "14", "23", "24", "25", "34", "35", "36", "45", "46", "56",
+      "21", "31", "32", "41", "42", "43", "52", "53", "54", "63", "64", "65"
+    ]
+    accuracy: acc1
+  condition_B:
+    name: "Change Trials (ACC0)"
+    conditions: [
+      "12", "13", "14", "23", "24", "25", "34", "35", "36", "45", "46", "56",
+      "21", "31", "32", "41", "42", "43", "52", "53", "54", "63", "64", "65"
+    ]
+    accuracy: acc0
+  combination_weights: [1, -1]

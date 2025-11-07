@@ -1,0 +1,85 @@
+# configs/within_small_vs_within_large/sensor_within_small_vs_within_large.yaml
+
+# 1. General Analysis Information
+analysis_name: "sensor_within_small_vs_within_large"
+report_group: "within_small_vs_within_large"
+domain: "sensor"
+
+# 2. Epoch Time Window and Baseline Correction
+epoch_window:
+  tmin: -0.2
+  tmax: 0.496
+  baseline: [-0.2, 0.0]
+
+# 3. Contrast Definition
+# Tests: Dual-system hypothesis (PI vs ANS)
+# Parallel Individuation (1-2-3 range) vs Approximate Number System (4-5-6 range)
+#
+# Hypothesis: If Cluster 4 (right parietal, 252-364 ms) reflects ANS-based magnitude
+# estimation, it should show STRONGER activation for within-large transitions (4-5-6)
+# compared to within-small transitions (1-2-3), where precise individuation (PI) is used.
+#
+# This tests whether brain responses differ when processing numerosities within the
+# subitizing range (precise, object-file based) vs estimation range (approximate, ANS-based).
+contrast:
+  name: "Within-Small vs. Within-Large Transitions"
+  condition_A:
+    name: "Within Small (1-2-3)"
+    condition_set_name: "WITHIN_SMALL_CHANGES"
+  condition_B:
+    name: "Within Large (4-5-6)"
+    condition_set_name: "WITHIN_LARGE_CHANGES"
+  combination_weights: [1, -1]
+
+# 4. Statistical Analysis Parameters
+stats:
+  analysis_window: [0.00, 0.496]
+  p_threshold: 0.01
+  cluster_alpha: 0.05
+  n_permutations: 5000
+  tail: 0  # two-sided test
+  seed: 42 # for reproducibility
+  connectivity:
+    method: "distance"
+    threshold: 0.04 # 4 cm
+
+  # --- Optional ROI restriction (sensor space, uncomment to enable) ---
+  # Uncomment to test specific hypotheses about regional differences:
+
+  # For testing right parietal (Cluster 4 hypothesis - ANS proxy):
+  # roi:
+  #   channels:
+  #     - E55
+  #     - E62
+  #     - E77
+  #     - E78
+  #     - E79
+  #     - E80
+  #     - E85
+  #     - E86
+  #     - E87
+  #     - E90
+  #     - E91
+  #     - E92
+  #     - E93
+  #     - E95
+  #     - E96
+  #     - E97
+  #     - E98
+  #     - E100
+  #     - E101
+  #     - E103
+  #     - E109
+  #     - E110
+
+  # Or use predefined posterior ROI:
+  # roi:
+  #   channel_groups:
+  #     - posterior_visual_parietal
+
+# 5. Visualization Parameters
+visualizations:
+  erp:
+    channels: []
+  topomap:
+    times: []

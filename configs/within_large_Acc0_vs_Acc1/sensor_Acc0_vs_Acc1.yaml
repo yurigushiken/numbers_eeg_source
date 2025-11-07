@@ -9,14 +9,14 @@ epoch_window:
   baseline: [-0.2, 0.0]
 
 contrast:
-  name: "All Conditions: Acc0 vs Acc1"
+  name: "Within Large: Acc0 vs Acc1"
   condition_A:
-    name: "AllConditions-Acc0"
-    condition_set_name: "ALL_NUMEROSITY_TRANSITIONS"
+    name: "Large-Acc0"
+    condition_set_name: "WITHIN_LARGE_CHANGES"
     accuracy: "acc0"
   condition_B:
-    name: "AllConditions-Acc1"
-    condition_set_name: "ALL_NUMEROSITY_TRANSITIONS"
+    name: "Large-Acc1"
+    condition_set_name: "WITHIN_LARGE_CHANGES"
     accuracy: "acc1"
   combination_weights: [1, -1]
 

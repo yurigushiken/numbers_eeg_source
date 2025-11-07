@@ -162,16 +162,101 @@ derivatives/
 - All runs use the signed contrast, no global sign alignment, and 5000 permutations (tail=0).
 - Label summaries live in `derivatives/source/<timestamp>-*/aux/label_cluster_summary.txt`; PI-facing answer comes from that file.
 
-## How to Run This Analysis
+## How to Run Analyses
 
-On Windows PowerShell / Cmd (with conda on PATH):
+All scripts should be executed as Python modules from the **root directory of the project**. Ensure the `numbers_eeg_source` conda environment is active.
+
+### Quick Commands
+
 ```powershell
+# Activate environment
 conda activate numbers_eeg_source
-python -m code.run_source_analysis_pipeline `
-    --config configs\13_31\source_eloreta_wholebrain_magnitude_90_300.yaml
+
+# Run SENSOR analysis only (13_31 contrast)
+python -m code.run_sensor_analysis_pipeline --config configs\13_31\sensor_13_31.yaml --accuracy all
+
+# Run SOURCE analysis only (13_31 whole-brain discovery)
+python -m code.run_source_analysis_pipeline --config configs\13_31\source_eloreta_wholebrain_magnitude_90_300.yaml --accuracy all
+
+# Run FULL pipeline (sensor + all matching source configs)
+python -m code.run_full_analysis_pipeline --config configs\13_31\sensor_13_31.yaml --accuracy all
+
+# Run topographic movie generation for 13_31
+python -m code.run_topo_movie --config topographic_movies\configs\sensor_movie_13_31.yaml --fps 5
+
+# Run all topographic movies
+python -m topographic_movies.run_all_movies
 ```
-- The pipeline logs the 24 inverses it loads, the labels being tested, and whether any clusters survive.
-- Watch the log for messages such as “Restrict-to labels not found …” or errors inside the label branch—those are the only reasons aux files would be missing.
+
+### Command Arguments
+
+- `--config`: Path to the `.yaml` file defining the analysis (contrast, statistics, visualization)
+- `--accuracy`: Dataset filter (`all` for all trials, `acc1` for correct trials only)
+  - When using `acc1`, filters combined epochs via `Target.ACC` metadata (values >= 0.5)
+  - Falls back to all trials if accuracy column missing or no trials survive
+- `--data-source`: Data source selection (default: `new`)
+  - `new`: Uses combined preprocessed files under `data/data_preprocessed/hpf_1.5_lpf_35_baseline-on/`
+  - `old`: Uses legacy split condition folders under `data/<accuracy>/sub-XX`
+  - Or specify custom path: `data/data_preprocessed/hpf_1.0_lpf_35_baseline-on`
+
+> Note: On Windows PowerShell use backticks (`) for line continuation or semicolons (;) to chain commands.
+
+### Analysis Examples by Config Directory
+
+```powershell
+# 13_31: Transition 1↔3 (Increasing vs Decreasing)
+python -m code.run_full_analysis_pipeline --config configs\13_31\sensor_13_31.yaml --accuracy all
+
+# Cardinality comparisons
+python -m code.run_full_analysis_pipeline --config configs\cardinality1_vs_cardinality2\sensor_cardinality1_vs_cardinality2.yaml --accuracy all
+python -m code.run_full_analysis_pipeline --config configs\cardinality1_vs_cardinality3\sensor_cardinality1_vs_cardinality3.yaml --accuracy all
+
+# Change vs No-Change
+python -m code.run_full_analysis_pipeline --config configs\change_vs_no-change\sensor_change_vs_no-change.yaml --accuracy all
+
+# Direction effects
+python -m code.run_full_analysis_pipeline --config configs\inc_dec_within_small\sensor_inc_dec_within_small.yaml --accuracy all
+python -m code.run_full_analysis_pipeline --config configs\small_to_small_direction\sensor_small_to_small_direction.yaml --accuracy all
+
+# Correct trials only (accuracy filtering)
+python -m code.run_full_analysis_pipeline --config configs\13_31\sensor_13_31.yaml --accuracy acc1
+```
+
+### Full Pipeline Behavior
+
+- Always pass a **sensor-space YAML** to `run_full_analysis_pipeline`
+- The pipeline runs sensor analysis first and checks for significant clusters
+- If significant sensor clusters found, it auto-discovers **matching source configs**:
+  - Searches same directory for YAMLs ending with the same contrast slug (e.g., `_13_31.yaml`)
+  - Only runs configs with `domain: "source"`
+  - Example: `sensor_13_31.yaml` → finds `source_eloreta_wholebrain_magnitude_90_300.yaml`, `source_dspm_wholebrain_signed_90_300.yaml`, etc.
+- All discovered source configs run in alphabetical order
+- Generates combined HTML report with both sensor and source results
+
+### Output Locations
+
+- **Sensor outputs**: `derivatives/sensor/<timestamp>-<analysis_name>/`
+- **Source outputs**: `derivatives/source/<timestamp>-<analysis_name>/`
+- **Combined reports**: `derivatives/reports/<base_name>_report.html` and `.pdf`
+  - `<base_name>` strips leading `sensor_`/`source_` prefix
+- **Topographic movies**: `topographic_movies/topos/`
+
+### Before Running Source Analysis
+
+Precompute inverse operators (recommended for all subjects):
+```powershell
+# Build inverse solutions with EEG-appropriate depth weighting
+python -m code.build_inverse_solutions --depth 3.0
+```
+
+This creates `sub-XX-inv.fif` files in each subject's data directory. Subjects without inverse operators are skipped during source analysis.
+
+### Pipeline Logs
+
+- The pipeline logs all 24 inverse operators as they load
+- Watch for messages like "Restrict-to labels not found …" or errors in label branch
+- Sensor analysis logs cluster time windows, channel counts, and p-values
+- Source analysis logs ROI restrictions, label selections, and vertex/label stats results
 
 ## Key Implementation Notes
 

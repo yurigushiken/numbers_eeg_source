@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Between-Subjects Analysis: Individual Differences in Left Temporal Engagement</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', Arial, sans-serif;
+      margin: 40px auto;
+      max-width: 1200px;
+      line-height: 1.6;
+      color: #333;
+      background: #fafafa;
+    }
+    .container {
+      background: white;
+      padding: 40px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      border-radius: 8px;
+    }
+    h1 {
+      color: #2c3e50;
+      border-bottom: 3px solid #3498db;
+      padding-bottom: 12px;
+      margin-top: 0;
+    }
+    h2 {
+      color: #34495e;
+      margin-top: 32px;
+      border-left: 4px solid #3498db;
+      padding-left: 12px;
+    }
+    h3 {
+      color: #555;
+      margin-top: 24px;
+    }
+    .metadata {
+      color: #7f8c8d;
+      font-size: 0.95em;
+      margin-bottom: 24px;
+    }
+    .highlight-box {
+      background: #ecf0f1;
+      border-left: 4px solid #e74c3c;
+      padding: 16px;
+      margin: 16px 0;
+      border-radius: 4px;
+    }
+    .insight-box {
+      background: #d5f4e6;
+      border-left: 4px solid #27ae60;
+      padding: 16px;
+      margin: 16px 0;
+      border-radius: 4px;
+    }
+    .finding-box {
+      background: #fef9e7;
+      border-left: 4px solid #f39c12;
+      padding: 16px;
+      margin: 16px 0;
+      border-radius: 4px;
+    }
+    table {
+      border-collapse: collapse;
+      margin: 16px 0;
+      width: 100%;
+      font-size: 0.95em;
+    }
+    th, td {
+      border: 1px solid #ddd;
+      padding: 10px 12px;
+      text-align: left;
+    }
+    th {
+      background: #34495e;
+      color: white;
+      font-weight: 600;
+    }
+    tr:nth-child(even) { background: #f8f9fa; }
+    .mono {
+      font-family: 'Consolas', 'Monaco', monospace;
+      background: #f4f4f4;
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-size: 0.9em;
+    }
+    .fig-container {
+      margin: 24px 0;
+      text-align: center;
+    }
+    .fig-container img {
+      max-width: 100%;
+      border: 2px solid #ddd;
+      border-radius: 4px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+    }
+    .fig-caption {
+      margin-top: 8px;
+      font-style: italic;
+      color: #555;
+      font-size: 0.95em;
+    }
+    ul, ol {
+      margin: 12px 0;
+      padding-left: 32px;
+    }
+    li { margin: 8px 0; }
+    .significance {
+      color: #e74c3c;
+      font-weight: bold;
+    }
+    .stat {
+      color: #2c3e50;
+      font-weight: 600;
+    }
+    .section {
+      margin: 32px 0;
+    }
+    .key-number {
+      font-size: 1.3em;
+      color: #e74c3c;
+      font-weight: bold;
+    }
+    a {
+      color: #3498db;
+      text-decoration: none;
+    }
+    a:hover {
+      text-decoration: underline;
+    }
+  </style>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+</head>
+<body>
+<div class="container">
+
+  <h1>Between-Subjects Analysis: Individual Differences in Left Temporal Engagement</h1>
+  <div class="metadata">
+    <strong>Generated:</strong> 2025-11-04<br>
+    <strong>Analysis:</strong> Subject-level correlations between left temporal activity patterns and behavioral outcomes<br>
+    <strong>Sample:</strong> N = 24 subjects
+  </div>
+
+  <hr>
+
+  <!-- EXECUTIVE SUMMARY -->
+  <div class="section">
+    <h2>Executive Summary</h2>
+
+    
+    <div class="finding-box">
+      <h4>H1: Marginal Negative Correlation (r = -0.395, p = 0.0558)</h4>
+      <p><strong>Finding:</strong> Subjects who show <strong>more negative left temporal activity on errors</strong> (larger Acc0-Acc1 difference) tend to have <strong>lower overall accuracy</strong>.</p>
+      <p><strong>Interpretation:</strong> Over-reliance on verbal/semantic processing strategies is associated with poorer performance. The most successful subjects show <strong>minimal left temporal engagement differences</strong> between errors and correct trials.</p>
+    </div>
+
+
+    <div class="insight-box">
+      <h4>Key Insight</h4>
+      <p>Individual differences in left temporal engagement patterns exist but do not strongly predict overall performance. This suggests:</p>
+      <ul>
+        <li><strong>Multiple viable strategies:</strong> Both high and low verbal engagement can lead to success</li>
+        <li><strong>Context matters:</strong> Trial-level dynamics (within-subject) may be more predictive than individual trait-level preferences</li>
+        <li><strong>Compensatory mechanisms:</strong> Subjects may adapt strategies across trials to optimize performance</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- CORRELATIONS -->
+  <div class="section">
+    <h2>Correlation Results (Bonferroni-corrected)</h2>
+
+    <table>
+      <tr><th>Hypothesis Test</th><th>r</th><th>p</th><th>p<sub>Bonf</sub></th><th>95% CI</th><th>N</th></tr>
+      <tr><td>H1: diff vs accuracy (neg)</td><td class=''>-0.395</td><td class=''>0.0558</td><td class=''>0.2231</td><td>[-0.689, 0.009]</td><td>24</td></tr>
+<tr><td>H2: diff vs error large-small (neg)</td><td class=''>-0.005</td><td class=''>0.9815</td><td class=''>1.0000</td><td>[-0.408, 0.399]</td><td>24</td></tr>
+<tr><td>H3: diff vs RTcorrect (neg)</td><td class=''>0.275</td><td class=''>0.1928</td><td class=''>0.7713</td><td>[-0.144, 0.611]</td><td>24</td></tr>
+<tr><td>H4: Acc0 amp vs RT SD (neg)</td><td class=''>-0.019</td><td class=''>0.9303</td><td class=''>1.0000</td><td>[-0.419, 0.387]</td><td>24</td></tr>
+    </table>
+
+    <p><strong>Effect size interpretation:</strong> |r| &lt; .30 = small, .30–.50 = medium, &gt; .50 = large</p>
+    <p><strong>Bonferroni threshold:</strong> α = 0.05 / 4 tests = 0.0125</p>
+  </div>
+
+  
+    <h3>Group Comparison: High vs Low Verbal Engagement</h3>
+    <p>Split subjects into "High verbal" (most negative 8) vs "Low verbal" (least negative 8) based on left_temp_diff.</p>
+    <table>
+      <tr><th>Measure</th><th>High Verbal (n=8)</th><th>Low Verbal (n=8)</th><th>t</th><th>p</th></tr>
+      <tr><td>Accuracy Rate</td><td>84.84%</td><td>77.20%</td><td>1.83</td><td class="">0.0894</td></tr>
+      <tr><td>Mean RT Correct (ms)</td><td>108.6</td><td>114.1</td><td>-1.10</td><td>0.2977</td></tr>
+      <tr><td>Error Rate Diff</td><td>19.91%</td><td>18.06%</td><td>0.44</td><td>0.6679</td></tr>
+    </table>
+    <p><strong>Note:</strong> Differences are marginal/non-significant, suggesting individual strategy preferences don't strongly predict overall performance in this sample.</p>
+
+
+  <!-- FIGURES -->
+  <div class="section">
+    <h2>Visual Evidence</h2>
+
+    <div class="fig-container">
+      <img src="../figures/01_correlation_matrix.png" alt="Correlation matrix">
+      <div class="fig-caption">
+        <strong>Figure 1: Correlation Matrix</strong><br>
+        2×4 panel showing all four hypothesis tests with scatter plots, regression lines, and correlation statistics.
+      </div>
+    </div>
+
+    <div class="fig-container">
+      <img src="../figures/02_subject_profiles.png" alt="Subject profiles heatmap">
+      <div class="fig-caption">
+        <strong>Figure 2: Subject Profiles (Z-scored)</strong><br>
+        Heatmap showing standardized scores for all subjects across key measures. Reveals heterogeneity in individual patterns.
+      </div>
+    </div>
+
+    <div class="fig-container">
+      <img src="../figures/03_group_comparison.png" alt="Group comparison">
+      <div class="fig-caption">
+        <strong>Figure 3: High vs Low Verbal Engagement</strong><br>
+        Bar plots comparing the top 8 vs bottom 8 subjects on left_temp_diff across accuracy, RT, and error patterns.
+      </div>
+    </div>
+
+    <div class="fig-container">
+      <img src="../figures/04_accuracy_by_left_temp.png" alt="Accuracy by left temporal difference">
+      <div class="fig-caption">
+        <strong>Figure 4: Accuracy vs Left Temporal Difference (H1 Key Test)</strong><br>
+        Scatter plot showing the marginal negative correlation: subjects with larger Acc0-Acc1 differences tend toward lower accuracy.
+      </div>
+    </div>
+  </div>
+
+  <!-- INTERPRETATION -->
+  <div class="section">
+    <h2>Scientific Interpretation</h2>
+
+    <h3>What These Results Tell Us</h3>
+    <div class="insight-box">
+      <p><strong>Individual Differences in Strategy Use:</strong></p>
+      <ul>
+        <li>Subjects vary in how much their left temporal activity differs between errors and correct trials</li>
+        <li>This variability reflects different reliance on verbal/semantic strategies</li>
+        <li>However, these individual preferences do not strongly determine overall success rates</li>
+      </ul>
+
+      <p><strong>Why Correlations Are Weak:</strong></p>
+      <ol>
+        <li><strong>Adaptive strategy use:</strong> Successful subjects may switch strategies trial-by-trial (not captured in overall averages)</li>
+        <li><strong>Multiple routes to success:</strong> Both verbal and visual/spatial processing can lead to correct responses</li>
+        <li><strong>Task complexity:</strong> Performance depends on many factors beyond left temporal engagement (attention, working memory, numerical knowledge, etc.)</li>
+      </ol>
+    </div>
+
+    <h3>Connecting to Trial-Level Findings</h3>
+    <p>These between-subject results complement the within-subject (trial-level) findings:</p>
+    <ul>
+      <li><strong>Trial-level:</strong> More negative left temporal → Slower RT / Missed response (strong, consistent pattern)</li>
+      <li><strong>Subject-level:</strong> Individual differences in verbal engagement exist but don't predict overall performance (weak correlations)</li>
+    </ul>
+
+    <p><strong>Resolution:</strong> The key is <strong>flexibility</strong>. Successful subjects may:</p>
+    <ul>
+      <li>Use verbal strategies when appropriate (small numbers, high uncertainty)</li>
+      <li>Rely on visual/spatial processing when optimal (large numbers, clear displays)</li>
+      <li>Minimize left temporal engagement on average (leading to faster, more accurate responses)</li>
+    </ul>
+  </div>
+
+  <!-- CONCLUSIONS -->
+  <div class="section">
+    <h2>Conclusions</h2>
+
+    <ol>
+      <li>✅ <strong>Marginal evidence (H1)</strong> that larger Acc0-Acc1 left temporal differences associate with lower accuracy (r = -0.395, p = 0.0558)</li>
+      <li>❌ <strong>No evidence (H2-H4)</strong> for other hypothesized between-subject relationships</li>
+      <li>✅ <strong>Individual differences exist</strong> but don't strongly predict performance</li>
+      <li>✅ <strong>Strategy flexibility</strong> may be more important than stable individual preferences</li>
+    </ol>
+
+    <div class="highlight-box">
+      <p><strong>Take-home message:</strong> Left temporal (verbal) processing is <strong>one tool among many</strong>. The most successful subjects don't necessarily avoid it entirely, but rather <strong>use it flexibly and minimize over-reliance</strong> on serial verbal counting strategies.</p>
+    </div>
+  </div>
+
+  <!-- DATA FILES -->
+  <div class="section">
+    <h2>Data Files</h2>
+    <p>All outputs in: <span class="mono">sensor_space_analysis/outputs/between_subjects/</span></p>
+
+    <h3>CSV Files:</h3>
+    <ul>
+      <li><a href="../data/subject_summary.csv">subject_summary.csv</a> — Subject-level aggregates</li>
+      <li><a href="../data/correlations.csv">correlations.csv</a> — All correlation tests with CIs</li>
+      <li><a href="../data/group_comparison.csv">group_comparison.csv</a> — High vs low verbal group stats</li>
+    </ul>
+  </div>
+
+  <hr style="margin-top: 40px;">
+  <p style="text-align: center; color: #7f8c8d; font-size: 0.9em;">
+    <strong>Between-subjects analysis reveals individual differences in verbal strategy use</strong><br>
+    but these differences do not strongly predict overall task performance.
+  </p>
+
+</div>
+</body>
+</html>

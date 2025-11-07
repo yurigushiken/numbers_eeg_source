@@ -229,3 +229,35 @@ ALL_NUMEROSITY_TRANSITIONS:
     # From 6 / To 6
     "63", "64", "65", "36", "46", "56"
   ]
+
+# ============================================================================
+# WITHIN-RANGE TRANSITIONS (PI vs ANS testing)
+# Tests: Whether small-range (1-3) vs large-range (4-6) transitions show
+# differential neural signatures (Cluster 4 hypothesis: right parietal ANS proxy)
+# ============================================================================
+
+# Within-small transitions ONLY (excludes cardinality/no-change)
+# All changes that start AND end within 1-2-3 range
+WITHIN_SMALL_CHANGES:
+  "Within Small (1-2-3)": ["12", "21", "13", "31", "23", "32"]
+
+# Within-large transitions ONLY (excludes cardinality/no-change)
+# All changes that start AND end within 4-5-6 range
+WITHIN_LARGE_CHANGES:
+  "Within Large (4-5-6)": ["45", "54", "46", "64", "56", "65"]
+
+# ============================================================================
+# 2-3 vs 5-6 TRANSITIONS (Addressing confounds from 1 and 4)
+# Tests: Clean PI (2-3) vs ANS (5-6) without boundary confounds
+# Rationale: 1 is too distinct, 4 is ambiguous boundary between PI/ANS
+# ============================================================================
+
+# 2-3 transitions (clearly in subitizing range)
+# Includes changes and cardinality trials
+WITHIN_23:
+  "2-3 Range": ["23", "32", "22", "33"]
+
+# 5-6 transitions (clearly in estimation range)
+# Includes changes and cardinality trials
+WITHIN_56:
+  "5-6 Range": ["56", "65", "55", "66"]

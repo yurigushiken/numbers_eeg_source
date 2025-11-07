@@ -170,6 +170,42 @@ def run_sensor_cluster_test(contrasts, config):
         log.debug("Reordering sensor data to match adjacency channel order.")
     X = X[:, :, picks]
 
+    # 2a. Optional drop of non-scalp/belt channels or explicit exclusions
+    def _default_non_scalp() -> set[str]:
+        return set([
+            "E1", "E8", "E14", "E17", "E21", "E25", "E32", "E38", "E43",
+            "E44", "E48", "E49", "E56", "E63", "E68", "E73", "E81", "E88",
+            "E94", "E99", "E107", "E113", "E114", "E119", "E120", "E121",
+            "E125", "E126", "E127", "E128",
+        ])
+
+    stats_cfg = config.get('stats', {})
+    drop_non_scalp = bool(stats_cfg.get('drop_non_scalp', False))
+    exclude_list = stats_cfg.get('exclude_channels', []) or []
+    exclude_set = set([str(x) for x in exclude_list])
+    if drop_non_scalp:
+        exclude_set |= _default_non_scalp()
+
+    if exclude_set:
+        keep_mask = [ch not in exclude_set for ch in ch_names]
+        if not any(keep_mask):
+            raise ValueError(
+                "After excluding requested channels, no channels remain for clustering."
+            )
+        keep_idx = np.flatnonzero(keep_mask)
+        kept = [ch_names[i] for i in keep_idx]
+        dropped = [nm for nm in ch_names if nm not in kept]
+        log.info(
+            f"Excluding {len(dropped)} channels from sensor stats: {', '.join(dropped)}"
+        )
+        adjacency = csr_matrix(adjacency).tocsr()[keep_idx][:, keep_idx]
+        X = X[:, :, keep_idx]
+        ch_names = kept
+        try:
+            config['stats']['_excluded_channels'] = dropped
+        except Exception:
+            pass
+
     # 2b. Optional ROI restriction
     roi_cfg = (config.get('stats') or {}).get('roi') or {}
     roi_channels = set()
